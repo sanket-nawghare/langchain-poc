@@ -92,6 +92,14 @@ available and HTTP 503 otherwise.
 Backend variables use the `CLINICAL_` prefix and are documented in
 `backend/.env.example`. The frontend supports `VITE_API_BASE_URL`.
 
+The read-only FHIR adapter supports these validated backend settings:
+
+| Variable | Default | Bound |
+|---|---:|---|
+| `CLINICAL_FHIR_REQUEST_TIMEOUT_SECONDS` | `5` | Greater than 0, at most 30 |
+| `CLINICAL_FHIR_MAX_RETRIES` | `2` | 0–3 |
+| `CLINICAL_FHIR_RETRY_BACKOFF_SECONDS` | `0.1` | 0–5 |
+
 Compose supports these shell or root `.env` overrides:
 
 | Variable | Default |

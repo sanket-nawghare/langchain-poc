@@ -11,6 +11,9 @@ def test_safe_local_defaults_require_no_secret() -> None:
 
     assert settings.environment == "local"
     assert settings.api_port == 8000
+    assert settings.fhir_request_timeout_seconds == 5
+    assert settings.fhir_max_retries == 2
+    assert settings.fhir_retry_backoff_seconds == 0.1
     assert settings.llm_provider == "fake"
     assert settings.llm_api_key is None
 
@@ -20,6 +23,13 @@ def test_invalid_port_fails_with_an_actionable_field_error() -> None:
         Settings(_env_file=None, api_port=0)
 
     assert error.value.errors()[0]["loc"] == ("api_port",)
+
+
+def test_unbounded_fhir_retry_configuration_is_rejected() -> None:
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None, fhir_max_retries=4)
+
+    assert error.value.errors()[0]["loc"] == ("fhir_max_retries",)
 
 
 def test_secret_values_are_redacted() -> None:

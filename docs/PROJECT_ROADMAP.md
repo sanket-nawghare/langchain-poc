@@ -112,7 +112,7 @@ records through FHIR.
 - `[x]` Add a repeatable Synthea generation/import workflow.
 - `[x]` Seed a small, reproducibly locked local patient cohort for development
   and tests.
-- `[ ]` Implement a FHIR client with timeouts, retries, and typed errors.
+- `[x]` Implement a FHIR client with timeouts, retries, and typed errors.
 - `[ ]` Implement patient lookup by synthetic patient ID.
 - `[ ]` Retrieve and normalize conditions, allergies, medications, encounters,
   observations, procedures, and lab results.
@@ -374,6 +374,8 @@ when the explanation no longer fits here.
 | 2026-07-27 | Keep generated FHIR Bundles and the detailed runtime manifest out of Git; commit only a non-clinical checksum lock | Avoids repository bloat and generated clinical content while preserving exact reproducibility | Accepted |
 | 2026-07-27 | Convert generated patient POST requests to stable-ID PUTs only at seed time and load checksum-locked provider support batches first | Makes HAPI seeding idempotent while preserving the reviewed generated resources and satisfying conditional references | Accepted |
 | 2026-07-27 | Reset FHIR by replacing only the validated local HAPI PostgreSQL Compose volume | Provides predictable recovery without enabling destructive HAPI operations or deleting Weaviate data | Accepted |
+| 2026-07-27 | Expose only eight read-only resource types through an application-owned async FHIR protocol | Prevents write operations and HTTP/HAPI objects from crossing into workflow-facing code | Accepted |
+| 2026-07-27 | Bound FHIR reads to a 5-second timeout, two retries, 100-resource pages, and same-origin/base-path pagination | Keeps dependency failures and server-issued links constrained and testable | Accepted |
 
 ## Progress Log
 
@@ -381,6 +383,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 1.4 | Completed the read-only FHIR protocol, bounded async HAPI adapter, typed safe failures, confined pagination, deterministic transport tests, and live read/search smoke check | Stop for review before sub-phase 1.5 |
+| 2026-07-27 | Phase 1.4 | Started the application-owned read-only FHIR interface, bounded HAPI transport, typed failures, and deterministic transport tests | Complete the three Phase 1.4 reviewable steps |
 | 2026-07-27 | Phase 1.3 | Completed loopback-only idempotent HAPI seeding, exact resource/patient verification, contamination refusal, confirmed HAPI-only reset, recovery, and pgAdmin safety documentation | Stop for review before sub-phase 1.4 |
 | 2026-07-27 | Phase 1.3 | Started loopback-only HAPI target safeguards, reset, idempotent transaction seeding, and post-import verification | Implement and test the three Phase 1.3 reviewable steps |
 | 2026-07-27 | Phase 1.2 | Kept all generated FHIR content local and ignored; added a metadata-only checksum lock that reproduces and verifies the four reviewed selections exactly | Stop for review before sub-phase 1.3 |

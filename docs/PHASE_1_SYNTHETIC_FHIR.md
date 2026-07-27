@@ -29,7 +29,7 @@ directly into PostgreSQL.
 | 1.1 Cohort contract and provenance | Synthetic cohort purpose, size, scenarios, and provenance are explicit | `[x]` |
 | 1.2 Generation and fixture review | Synthea output is reproducible, reviewed, checksum-locked, and local-only | `[x]` |
 | 1.3 HAPI seed and reset workflow | Developers can import and verify the cohort with one command | `[x]` |
-| 1.4 FHIR client foundation | Backend has a bounded async client with typed failures | `[ ]` |
+| 1.4 FHIR client foundation | Backend has a bounded async client with typed failures | `[x]` |
 | 1.5 Retrieval and normalization | Required resources become minimum-necessary domain summaries | `[ ]` |
 | 1.6 Integration and Phase 1 gate | Seeded patient lookup and failure behavior are verified end to end | `[ ]` |
 
@@ -213,28 +213,66 @@ Verified on 2026-07-27:
 **Purpose:** Isolate FHIR transport behavior behind an application-owned
 interface.
 
+**Status:** `[x]` Complete — ready for review
+
+### Reviewable Implementation Steps
+
+1. **1.4.1 Interface and failures** — define the application-owned read/search
+   contract, supported resource types, search-page model, and safe typed errors.
+2. **1.4.2 HAPI transport** — implement bounded timeouts/retries, FHIR JSON
+   negotiation, strict resource and Bundle parsing, and base-URL confinement.
+3. **1.4.3 Transport verification** — test success, pagination, not-found,
+   timeout, unavailable, retry exhaustion, malformed response, and URL escape
+   behavior without a live server.
+
+Stop at this sub-phase's review checkpoint before normalization work begins.
+
 ### Deliverables
 
-- `[ ]` Define a read-only FHIR capability interface under `app/tools`.
-- `[ ]` Implement an async HAPI adapter under `app/services`.
-- `[ ]` Apply configured timeouts, bounded retries, and safe typed errors.
-- `[ ]` Support FHIR JSON content negotiation and Bundle parsing.
-- `[ ]` Prevent base-URL escape and unconstrained resource paths.
-- `[ ]` Add deterministic transport tests using an HTTP mock or stub server.
-- `[ ]` Ensure errors and logs exclude full resources and credentials.
+- `[x]` Define a read-only FHIR capability interface under `app/tools`.
+- `[x]` Implement an async HAPI adapter under `app/services`.
+- `[x]` Apply configured timeouts, bounded retries, and safe typed errors.
+- `[x]` Support FHIR JSON content negotiation and Bundle parsing.
+- `[x]` Prevent base-URL escape and unconstrained resource paths.
+- `[x]` Add deterministic transport tests using an HTTP mock or stub server.
+- `[x]` Ensure errors and logs exclude full resources and credentials.
 
 ### Acceptance Criteria
 
-- `[ ]` Client behavior does not leak HAPI or HTTP library objects into domain
+- `[x]` Client behavior does not leak HAPI or HTTP library objects into domain
   contracts.
-- `[ ]` Success, not-found, timeout, unavailable, and malformed-response paths
+- `[x]` Success, not-found, timeout, unavailable, and malformed-response paths
   are tested.
-- `[ ]` No write capability is exposed to workflow code.
+- `[x]` No write capability is exposed to workflow code.
 
 ### Review Checkpoint
 
 Review interface size, retry safety, typed errors, URL construction, and log
 redaction.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- Defined an application-owned async protocol for read, search, confined next
+  page, and close operations across the eight approved Phase 1 resource types.
+- Added application-owned FHIR resource/search-page types and distinct request,
+  not-found, timeout, unavailable, and malformed-response errors.
+- Added validated settings for a 5-second request timeout, at most two retries,
+  and bounded exponential backoff.
+- Implemented FHIR JSON negotiation, strict read and searchset parsing,
+  stable-ID validation, a maximum page size of 100, and GET-only transport.
+- Confined server-issued pagination links to the configured origin and FHIR
+  base path; rejected external links, arbitrary resource types, unsafe base
+  URLs, invalid IDs, and unsafe search values before transport.
+- Verified bounded retries for timeouts and retryable HTTP status codes while
+  excluding upstream response bodies and exception details from typed errors.
+- Added deterministic mocked transport coverage for read, search, pagination,
+  not-found, timeout, unavailable, malformed JSON, unexpected resources, and
+  URL/request safeguards.
+- Performed a read-only live smoke check against the seeded local HAPI server:
+  one Patient read and an `_id` search returned the expected type and count
+  without printing patient content.
 
 ---
 

@@ -41,6 +41,7 @@ Rules:
 | Contract | Owner | Purpose |
 |---|---|---|
 | API envelopes | `domain/api.py` | Stable success and safe error shapes |
+| Read-only FHIR capability | `tools/fhir.py` | Supported reads/searches, parsed pages, and safe transport failures |
 | Patient summary and citations | `domain/clinical.py` | Normalized data outside FHIR and retrieval adapters |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
 | Audit event | `domain/audit.py` | Minimal attributable workflow history |
@@ -60,5 +61,8 @@ details.
 - URLs serialize as strings and UUIDs use their canonical representation.
 - Raw SDK response objects, FHIR resources, model responses, and Weaviate
   objects are normalized before entering these contracts.
+- The HAPI adapter returns application-owned JSON/resource and search-page
+  types; HTTP requests, responses, exceptions, and upstream error bodies never
+  leave the service boundary.
 - Audit details accept scalar metadata only; raw patient context and prompt
   bodies do not belong there.
