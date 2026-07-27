@@ -121,8 +121,8 @@ Appointment Medication Clinical QA
 
 ## Vector Database
 
-- Qdrant (recommended)
-- Chroma
+- Weaviate (selected; local Docker image available)
+- Qdrant or Chroma (alternatives)
 
 ---
 
