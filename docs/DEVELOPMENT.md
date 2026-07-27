@@ -70,6 +70,7 @@ Default endpoints:
 | Frontend | `http://localhost:5173` |
 | Backend liveness | `http://localhost:8000/health/live` |
 | Backend readiness | `http://localhost:8000/health/ready` |
+| Synthetic patient summary | `http://localhost:8000/api/v1/patients/{patient_id}/summary` |
 | Backend OpenAPI | `http://localhost:8000/docs` |
 | HAPI FHIR | `http://localhost:8080/fhir` |
 | HAPI PostgreSQL | `127.0.0.1:5434` |
@@ -86,6 +87,25 @@ curl --fail http://localhost:8000/health/ready
 Liveness reports whether FastAPI can serve a request. Readiness checks SQLite,
 HAPI FHIR, and Weaviate. It returns HTTP 200 only when all dependencies are
 available and HTTP 503 otherwise.
+
+After `make fhir-seed`, query one locked synthetic patient through the
+application API:
+
+```bash
+PATIENT_ID=$(jq -r '.fixtures[0].patient_id' \
+  data/synthetic/cohort-manifest.json)
+curl --fail \
+  "http://localhost:8000/api/v1/patients/${PATIENT_ID}/summary"
+```
+
+The route returns an `ApiSuccess[PatientSummary]` envelope. It exposes only
+bounded normalized fields and lists any incomplete bounded collections in
+`truncated_categories`. Invalid IDs return HTTP 400, missing synthetic patients
+404, malformed upstream responses 502, and HAPI timeout or unavailability 503.
+Error bodies use the safe `ApiError` envelope and never include upstream
+payloads or exception details. This unauthenticated endpoint is for the
+loopback-only synthetic development environment, not real patient data or
+production deployment.
 
 ## Configuration
 

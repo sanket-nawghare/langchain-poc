@@ -1,17 +1,19 @@
-# Foundation Architecture
+# Current Architecture
 
 ## Current System
 
-Phase 0 provides runnable application shells, validated contracts, dependency
-readiness checks, and reproducible local infrastructure. It intentionally does
-not load patient data, retrieve FHIR resources, ingest guidelines, call a model,
-or execute a LangGraph workflow.
+Phase 1 adds reproducible synthetic FHIR seeding, a bounded read-only HAPI
+adapter, minimum-necessary normalization, and a normalized patient-summary API
+to the Phase 0 application and infrastructure foundation. Guideline ingestion,
+model calls, and LangGraph execution remain unimplemented.
 
 ```mermaid
 flowchart LR
     Browser["Browser"]
     UI["React / Vite frontend"]
     API["FastAPI backend"]
+    Summary["Patient summary service"]
+    FHIRClient["Read-only FHIR interface"]
     Domain["Provider-neutral domain contracts"]
     SQLite[("SQLite application data")]
     HAPI["HAPI FHIR"]
@@ -21,6 +23,9 @@ flowchart LR
     Browser --> UI
     UI -->|"GET /health/live"| API
     API --> Domain
+    API -->|"GET /api/v1/patients/{id}/summary"| Summary
+    Summary --> FHIRClient --> HAPI
+    Summary --> Domain
     API -->|"readiness probe"| SQLite
     API -->|"GET /fhir/metadata"| HAPI
     API -->|"ready probe"| Weaviate
@@ -49,7 +54,8 @@ flowchart TD
     Workflow -. "Phase 2" .-> Tools
     Workflow -. "Phase 3" .-> RAG
     Workflow --> Domain
-    Tools -. "Phase 1" .-> Services
+    API --> Services
+    Services --> Tools
     RAG -. "Phase 3" .-> Services
     Services --> Domain
     Core --> API
@@ -57,7 +63,9 @@ flowchart TD
 ```
 
 Solid arrows represent current dependencies. Dotted arrows are planned
-extension paths and do not imply implemented behavior.
+extension paths and do not imply implemented behavior. The patient API creates
+a request-scoped HAPI adapter, injects it into the summary service through the
+read-only FHIR interface, and closes the transport after the request.
 
 Boundary rules:
 
@@ -74,13 +82,14 @@ Boundary rules:
 
 ## Local Data Flow
 
-The only application request flow implemented in Phase 0 is health reporting:
+Health reporting and normalized synthetic patient lookup are implemented:
 
 ```mermaid
 sequenceDiagram
     participant Browser
     participant UI as React UI
     participant API as FastAPI
+    participant Summary as Summary service
     participant DB as SQLite
     participant FHIR as HAPI FHIR
     participant Vector as Weaviate
@@ -98,10 +107,24 @@ sequenceDiagram
         end
         API-->>Browser: 200 ready or 503 not_ready
     end
+
+    opt Normalized synthetic patient lookup
+        Browser->>API: GET /api/v1/patients/{id}/summary
+        API->>Summary: get(validated patient ID)
+        Summary->>FHIR: read Patient
+        par Bounded clinical searches
+            Summary->>FHIR: search approved resource types
+        end
+        FHIR-->>Summary: confined parsed pages
+        Summary-->>API: minimum-necessary PatientSummary
+        API-->>Browser: 200 ApiSuccess or safe typed error
+    end
 ```
 
 Readiness responses expose stable dependency states, not raw exceptions,
-credentials, connection strings, or patient resources.
+credentials, connection strings, or patient resources. Patient lookup errors
+similarly expose stable application codes rather than HAPI payloads or
+transport details.
 
 ## Planned Clinical Request Flow
 
@@ -135,10 +158,10 @@ types cross into workflow state.
 
 ## Storage Ownership
 
-| Store | Owner | Phase 0 use | Reset behavior |
+| Store | Owner | Current use | Reset behavior |
 |---|---|---|---|
 | SQLite | Application backend | Readiness probe and future application state | `make app-data-reset CONFIRM=1` |
-| PostgreSQL | HAPI FHIR | HAPI schema and future synthetic FHIR resources | Removed with `make infra-reset CONFIRM=1` |
+| PostgreSQL | HAPI FHIR | HAPI schema and synthetic FHIR cohort | Removed with `make infra-reset CONFIRM=1` |
 | Weaviate | Retrieval adapter | Readiness only; no corpus is loaded | Removed with `make infra-reset CONFIRM=1` |
 
 Docker volumes survive `make infra-down`. Reset commands are intentionally

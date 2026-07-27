@@ -31,7 +31,7 @@ directly into PostgreSQL.
 | 1.3 HAPI seed and reset workflow | Developers can import and verify the cohort with one command | `[x]` |
 | 1.4 FHIR client foundation | Backend has a bounded async client with typed failures | `[x]` |
 | 1.5 Retrieval and normalization | Required resources become minimum-necessary domain summaries | `[x]` |
-| 1.6 Integration and Phase 1 gate | Seeded patient lookup and failure behavior are verified end to end | `[ ]` |
+| 1.6 Integration and Phase 1 gate | Seeded patient lookup and failure behavior are verified end to end | `[x]` |
 
 Every sub-phase follows the review protocol in `PHASE_0_FOUNDATIONS.md`: mark
 in progress, implement only its scope, verify, update logs, mark complete, and
@@ -350,26 +350,74 @@ Verified on 2026-07-27:
 **Purpose:** Prove that a clean developer environment can seed and read the
 synthetic cohort safely.
 
+**Status:** `[x]` Complete — ready for final Phase 1 review
+
+### Reviewable Implementation Steps
+
+1. **1.6.1 API boundary** — expose a read-only normalized patient-summary route
+   with the existing success/error envelopes and safe mappings for every typed
+   FHIR failure.
+2. **1.6.2 End-to-end behavior** — verify success, missing patient, unavailable
+   service, malformed response, pagination, and partial-record behavior through
+   deterministic API tests and the seeded local HAPI service.
+3. **1.6.3 Phase gate and handoff** — run repository and isolated-source
+   quality gates, finish Phase 1 tracking and architecture documentation, and
+   prepare a reviewable Phase 2 sub-phase plan without implementing it.
+
+Stop for final Phase 1 review after all three steps pass.
+
 ### Deliverables
 
-- `[ ]` Add an internal or development API path for normalized patient lookup,
+- `[x]` Add an internal or development API path for normalized patient lookup,
   if needed for verification.
-- `[ ]` Test the seed-to-query flow against local HAPI FHIR.
-- `[ ]` Verify missing patient, unavailable service, malformed resource,
+- `[x]` Test the seed-to-query flow against local HAPI FHIR.
+- `[x]` Verify missing patient, unavailable service, malformed resource,
   pagination, and partial-record behavior.
-- `[ ]` Run all repository quality gates.
-- `[ ]` Verify setup from an isolated clean source copy.
-- `[ ]` Update Phase 1 checklists, decisions, progress, and architecture docs.
-- `[ ]` Prepare the Phase 2 sub-phase plan without implementing LangGraph.
+- `[x]` Run all repository quality gates.
+- `[x]` Verify setup from an isolated clean source copy.
+- `[x]` Update Phase 1 checklists, decisions, progress, and architecture docs.
+- `[x]` Prepare the Phase 2 sub-phase plan without implementing LangGraph.
 
 ### Acceptance Criteria
 
-- `[ ]` `make fhir-seed` loads the expected reviewed cohort.
-- `[ ]` The backend returns a normalized summary for a known synthetic patient.
-- `[ ]` All required failure paths are deterministic and tested.
-- `[ ]` Logs and errors contain no full patient resources.
-- `[ ]` No real patient data is required or included.
+- `[x]` `make fhir-seed` loads the expected reviewed cohort.
+- `[x]` The backend returns a normalized summary for a known synthetic patient.
+- `[x]` All required failure paths are deterministic and tested.
+- `[x]` Logs and errors contain no full patient resources.
+- `[x]` No real patient data is required or included.
 
 ### Review Checkpoint
 
 Perform a final Phase 1 review. Phase 2 starts only after this gate is accepted.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- Added `GET /api/v1/patients/{patient_id}/summary` with a request-scoped HAPI
+  client, normalized `ApiSuccess[PatientSummary]` output, and guaranteed
+  transport cleanup.
+- Mapped invalid ID, missing patient, timeout, unavailable service, malformed
+  upstream response, and generic FHIR client failures to stable safe 400, 404,
+  502, or 503 `ApiError` envelopes without upstream content or exception
+  details.
+- Added 7 deterministic API cases for the success envelope and every mapped
+  FHIR failure, building on transport and normalization coverage for
+  pagination, partial records, and malformed resources.
+- `make fhir-verify` matched the checksum-locked local cohort: 3,733 resources
+  across 20 types and four stable synthetic patients.
+- Queried one locked patient through the new application route against live
+  local HAPI. It returned HTTP 200 with all seven normalized categories and
+  explicitly reported the two capped categories without printing patient
+  content.
+- Queried an unknown synthetic ID through the live application route and
+  received HTTP 404 with the stable `patient_not_found` code.
+- `make check`, `make pre-commit`, and `git diff --check` passed with 53 backend
+  tests, 6 frontend tests, the frontend production build, and Compose
+  validation.
+- Created an isolated source-only copy with no Git history, local tooling,
+  dependencies, caches, environment files, generated patient data, databases,
+  or build output. `make setup` bootstrapped the pinned toolchain and locked
+  dependencies, and `make check` passed there with the same test counts.
+- Updated development and architecture documentation and added
+  `PHASE_2_WORKFLOW_MVP.md`; no LangGraph or Phase 2 behavior was implemented.

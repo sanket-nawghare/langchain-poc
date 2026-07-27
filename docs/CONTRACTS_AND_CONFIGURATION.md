@@ -50,6 +50,11 @@ Rules:
 All durable models reject unknown fields. This prevents misspelled or
 provider-specific data from silently entering persisted workflow state.
 
+The Phase 1 patient route returns `ApiSuccess[PatientSummary]`. Typed FHIR
+failures are translated at the HTTP boundary into `ApiError` with a generated
+request ID, stable machine code, safe message, and optional field. HTTP and
+HAPI exception details or response bodies are never serialized.
+
 The Phase 1 clinical record summary is intentionally small: code, display,
 status, effective time, and an optional compact result value. Patient summaries
 contain separate condition, allergy, medication, encounter, observation,
