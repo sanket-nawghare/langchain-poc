@@ -27,7 +27,7 @@ directly into PostgreSQL.
 
 | Sub-phase | Deliverable | Status |
 |---|---|---|
-| 1.1 Cohort contract and provenance | Synthetic cohort purpose, size, scenarios, and provenance are explicit | `[ ]` |
+| 1.1 Cohort contract and provenance | Synthetic cohort purpose, size, scenarios, and provenance are explicit | `[x]` |
 | 1.2 Generation and fixture review | Synthea output is reproducible, minimal, reviewed, and versioned intentionally | `[ ]` |
 | 1.3 HAPI seed and reset workflow | Developers can import and verify the cohort with one command | `[ ]` |
 | 1.4 FHIR client foundation | Backend has a bounded async client with typed failures | `[ ]` |
@@ -45,26 +45,45 @@ stop for review.
 **Purpose:** Decide what synthetic data is needed before generating a large or
 clinically unfocused dataset.
 
+**Status:** `[x]` Complete — ready for review
+
 ### Deliverables
 
-- `[ ]` Define the small cohort size and representative clinical-QA scenarios.
-- `[ ]` Record Synthea version, configuration, seed, generation date, and
-  license/provenance.
-- `[ ]` Define stable demo aliases without depending on generated display names.
-- `[ ]` List required FHIR R4 resource types and intentionally excluded types.
-- `[ ]` Define fixture review criteria and size limits.
-- `[ ]` Confirm that no source data is real or organization-derived.
+- `[x]` Define the small cohort size and representative clinical-QA scenarios.
+- `[x]` Record Synthea version, configuration, seeds, reference date, generation
+  metadata contract, and license/provenance.
+- `[x]` Define stable demo aliases without depending on generated display names.
+- `[x]` List required FHIR R4 resource types and intentionally excluded types.
+- `[x]` Define fixture review criteria and size limits.
+- `[x]` Confirm that no source data is real or organization-derived.
 
 ### Acceptance Criteria
 
-- `[ ]` Every patient exists to support a documented test or demo scenario.
-- `[ ]` Regeneration inputs are reproducible.
-- `[ ]` Data provenance and synthetic status are reviewable.
+- `[x]` Every planned patient alias supports a documented test or demo scenario.
+- `[x]` Regeneration inputs are reproducible.
+- `[x]` Data provenance and synthetic status are reviewable.
 
 ### Review Checkpoint
 
 Review scenario usefulness, cohort size, resource scope, licensing, and
 synthetic-only compliance before generation.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- Pinned the official Synthea `v4.0.0` release and full Git commit.
+- Recorded Apache-2.0 provenance and exact FHIR R4 transaction exporter
+  settings from the tagged upstream project.
+- Defined a deterministic 100-patient candidate pool and four reviewed aliases:
+  metabolic, cardiovascular, allergy/respiratory, and sparse control.
+- Defined application resource scope, exclusions, deterministic selection,
+  manifest fields, integrity checks, and hard fixture size limits.
+- Confirmed `data/generated/` remains ignored and no patient data was generated,
+  imported, or committed.
+- `make check`, `make pre-commit`, and `git diff --check` passed.
+- Aligned Git, Prettier, and ESLint ignores for the generated Vite cache found
+  during verification.
 
 ---
 

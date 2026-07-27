@@ -54,7 +54,7 @@ This baseline can change through a recorded decision before implementation.
 | Phase | Outcome | Status |
 |---|---|---|
 | 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[x]` |
-| 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[ ]` |
+| 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[~]` |
 | 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[ ]` |
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[ ]` |
 | 4. Safety and Human Review | Risk rules can pause, approve, reject, and resume work | `[ ]` |
@@ -107,7 +107,8 @@ records through FHIR.
 
 ### Scope
 
-- `[ ]` Run HAPI FHIR locally with persistent Docker storage.
+- `[x]` Run HAPI FHIR locally with persistent Docker storage. Completed early
+  in Phase 0.4.
 - `[ ]` Add a repeatable Synthea generation/import workflow.
 - `[ ]` Seed a small, versioned patient cohort for development and tests.
 - `[ ]` Implement a FHIR client with timeouts, retries, and typed errors.
@@ -367,6 +368,7 @@ when the explanation no longer fits here.
 | 2026-07-27 | Bind development services to loopback and keep Weaviate anonymous access local-only | Supports simple local development without presenting the configuration as production-safe | Accepted |
 | 2026-07-27 | Mirror locked local quality gates in separate backend, frontend, and Compose CI jobs | Keeps failures focused while preserving local/CI parity and safe dependency caching | Accepted |
 | 2026-07-27 | Keep external FHIR, retrieval, and model payloads inside adapters | Prevents vendor-specific objects and excessive patient context from entering durable workflow state | Accepted |
+| 2026-07-27 | Pin Synthea v4.0.0 and select four scenario-driven fixtures from deterministic candidate generation | Makes cohort provenance reproducible while keeping committed patient data small and purposeful | Accepted |
 
 ## Progress Log
 
@@ -374,6 +376,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 1.1 | Completed the four-patient cohort contract, pinned Synthea provenance and deterministic inputs, and defined resource, manifest, review, and size requirements; no patient data generated | Stop for review before sub-phase 1.2 |
+| 2026-07-27 | Phase 1.1 | Started the synthetic cohort contract and provenance work on the Phase 1 branch | Pin Synthea inputs and define reviewed cohort scenarios |
 | 2026-07-27 | Phase 0 | Completed all foundation scope and exit criteria; isolated setup, local quality gates, smoke tests, and the GitHub Quality workflow pass | Create the Phase 1 branch, then begin sub-phase 1.1 |
 | 2026-07-27 | Phase 0.6 | Completed local foundation documentation and isolated source verification; fixed configurable dev ports and frontend argument forwarding found by startup smoke tests | Commit and push Phase 0.6, then confirm the GitHub Quality workflow is green |
 | 2026-07-27 | Phase 0.6 | Started the documentation, clean-environment verification, and foundation handoff gate | Complete documentation, verify isolated setup, and prepare Phase 1 plan |

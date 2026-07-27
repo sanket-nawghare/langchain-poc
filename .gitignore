@@ -23,6 +23,7 @@ build/
 node_modules/
 frontend/dist/
 frontend/coverage/
+frontend/.vite/
 *.tsbuildinfo
 
 # Application data
