@@ -14,6 +14,7 @@ __pycache__/
 .python/
 .uv-cache/
 .pnpm-store/
+.pre-commit-cache/
 dist/
 build/
 *.egg-info/

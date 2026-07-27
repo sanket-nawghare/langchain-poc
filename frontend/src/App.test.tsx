@@ -21,7 +21,9 @@ describe("App", () => {
     expect(screen.getByText(/not a medical device/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent("Backend: available");
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Backend: available",
+      );
     });
   });
 
@@ -42,4 +44,3 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 });
-

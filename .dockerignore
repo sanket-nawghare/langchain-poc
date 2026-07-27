@@ -1,0 +1,6 @@
+*
+!docker/
+!docker/hapi/
+!docker/hapi/Dockerfile
+!docker/hapi/application.yaml
+

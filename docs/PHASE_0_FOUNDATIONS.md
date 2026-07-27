@@ -25,8 +25,8 @@ workflow, or clinical response generation.
 | 0.1 Scope and technical decisions | MVP boundaries and foundation choices are explicit | `[x]` |
 | 0.2 Repository and application skeletons | Backend and frontend have an intentional structure | `[x]` |
 | 0.3 Contracts and configuration | Typed shared concepts and safe configuration exist | `[x]` |
-| 0.4 Local infrastructure | Required services have reproducible local configuration | `[ ]` |
-| 0.5 Quality automation | Local and CI quality gates are operational | `[ ]` |
+| 0.4 Local infrastructure | Required services have reproducible local configuration | `[x]` |
+| 0.5 Quality automation | Local and CI quality gates are operational | `[x]` |
 | 0.6 Documentation and foundation gate | Clean-checkout setup is verified and documented | `[ ]` |
 
 ## Review Protocol
@@ -180,34 +180,51 @@ Verified on 2026-07-27:
 **Purpose:** Make local dependencies reproducible while reusing the available
 Weaviate image.
 
+**Status:** `[x]` Complete — ready for review
+
 ### Deliverables
 
-- `[ ]` Inspect and record the available Weaviate image repository, tag, and
+- `[x]` Inspect and record the available Weaviate image repository, tag, and
   version before writing service configuration.
-- `[ ]` Add Docker Compose configuration for Weaviate with health checks and a
+- `[x]` Add Docker Compose configuration for Weaviate with health checks and a
   named persistent volume.
-- `[ ]` Add HAPI FHIR service configuration with health checks and persistent
+- `[x]` Add HAPI FHIR service configuration with health checks and persistent
   storage.
-- `[ ]` Document SQLite file location and volume behavior.
-- `[ ]` Configure ports and service URLs through environment variables.
-- `[ ]` Avoid enabling anonymous or externally exposed production-style access
+- `[x]` Document SQLite file location and volume behavior.
+- `[x]` Configure ports and service URLs through environment variables.
+- `[x]` Avoid enabling anonymous or externally exposed production-style access
   without documenting the local-only tradeoff.
-- `[ ]` Add backend readiness checks for configured dependencies without making
+- `[x]` Add backend readiness checks for configured dependencies without making
   the basic liveness endpoint depend on them.
-- `[ ]` Document service start, stop, health, and reset commands.
+- `[x]` Document service start, stop, health, and reset commands.
 
 ### Acceptance Criteria
 
-- `[ ]` Docker Compose configuration validates.
-- `[ ]` Weaviate and HAPI FHIR reach healthy states locally.
-- `[ ]` Backend readiness reports dependency availability accurately.
-- `[ ]` Data survives an ordinary service restart.
-- `[ ]` Resetting development data requires an explicit, documented action.
+- `[x]` Docker Compose configuration validates.
+- `[x]` Weaviate and HAPI FHIR reach healthy states locally.
+- `[x]` Backend readiness reports dependency availability accurately.
+- `[x]` Data survives an ordinary service restart.
+- `[x]` Resetting development data requires an explicit, documented action.
 
 ### Review Checkpoint
 
 Review image versions, ports, persistence, health checks, resource use, and
 local security assumptions before automating quality gates.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- `docker compose config --quiet` passed.
+- Weaviate 1.36.0, HAPI FHIR 8.10.0, and PostgreSQL 16 reached healthy state.
+- HAPI `/fhir/metadata` and Weaviate `/.well-known/ready` returned HTTP 200.
+- Backend `/health/ready` returned HTTP 200 and reported SQLite, HAPI FHIR, and
+  Weaviate available.
+- Backend tests cover both ready and HTTP 503 failure behavior.
+- All containers returned to healthy after an ordinary restart.
+- HAPI's PostgreSQL schema remained present after restart with 58 public tables.
+- `make check` passed: 13 backend tests, 6 frontend tests, frontend build, and
+  Compose validation.
 
 ---
 
@@ -216,31 +233,48 @@ local security assumptions before automating quality gates.
 **Purpose:** Make the expected engineering standard executable locally and in
 continuous integration.
 
+**Status:** `[x]` Complete — ready for review
+
 ### Deliverables
 
-- `[ ]` Configure backend formatting, linting, static typing, and tests.
-- `[ ]` Configure frontend formatting, linting, type checking, and tests.
+- `[x]` Configure backend formatting, linting, static typing, and tests.
+- `[x]` Configure frontend formatting, linting, type checking, and tests.
 - `[x]` Add repository-level commands for common setup and verification tasks.
-- `[ ]` Add pre-commit checks that are fast enough for normal development.
-- `[ ]` Add CI jobs for backend and frontend checks.
-- `[ ]` Add a Docker Compose configuration validation check.
-- `[ ]` Enable dependency caching without caching secrets or generated patient
+- `[x]` Add pre-commit checks that are fast enough for normal development.
+- `[x]` Add CI jobs for backend and frontend checks.
+- `[x]` Add a Docker Compose configuration validation check.
+- `[x]` Enable dependency caching without caching secrets or generated patient
   data.
-- `[ ]` Document the required checks for every sub-phase.
+- `[x]` Document the required checks for every sub-phase.
 
 ### Acceptance Criteria
 
-- `[ ]` A single documented command runs all local quality checks.
-- `[ ]` Backend lint, types, and tests pass.
-- `[ ]` Frontend lint, types, and tests pass.
-- `[ ]` CI runs the same essential checks as local development.
-- `[ ]` A deliberately failing test or lint violation makes the relevant gate
+- `[x]` A single documented command runs all local quality checks.
+- `[x]` Backend lint, types, and tests pass.
+- `[x]` Frontend lint, types, and tests pass.
+- `[x]` CI runs the same essential checks as local development.
+- `[x]` A deliberately failing test or lint violation makes the relevant gate
   fail.
 
 ### Review Checkpoint
 
 Review tool strictness, local runtime, CI parity, and whether checks produce
 actionable failures.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- `make check` passed Ruff formatting and linting, strict mypy, 13 backend
+  tests, Prettier, ESLint, TypeScript, 6 frontend tests, the Vite production
+  build, and Docker Compose validation.
+- `make pre-commit` passed all backend, frontend, and Compose hooks using the
+  ignored project-local cache.
+- A temporary unused Python import made `make backend-lint` fail with an
+  actionable Ruff `F401` error. Removing it restored a passing gate.
+- Frozen `uv` and pnpm installs passed after their lockfiles were updated.
+- CI uses lockfile-keyed dependency caches and excludes environment files,
+  databases, generated synthetic data, build output, and secrets.
 
 ---
 

@@ -82,12 +82,12 @@ Implementation is divided into stop-and-review checkpoints in the
   tools, RAG, data, tests, and Docker assets.
 - `[x]` Select the Python/package manager and Node/package manager.
 - `[x]` Add configuration loading and a documented `.env.example`.
-- `[ ]` Add formatting, linting, type checking, unit test, and pre-commit setup.
-- `[ ]` Add Docker Compose services for the backend dependencies.
+- `[x]` Add formatting, linting, type checking, unit test, and pre-commit setup.
+- `[x]` Add Docker Compose services for the backend dependencies.
 - `[x]` Define the core `WorkflowState` as a typed schema.
 - `[x]` Define error, API response, audit event, and citation schemas.
 - `[ ]` Create architecture and data-flow diagrams.
-- `[ ]` Add CI for backend and frontend quality checks.
+- `[x]` Add CI for backend and frontend quality checks.
 - `[x]` Add a security/privacy policy for synthetic-only development.
 
 ### Exit Criteria
@@ -363,6 +363,8 @@ when the explanation no longer fits here.
 | 2026-07-27 | Build clinical QA before appointment and medication intents | Delivers a thin, testable vertical slice first | Accepted |
 | 2026-07-27 | Use Python 3.12 with `uv` and Node.js 24 with pnpm | Provides reproducible dependency management and a conservative Python compatibility target | Accepted |
 | 2026-07-27 | Keep workflow, tools, RAG, and adapters within one backend package | Makes dependency direction explicit while retaining provider-neutral interfaces | Accepted |
+| 2026-07-27 | Back HAPI FHIR with PostgreSQL 16 | PostgreSQL is already available locally, is supported by HAPI, and provides explicit durable storage | Accepted |
+| 2026-07-27 | Bind development services to loopback and keep Weaviate anonymous access local-only | Supports simple local development without presenting the configuration as production-safe | Accepted |
 
 ## Progress Log
 
@@ -370,6 +372,11 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 0.5 | Completed local backend/frontend quality gates, project-local pre-commit hooks, lockfile-based CI jobs and safe dependency caching; verified a deliberate lint failure is rejected | Stop for review before sub-phase 0.6 |
+| 2026-07-27 | Phase 0.5 | Started backend/frontend quality gates, pre-commit hooks, and CI automation | Verify every gate and stop for review |
+| 2026-07-27 | Phase 0.4 | Exposed HAPI PostgreSQL on loopback port 5434 for local pgAdmin access and documented the connection settings | Stop for review before sub-phase 0.5 |
+| 2026-07-27 | Phase 0.4 | Completed pinned local infrastructure, persistence, health checks, lifecycle commands, and dependency-aware backend readiness | Stop for review before sub-phase 0.5 |
+| 2026-07-27 | Phase 0.4 | Started local infrastructure and dependency-readiness work | Inventory local images and implement reproducible services |
 | 2026-07-27 | Phase 0.3 | Moved backend environment template to `backend/.env.example` and documented the ignored `backend/.env` local copy | Review before sub-phase 0.4 |
 | 2026-07-27 | Phase 0.3 | Completed validated configuration and strict provider-neutral workflow, API, clinical, safety, and audit contracts | Stop for review before sub-phase 0.4 |
 | 2026-07-27 | Phase 0.3 | Started typed contracts and validated configuration | Implement schemas and configuration, then verify their failure behavior |

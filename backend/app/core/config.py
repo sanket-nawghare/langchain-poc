@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     environment: Literal["local", "test", "staging", "production"] = "local"
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
+    dependency_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:5173",

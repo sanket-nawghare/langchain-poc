@@ -10,14 +10,17 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115,<1",
+    "httpx>=0.28,<1",
     "pydantic-settings>=2.7,<3",
     "uvicorn[standard]>=0.34,<1",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28,<1",
+    "mypy>=2.3,<3",
+    "pre-commit>=4.6,<5",
     "pytest>=8.3,<10",
+    "ruff>=0.15.22,<0.16",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -26,3 +29,24 @@ packages = ["app"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "B",
+    "E",
+    "F",
+    "I",
+    "SIM",
+    "UP",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+show_error_codes = true
+pretty = true
+plugins = ["pydantic.mypy"]

@@ -1,8 +1,11 @@
-"""Process health endpoints."""
+"""Process liveness and dependency readiness endpoints."""
 
-from typing import Literal, TypedDict
+from typing import Annotated, Literal, TypedDict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Response, status
+
+from app.core.config import get_settings
+from app.services.readiness import ReadinessReport, check_dependencies
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -20,13 +23,23 @@ async def liveness() -> HealthResponse:
     return {"status": "ok"}
 
 
-@router.get("/ready")
-async def readiness() -> HealthResponse:
-    """Return foundation readiness.
+async def readiness_report() -> ReadinessReport:
+    """Resolve dependency readiness for injection and test replacement."""
 
-    Dependency-aware checks are introduced with local infrastructure in
-    Sub-phase 0.4.
-    """
+    return await check_dependencies(get_settings())
 
-    return {"status": "ok"}
 
+@router.get(
+    "/ready",
+    response_model=ReadinessReport,
+    responses={503: {"model": ReadinessReport}},
+)
+async def readiness(
+    response: Response,
+    report: Annotated[ReadinessReport, Depends(readiness_report)],
+) -> ReadinessReport:
+    """Return 200 only when configured local dependencies are available."""
+
+    if report.status != "ready":
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return report

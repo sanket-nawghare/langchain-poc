@@ -30,4 +30,3 @@ export function createFrontendConfig(
 }
 
 export const config = createFrontendConfig(import.meta.env);
-

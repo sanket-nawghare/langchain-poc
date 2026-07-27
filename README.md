@@ -13,12 +13,19 @@ After installing Python 3, pnpm, and Node.js 24:
 
 ```bash
 make setup
+make infra-up
 make dev
 ```
 
 `make setup` bootstraps a pinned, project-local `uv`, which then installs the
 managed Python 3.12 runtime and locked backend dependencies. Run `make help` to
 list the available development commands.
+
+Run every required local quality gate with:
+
+```bash
+make check
+```
 
 Project documents:
 
@@ -29,3 +36,5 @@ Project documents:
 - [Foundation decisions](docs/FOUNDATION_DECISIONS.md)
 - [Contracts and configuration](docs/CONTRACTS_AND_CONFIGURATION.md)
 - [Development safety and data policy](docs/SAFETY_AND_DATA_POLICY.md)
+- [Quality gates and CI](docs/QUALITY_GATES.md)
+- [Local infrastructure](docker/README.md)

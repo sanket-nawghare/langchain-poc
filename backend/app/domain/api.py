@@ -1,13 +1,9 @@
 """Transport-neutral API success and error envelopes."""
 
-from typing import Generic, TypeVar
-
 from app.domain.base import ContractModel, CorrelationId, NonEmptyString
 
-PayloadT = TypeVar("PayloadT")
 
-
-class ApiSuccess(ContractModel, Generic[PayloadT]):
+class ApiSuccess[PayloadT](ContractModel):
     """Successful API result with a request correlation identifier."""
 
     request_id: CorrelationId
@@ -27,4 +23,3 @@ class ApiError(ContractModel):
 
     request_id: CorrelationId
     error: ErrorDetail
-

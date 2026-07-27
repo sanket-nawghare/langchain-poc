@@ -68,11 +68,6 @@ class WorkflowState(ContractModel):
 
         if self.safety_result is None:
             return self
-        if (
-            self.requires_human_review
-            != self.safety_result.requires_human_review
-        ):
-            raise ValueError(
-                "requires_human_review must match safety_result"
-            )
+        if self.requires_human_review != self.safety_result.requires_human_review:
+            raise ValueError("requires_human_review must match safety_result")
         return self

@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://hapi-db:5432/${HAPI_DB_NAME:hapi}
+    username: ${HAPI_DB_USER:hapi}
+    password: ${HAPI_DB_PASSWORD:hapi-local-only}
+    driverClassName: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
+      hibernate.search.enabled: false
+
+hapi:
+  fhir:
+    fhir_version: R4
+    cors:
+      enabled: false
+    tester:
+      home:
+        name: Local synthetic-data server
+        server_address: http://localhost:8080/fhir
+        refuse_to_fetch_third_party_urls: true

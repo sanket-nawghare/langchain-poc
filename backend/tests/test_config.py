@@ -30,4 +30,3 @@ def test_secret_values_are_redacted() -> None:
 
     assert "do-not-print-this-secret" not in repr(settings)
     assert "**********" in repr(settings)
-

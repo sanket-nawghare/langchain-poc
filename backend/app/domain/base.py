@@ -40,4 +40,3 @@ class IdentifiedAt(ContractModel):
 
     id: UUID
     created_at: UtcTimestamp = Field(description="Timezone-aware UTC timestamp")
-

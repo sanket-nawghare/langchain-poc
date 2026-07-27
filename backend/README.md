@@ -17,5 +17,11 @@ Git and must not be committed.
 The initial endpoints are:
 
 - `GET /health/live` — confirms that the API process is running.
-- `GET /health/ready` — confirms foundation readiness. Dependency-aware checks
-  will be added in Phase 0.4.
+- `GET /health/ready` — confirms SQLite, HAPI FHIR, and Weaviate readiness.
+
+Run all backend formatting, linting, typing, and test checks from the repository
+root:
+
+```bash
+make backend-check
+```

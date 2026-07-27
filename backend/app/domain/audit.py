@@ -1,7 +1,6 @@
 """Audit-event contracts."""
 
 from enum import StrEnum
-from typing import TypeAlias
 
 from pydantic import Field
 
@@ -14,7 +13,7 @@ from app.domain.base import (
     WorkflowId,
 )
 
-AuditValue: TypeAlias = str | int | float | bool | None
+type AuditValue = str | int | float | bool | None
 
 
 class AuditEventType(StrEnum):

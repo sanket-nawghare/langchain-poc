@@ -76,7 +76,8 @@ def test_workflow_state_rejects_naive_timestamps() -> None:
 
 def test_contracts_reject_unknown_fields() -> None:
     with pytest.raises(ValidationError, match="unexpected"):
-        Citation(
+        # The invalid keyword is intentional to exercise runtime validation.
+        Citation(  # type: ignore[call-arg]
             document_id="guideline-1",
             chunk_id="chunk-1",
             title="Synthetic test guideline",
@@ -124,4 +125,3 @@ def test_api_error_contains_safe_stable_fields() -> None:
             "field": "patient_id",
         },
     }
-
