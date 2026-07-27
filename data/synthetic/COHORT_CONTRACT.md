@@ -234,6 +234,9 @@ Git retains only `cohort-lock.json`, which contains:
 - Generator version, commit, execution artifact digest, deterministic inputs,
   and configuration checksum.
 - One entry per stable alias with SHA-256 checksum, byte size, and entry count.
+- Two supporting-batch entries with aliases, checksums, sizes, entry counts,
+  and resource-type counts for Organization, Location, and Practitioner
+  dependencies.
 
 The lock must not contain patient IDs, display names, addresses, clinical
 codes, resource IDs, selection evidence, narratives, or complete resources.

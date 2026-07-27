@@ -141,8 +141,28 @@ make app-data-reset CONFIRM=1
 ```
 
 FHIR resources must be created through the HAPI FHIR API, never by inserting
-into HAPI's PostgreSQL tables. Synthetic patient generation and repeatable
-seeding begin in Phase 1.
+into HAPI's PostgreSQL tables. Generate missing local synthetic files, seed the
+locked cohort, and verify it with:
+
+```bash
+make fhir-seed
+make fhir-verify
+```
+
+`fhir-seed` is idempotent for an empty or exactly matching local server. It
+refuses unexpected or partial contents and asks for the guarded reset:
+
+```bash
+make fhir-reset CONFIRM=1
+make fhir-seed
+```
+
+FHIR write and reset commands accept only explicit loopback `/fhir` URLs.
+`fhir-reset` validates the target and exact Compose volume label, then replaces
+only the HAPI PostgreSQL volume; Weaviate data is retained.
+
+pgAdmin is inspection-only for the HAPI-managed schema. Do not insert, update,
+delete, truncate, or migrate HAPI tables through pgAdmin or direct SQL.
 
 ## Troubleshooting
 
@@ -202,8 +222,9 @@ corresponding lockfile, and commit both files together.
 ### Local state must be reset
 
 Use the guarded reset targets above. Do not delete repository-wide directories
-or Docker volumes manually. Resetting infrastructure removes HAPI and Weaviate
-data; resetting application data removes only the local SQLite files.
+or Docker volumes manually. `fhir-reset` removes only HAPI FHIR data,
+`infra-reset` removes HAPI and Weaviate data, and `app-data-reset` removes only
+the local SQLite files.
 
 ## Development Constraints
 

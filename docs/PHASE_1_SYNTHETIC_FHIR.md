@@ -28,7 +28,7 @@ directly into PostgreSQL.
 |---|---|---|
 | 1.1 Cohort contract and provenance | Synthetic cohort purpose, size, scenarios, and provenance are explicit | `[x]` |
 | 1.2 Generation and fixture review | Synthea output is reproducible, reviewed, checksum-locked, and local-only | `[x]` |
-| 1.3 HAPI seed and reset workflow | Developers can import and verify the cohort with one command | `[ ]` |
+| 1.3 HAPI seed and reset workflow | Developers can import and verify the cohort with one command | `[x]` |
 | 1.4 FHIR client foundation | Backend has a bounded async client with typed failures | `[ ]` |
 | 1.5 Retrieval and normalization | Required resources become minimum-necessary domain summaries | `[ ]` |
 | 1.6 Integration and Phase 1 gate | Seeded patient lookup and failure behavior are verified end to end | `[ ]` |
@@ -137,7 +137,7 @@ Verified on 2026-07-27:
   selected patient ID, fixture checksum, entry count, and byte size exactly.
 - Added focused unit coverage for selection, local-manifest and checksum-lock
   verification, checksum drift, and unresolved-reference rejection.
-- No fixture has been imported into HAPI; that remains Phase 1.3 work.
+- No fixture had been imported into HAPI at the Phase 1.2 checkpoint.
 
 ---
 
@@ -145,26 +145,66 @@ Verified on 2026-07-27:
 
 **Purpose:** Make synthetic FHIR loading safe, repeatable, and observable.
 
+**Status:** `[x]` Complete — ready for review
+
+### Reviewable Implementation Steps
+
+1. **1.3.1 Target and reset safeguards** — restrict writes to the loopback HAPI
+   endpoint, require explicit reset confirmation, and reset only HAPI's named
+   PostgreSQL volume.
+2. **1.3.2 Idempotent transaction seed** — verify the local checksum-locked
+   cohort, reject unexpected server contents, and POST the four transaction
+   Bundles through the FHIR API.
+3. **1.3.3 Post-seed verification** — verify transaction responses, exact
+   resource counts, stable patient IDs, repeat behavior, unavailable-server
+   failure, and reset recovery.
+
+Stop at this sub-phase's review checkpoint after all three steps pass.
+
 ### Deliverables
 
-- `[ ]` Import transaction bundles through the HAPI FHIR REST API.
-- `[ ]` Add `make fhir-seed` with idempotent or explicitly reset-first behavior.
-- `[ ]` Add a guarded FHIR reset command that cannot target an arbitrary server.
-- `[ ]` Verify imported resource counts and stable patient identifiers.
-- `[ ]` Fail clearly on unavailable HAPI, malformed bundles, or partial import.
-- `[ ]` Document pgAdmin as inspection-only for the HAPI-managed schema.
+- `[x]` Import transaction bundles through the HAPI FHIR REST API.
+- `[x]` Add `make fhir-seed` with idempotent or explicitly reset-first behavior.
+- `[x]` Add a guarded FHIR reset command that cannot target an arbitrary server.
+- `[x]` Verify imported resource counts and stable patient identifiers.
+- `[x]` Fail clearly on unavailable HAPI, malformed bundles, or partial import.
+- `[x]` Document pgAdmin as inspection-only for the HAPI-managed schema.
 
 ### Acceptance Criteria
 
-- `[ ]` A developer can seed the reviewed cohort with one command.
-- `[ ]` Re-running the documented workflow has predictable results.
-- `[ ]` Verification proves the expected synthetic patients are queryable.
-- `[ ]` No direct PostgreSQL inserts are used.
+- `[x]` A developer can seed the reviewed cohort with one command.
+- `[x]` Re-running the documented workflow has predictable results.
+- `[x]` Verification proves the expected synthetic patients are queryable.
+- `[x]` No direct PostgreSQL inserts are used.
 
 ### Review Checkpoint
 
 Review target safeguards, idempotency, error recovery, and verification output
 before adding application retrieval.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- Restricted all seed, verify, and reset targets to explicit loopback HTTP
+  endpoints with the exact `/fhir` path; unsafe schemes, hosts, credentials,
+  paths, queries, fragments, and missing ports are rejected.
+- Added two checksum-locked, ignored supporting batches for Synthea's
+  conditional Organization and Practitioner references.
+- Repeated clean Synthea generation and matched the checksum lock for all four
+  patient Bundles and both supporting Bundles.
+- Converted patient transaction POST requests in memory to stable-ID PUT
+  requests without modifying locked resources.
+- Seeded six Bundles through HAPI's FHIR API and verified 3,733 unique resources
+  across 20 resource types plus four stable patient IDs.
+- Re-ran the seed with `created=0` and `updated=3733`; counts and patient
+  queries remained unchanged.
+- Confirmed an unavailable loopback server fails clearly and unexpected HAPI
+  data is refused before any cohort Bundle is posted.
+- Confirmed the reset refuses without `CONFIRM=1`, validates the target and
+  Compose volume label, replaces only `clinical-workflow-hapi-postgres`, retains
+  Weaviate, verifies empty counts, and supports a clean reseed.
+- Confirmed no direct PostgreSQL write is used; pgAdmin remains inspection-only.
 
 ---
 

@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from scripts.synthetic_cohort import (
     CohortError,
+    add_support_bundles,
     build_manifest,
     load_candidate,
     select_candidates,
@@ -110,6 +111,41 @@ def required_candidates(tmp_path: Path) -> list[Path]:
     return paths
 
 
+def write_support_bundles(tmp_path: Path) -> None:
+    specifications = {
+        "hospitalInformation1.json": (
+            ("Organization", "organization-1"),
+            ("Location", "location-1"),
+        ),
+        "practitionerInformation1.json": (("Practitioner", "practitioner-1"),),
+    }
+    for filename, resources in specifications.items():
+        entries = [
+            {
+                "resource": {
+                    "resourceType": resource_type,
+                    "id": resource_id,
+                },
+                "request": {
+                    "method": "POST",
+                    "url": resource_type,
+                    "ifNoneExist": f"identifier=synthetic|{resource_id}",
+                },
+            }
+            for resource_type, resource_id in resources
+        ]
+        (tmp_path / filename).write_text(
+            json.dumps(
+                {
+                    "resourceType": "Bundle",
+                    "type": "batch",
+                    "entry": entries,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+
 def test_selects_one_distinct_patient_per_contract_scenario(
     tmp_path: Path,
 ) -> None:
@@ -161,6 +197,8 @@ def test_manifest_and_committed_fixture_verification(
     }
     fixture_dir = tmp_path / "fhir"
     manifest = build_manifest(generation_metadata, selected, fixture_dir)
+    write_support_bundles(tmp_path)
+    add_support_bundles(manifest, tmp_path, fixture_dir)
     manifest_path = tmp_path / "cohort-manifest.json"
     manifest_path.write_text(
         f"{json.dumps(manifest, indent=2, sort_keys=True)}\n",
@@ -192,6 +230,19 @@ def test_manifest_and_committed_fixture_verification(
                 for key in ("alias", "sha256", "size_bytes", "entry_count")
             }
             for fixture in manifest["fixtures"]
+        ],
+        "support_bundles": [
+            {
+                key: support[key]
+                for key in (
+                    "alias",
+                    "sha256",
+                    "size_bytes",
+                    "entry_count",
+                    "resource_counts",
+                )
+            }
+            for support in manifest["support_bundles"]
         ],
     }
     lock_path = tmp_path / "cohort-lock.json"

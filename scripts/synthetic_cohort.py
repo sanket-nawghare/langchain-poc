@@ -20,6 +20,20 @@ MAX_FIXTURE_BYTES = 8 * 1024 * 1024
 MAX_FIXTURE_ENTRIES = 1000
 MAX_COHORT_BYTES = 24 * 1024 * 1024
 EXPECTED_CANDIDATES = 100
+SUPPORT_BUNDLES = (
+    (
+        "organizations",
+        "hospitalInformation*.json",
+        "support-organizations.json",
+        frozenset({"Organization", "Location"}),
+    ),
+    (
+        "practitioners",
+        "practitionerInformation*.json",
+        "support-practitioners.json",
+        frozenset({"Practitioner"}),
+    ),
+)
 
 FORBIDDEN_RESOURCE_TYPES = {
     "Binary",
@@ -426,6 +440,89 @@ def load_candidates(candidate_dir: Path) -> list[Candidate]:
     return sorted(candidates, key=lambda candidate: candidate.patient_id)
 
 
+def load_support_bundle(
+    path: Path,
+    expected_resource_types: frozenset[str],
+) -> JsonObject:
+    """Validate one Synthea supporting-resource batch Bundle."""
+
+    bundle = _read_json(path)
+    raw_entries = bundle.get("entry")
+    if (
+        bundle.get("resourceType") != "Bundle"
+        or bundle.get("type") != "batch"
+        or not isinstance(raw_entries, list)
+        or not raw_entries
+    ):
+        raise CohortError(f"{path.name}: invalid supporting batch Bundle")
+
+    actual_resource_types: set[str] = set()
+    for index, raw_entry in enumerate(raw_entries):
+        if not isinstance(raw_entry, dict):
+            raise CohortError(f"{path.name}: invalid support entry {index}")
+        resource = raw_entry.get("resource")
+        request = raw_entry.get("request")
+        if not isinstance(resource, dict) or not isinstance(request, dict):
+            raise CohortError(f"{path.name}: incomplete support entry {index}")
+        typed_resource = cast(JsonObject, resource)
+        resource_type = _resource_type(typed_resource)
+        resource_id = _resource_id(typed_resource)
+        if (
+            resource_type not in expected_resource_types
+            or not resource_id
+            or request.get("method") != "POST"
+            or request.get("url") != resource_type
+            or not isinstance(request.get("ifNoneExist"), str)
+        ):
+            raise CohortError(f"{path.name}: unsafe support entry {index}")
+        actual_resource_types.add(resource_type)
+
+    if actual_resource_types != expected_resource_types:
+        raise CohortError(f"{path.name}: unexpected supporting resource scope")
+    _validate_safe_content(bundle, path.name)
+    return bundle
+
+
+def add_support_bundles(
+    manifest: JsonObject,
+    candidate_dir: Path,
+    fixture_dir: Path,
+) -> None:
+    """Copy deterministic provider dependencies into ignored local storage."""
+
+    support_metadata: list[JsonObject] = []
+    for alias, pattern, destination_name, resource_types in SUPPORT_BUNDLES:
+        matches = sorted(candidate_dir.glob(pattern))
+        if len(matches) != 1:
+            raise CohortError(f"expected exactly one {alias} support Bundle")
+        source = matches[0]
+        bundle = load_support_bundle(source, resource_types)
+        destination = fixture_dir / destination_name
+        shutil.copyfile(source, destination)
+        raw_entries = cast(list[object], bundle["entry"])
+        counts = {
+            resource_type: sum(
+                1
+                for raw_entry in raw_entries
+                if isinstance(raw_entry, dict)
+                and isinstance(raw_entry.get("resource"), dict)
+                and raw_entry["resource"].get("resourceType") == resource_type
+            )
+            for resource_type in sorted(resource_types)
+        }
+        support_metadata.append(
+            {
+                "alias": alias,
+                "path": f"fhir/{destination.name}",
+                "sha256": _sha256(destination),
+                "size_bytes": destination.stat().st_size,
+                "entry_count": len(raw_entries),
+                "resource_counts": counts,
+            }
+        )
+    manifest["support_bundles"] = support_metadata
+
+
 def _is_relevant_evidence(
     scenario: Scenario,
     resource_type: str,
@@ -648,6 +745,7 @@ def select_and_write(args: argparse.Namespace) -> None:
     ]
     selected = select_candidates(candidates)
     manifest = build_manifest(generation_metadata, selected, fixture_dir)
+    add_support_bundles(manifest, candidate_dir, fixture_dir)
     _verify_manifest_lock(manifest, lock)
     _write_json(manifest_path, manifest)
 
@@ -657,11 +755,15 @@ def _verify_manifest_lock(manifest: JsonObject, lock: JsonObject) -> None:
 
     raw_locked_fixtures = lock.get("fixtures")
     raw_manifest_fixtures = manifest.get("fixtures")
+    raw_locked_support = lock.get("support_bundles")
+    raw_manifest_support = manifest.get("support_bundles")
     if (
         lock.get("schema_version") != 1
         or lock.get("content") != "synthetic-cohort-checksums-only"
         or not isinstance(raw_locked_fixtures, list)
         or not isinstance(raw_manifest_fixtures, list)
+        or not isinstance(raw_locked_support, list)
+        or not isinstance(raw_manifest_support, list)
     ):
         raise CohortError("invalid cohort lock")
 
@@ -728,6 +830,31 @@ def _verify_manifest_lock(manifest: JsonObject, lock: JsonObject) -> None:
             if fixture.get(key) != locked_fixture.get(key):
                 raise CohortError(f"{alias}: cohort lock {key} mismatch")
 
+    locked_support_by_alias = {
+        raw_support.get("alias"): raw_support
+        for raw_support in raw_locked_support
+        if isinstance(raw_support, dict) and isinstance(raw_support.get("alias"), str)
+    }
+    if len(locked_support_by_alias) != len(SUPPORT_BUNDLES):
+        raise CohortError("invalid support Bundle lock")
+    if len(raw_manifest_support) != len(locked_support_by_alias):
+        raise CohortError("support Bundle lock count mismatch")
+    for raw_support in raw_manifest_support:
+        if not isinstance(raw_support, dict):
+            raise CohortError("invalid support Bundle manifest entry")
+        alias = raw_support.get("alias")
+        locked_support = locked_support_by_alias.get(alias)
+        if locked_support is None:
+            raise CohortError("support Bundle alias is absent from cohort lock")
+        for key in (
+            "sha256",
+            "size_bytes",
+            "entry_count",
+            "resource_counts",
+        ):
+            if raw_support.get(key) != locked_support.get(key):
+                raise CohortError(f"{alias}: support Bundle lock {key} mismatch")
+
 
 def verify_local(args: argparse.Namespace) -> None:
     """Verify local fixtures against their manifest and committed lock."""
@@ -787,7 +914,33 @@ def verify_local(args: argparse.Namespace) -> None:
     if aliases != expected_aliases:
         raise CohortError("manifest aliases do not match the cohort contract")
     if total_bytes > MAX_COHORT_BYTES:
-        raise CohortError("committed cohort exceeds total byte limit")
+        raise CohortError("local cohort exceeds total byte limit")
+
+    raw_support = manifest.get("support_bundles")
+    if not isinstance(raw_support, list) or len(raw_support) != len(SUPPORT_BUNDLES):
+        raise CohortError("unexpected local support Bundle count")
+    support_specs = {
+        alias: resource_types for alias, _, _, resource_types in SUPPORT_BUNDLES
+    }
+    for raw_item in raw_support:
+        if not isinstance(raw_item, dict):
+            raise CohortError("invalid support Bundle manifest entry")
+        item = cast(JsonObject, raw_item)
+        alias = item.get("alias")
+        relative_path = item.get("path")
+        if not isinstance(alias, str) or not isinstance(relative_path, str):
+            raise CohortError("incomplete support Bundle manifest entry")
+        expected_resource_types = support_specs.get(alias)
+        if expected_resource_types is None:
+            raise CohortError("unknown support Bundle alias")
+        path = manifest_path.parent / relative_path
+        bundle = load_support_bundle(path, expected_resource_types)
+        if _sha256(path) != item.get("sha256"):
+            raise CohortError(f"{path.name}: support Bundle checksum mismatch")
+        if path.stat().st_size != item.get("size_bytes"):
+            raise CohortError(f"{path.name}: support Bundle byte size mismatch")
+        if len(cast(list[object], bundle["entry"])) != item.get("entry_count"):
+            raise CohortError(f"{path.name}: support Bundle entry count mismatch")
 
 
 def _parser() -> argparse.ArgumentParser:

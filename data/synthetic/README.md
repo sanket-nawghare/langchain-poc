@@ -53,8 +53,35 @@ make synthea-cohort
 ```
 
 Never force-add the ignored candidate pool, selected Bundles, or runtime
-manifest. Loading the local fixtures into HAPI is intentionally deferred to
-Phase 1.3.
+manifest.
+
+## Local HAPI Seed Workflow
+
+Start the infrastructure, then generate any missing local cohort files and
+seed HAPI with one command:
+
+```bash
+make infra-up
+make fhir-seed
+```
+
+The workflow verifies the checksum lock, imports the required Organization and
+Practitioner support batches, converts generated patient transaction requests
+to stable-ID PUTs, and verifies exact resource counts plus all four patient
+IDs. Re-running `make fhir-seed` updates the same resources without creating
+duplicates.
+
+Useful lifecycle commands:
+
+```bash
+make fhir-verify
+make fhir-reset CONFIRM=1
+```
+
+FHIR writes are restricted to an explicit loopback `http://.../fhir` target.
+The reset refuses to run without confirmation, validates the HAPI target and
+Docker volume label, and replaces only HAPI's PostgreSQL volume. It does not
+remove Weaviate data.
 
 ## Reviewed Fixtures
 

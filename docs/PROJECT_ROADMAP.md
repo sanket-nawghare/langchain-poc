@@ -109,11 +109,9 @@ records through FHIR.
 
 - `[x]` Run HAPI FHIR locally with persistent Docker storage. Completed early
   in Phase 0.4.
-- `[~]` Add a repeatable Synthea generation/import workflow. Generation is
-  complete; HAPI import is planned for Phase 1.3.
-- `[~]` Seed a small, reproducibly locked local patient cohort for development
-  and tests. Local selection is complete; HAPI seeding is planned for Phase
-  1.3.
+- `[x]` Add a repeatable Synthea generation/import workflow.
+- `[x]` Seed a small, reproducibly locked local patient cohort for development
+  and tests.
 - `[ ]` Implement a FHIR client with timeouts, retries, and typed errors.
 - `[ ]` Implement patient lookup by synthetic patient ID.
 - `[ ]` Retrieve and normalize conditions, allergies, medications, encounters,
@@ -125,7 +123,7 @@ records through FHIR.
 
 ### Exit Criteria
 
-- `[ ]` A developer can seed HAPI FHIR with one command.
+- `[x]` A developer can seed HAPI FHIR with one command.
 - `[ ]` The API can return a normalized summary for a known synthetic patient.
 - `[ ]` Missing patients, unavailable FHIR service, malformed resources, and
   partial records have tested behavior.
@@ -374,6 +372,8 @@ when the explanation no longer fits here.
 | 2026-07-27 | Pin Synthea v4.0.0 and select four scenario-driven fixtures from deterministic candidate generation | Makes cohort provenance and selection reproducible | Accepted |
 | 2026-07-27 | Pin the official Synthea v4.0.0 executable JAR by SHA-256 and cap reviewed fixtures at 8 MiB and 1,000 entries each | Makes execution provenance verifiable while accommodating the smallest deterministic metabolic scenario | Accepted |
 | 2026-07-27 | Keep generated FHIR Bundles and the detailed runtime manifest out of Git; commit only a non-clinical checksum lock | Avoids repository bloat and generated clinical content while preserving exact reproducibility | Accepted |
+| 2026-07-27 | Convert generated patient POST requests to stable-ID PUTs only at seed time and load checksum-locked provider support batches first | Makes HAPI seeding idempotent while preserving the reviewed generated resources and satisfying conditional references | Accepted |
+| 2026-07-27 | Reset FHIR by replacing only the validated local HAPI PostgreSQL Compose volume | Provides predictable recovery without enabling destructive HAPI operations or deleting Weaviate data | Accepted |
 
 ## Progress Log
 
@@ -381,6 +381,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 1.3 | Completed loopback-only idempotent HAPI seeding, exact resource/patient verification, contamination refusal, confirmed HAPI-only reset, recovery, and pgAdmin safety documentation | Stop for review before sub-phase 1.4 |
+| 2026-07-27 | Phase 1.3 | Started loopback-only HAPI target safeguards, reset, idempotent transaction seeding, and post-import verification | Implement and test the three Phase 1.3 reviewable steps |
 | 2026-07-27 | Phase 1.2 | Kept all generated FHIR content local and ignored; added a metadata-only checksum lock that reproduces and verifies the four reviewed selections exactly | Stop for review before sub-phase 1.3 |
 | 2026-07-27 | Phase 1.2 | Completed pinned deterministic generation, four reviewed local FHIR fixtures, manifest integrity checks, and byte-for-byte repeatability verification; no HAPI import performed | Decide whether generated fixtures belong in Git |
 | 2026-07-27 | Phase 1.2 | Started pinned Synthea execution, deterministic candidate generation, fixture selection, and review tooling | Generate and review the four contracted FHIR bundles |

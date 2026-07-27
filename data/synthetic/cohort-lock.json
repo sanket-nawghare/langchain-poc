@@ -41,5 +41,26 @@
     "commit": "0185c09ea9d10a822c6f5f3ef9bdcbcbe960c813",
     "version": "v4.0.0"
   },
-  "schema_version": 1
+  "schema_version": 1,
+  "support_bundles": [
+    {
+      "alias": "organizations",
+      "entry_count": 314,
+      "resource_counts": {
+        "Location": 1,
+        "Organization": 313
+      },
+      "sha256": "91ad83b5639864efd05d20dd8d4cdf1385e84723086cdc3bebf7787ffb1ba771",
+      "size_bytes": 530392
+    },
+    {
+      "alias": "practitioners",
+      "entry_count": 313,
+      "resource_counts": {
+        "Practitioner": 313
+      },
+      "sha256": "07106b0e6b71ba3493d75aa20ac5a290ca612eca2b973f4b0ec22315016846bf",
+      "size_bytes": 342000
+    }
+  ]
 }

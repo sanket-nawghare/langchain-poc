@@ -12,6 +12,9 @@ BACKEND_HOST ?= 127.0.0.1
 BACKEND_PORT ?= 8000
 FRONTEND_HOST ?= 127.0.0.1
 FRONTEND_PORT ?= 5173
+HAPI_FHIR_PORT ?= 8080
+FHIR_BASE_URL ?= http://127.0.0.1:$(HAPI_FHIR_PORT)/fhir
+FHIR_REQUEST_TIMEOUT_SECONDS ?= 120
 
 .PHONY: help setup backend-sync frontend-install dev backend-dev frontend-dev \
 	backend-format backend-format-check backend-lint backend-typecheck \
@@ -20,7 +23,8 @@ FRONTEND_PORT ?= 5173
 	frontend-build pre-commit-install pre-commit check infra-config infra-up \
 	infra-status infra-logs infra-down infra-reset app-data-reset \
 	synthea-generate synthea-select synthea-verify synthea-cohort \
-	synthea-generated-reset synthea-fixtures-reset
+	synthea-ensure synthea-generated-reset synthea-fixtures-reset \
+	fhir-seed fhir-verify fhir-reset
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -138,6 +142,24 @@ synthea-verify: $(UV_BIN) ## Verify local cohort structure and locked checksums
 
 synthea-cohort: synthea-generate synthea-select synthea-verify ## Generate and verify the reviewed cohort
 
+synthea-ensure: $(UV_BIN) ## Generate missing local cohort output or verify existing output
+	@if test -f data/synthetic/cohort-manifest.json && \
+		test -d data/synthetic/fhir; then \
+		$(MAKE) synthea-verify; \
+	elif test -e data/synthetic/cohort-manifest.json || \
+		test -e data/synthetic/fhir; then \
+		echo "Partial selected cohort found; run make synthea-fixtures-reset CONFIRM=1."; \
+		exit 1; \
+	elif test -f data/generated/synthea-v4.0.0/generation-metadata.json && \
+		test -d data/generated/synthea-v4.0.0/fhir; then \
+		$(MAKE) synthea-select synthea-verify; \
+	elif test -e data/generated/synthea-v4.0.0; then \
+		echo "Partial candidate pool found; run make synthea-generated-reset CONFIRM=1."; \
+		exit 1; \
+	else \
+		$(MAKE) synthea-cohort; \
+	fi
+
 synthea-generated-reset: ## Delete ignored Synthea candidates (requires CONFIRM=1)
 	@test "$(CONFIRM)" = "1" || \
 		{ echo "Refusing to delete generated candidates. Re-run with CONFIRM=1."; exit 1; }
@@ -148,5 +170,24 @@ synthea-fixtures-reset: ## Delete local selected cohort output (requires CONFIRM
 		{ echo "Refusing to delete selected fixtures. Re-run with CONFIRM=1."; exit 1; }
 	rm --recursive --force -- data/synthetic/fhir
 	rm --force -- data/synthetic/cohort-manifest.json
+
+fhir-seed: synthea-ensure ## Idempotently seed the locked cohort into local HAPI
+	$(UV_ENV) $(UV) run --project backend python -m scripts.fhir_seed seed \
+		--base-url "$(FHIR_BASE_URL)" \
+		--manifest data/synthetic/cohort-manifest.json \
+		--lock data/synthetic/cohort-lock.json \
+		--timeout-seconds "$(FHIR_REQUEST_TIMEOUT_SECONDS)"
+
+fhir-verify: synthea-ensure ## Verify the locked cohort in local HAPI
+	$(UV_ENV) $(UV) run --project backend python -m scripts.fhir_seed verify \
+		--base-url "$(FHIR_BASE_URL)" \
+		--manifest data/synthetic/cohort-manifest.json \
+		--lock data/synthetic/cohort-lock.json \
+		--timeout-seconds "$(FHIR_REQUEST_TIMEOUT_SECONDS)"
+
+fhir-reset: synthea-ensure ## Reset only local HAPI data (requires CONFIRM=1)
+	CONFIRM="$(CONFIRM)" FHIR_BASE_URL="$(FHIR_BASE_URL)" \
+		FHIR_REQUEST_TIMEOUT_SECONDS="$(FHIR_REQUEST_TIMEOUT_SECONDS)" \
+		bash scripts/reset_local_hapi.sh
 
 check: backend-check frontend-check frontend-build infra-config ## Run every required local quality check
