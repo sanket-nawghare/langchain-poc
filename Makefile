@@ -18,7 +18,9 @@ FRONTEND_PORT ?= 5173
 	backend-test backend-check frontend-format frontend-format-check \
 	frontend-lint frontend-typecheck frontend-test frontend-check test \
 	frontend-build pre-commit-install pre-commit check infra-config infra-up \
-	infra-status infra-logs infra-down infra-reset app-data-reset
+	infra-status infra-logs infra-down infra-reset app-data-reset \
+	synthea-generate synthea-select synthea-verify synthea-cohort \
+	synthea-generated-reset synthea-fixtures-reset
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -46,19 +48,20 @@ frontend-dev: ## Start the Vite development server
 	$(PNPM) --dir frontend exec vite --host $(FRONTEND_HOST) --port $(FRONTEND_PORT)
 
 backend-format: $(UV_BIN) ## Format backend Python files
-	$(UV_ENV) $(UV) run --project backend ruff format backend
+	$(UV_ENV) $(UV) run --project backend ruff format backend scripts
 
 backend-format-check: $(UV_BIN) ## Check backend Python formatting
-	$(UV_ENV) $(UV) run --project backend ruff format --check backend
+	$(UV_ENV) $(UV) run --project backend ruff format --check backend scripts
 
 backend-lint: $(UV_BIN) ## Lint backend Python files
-	$(UV_ENV) $(UV) run --project backend ruff check backend
+	$(UV_ENV) $(UV) run --project backend ruff check backend scripts
 
 backend-typecheck: $(UV_BIN) ## Type-check the backend
-	$(UV_ENV) $(UV) run --project backend mypy --config-file backend/pyproject.toml backend/app backend/tests
+	$(UV_ENV) $(UV) run --project backend mypy --config-file backend/pyproject.toml \
+		backend/app backend/tests scripts
 
 backend-test: $(UV_BIN) ## Run backend tests
-	$(UV_ENV) $(UV) run --project backend pytest
+	$(UV_ENV) $(UV) run --project backend pytest -c backend/pyproject.toml
 
 backend-check: backend-format-check backend-lint backend-typecheck backend-test ## Run all backend quality checks
 
@@ -116,5 +119,34 @@ app-data-reset: ## Delete the local SQLite database (requires CONFIRM=1)
 	rm --force -- data/clinical_workflow.db
 	rm --force -- data/clinical_workflow.db-shm
 	rm --force -- data/clinical_workflow.db-wal
+
+synthea-generate: $(UV_BIN) ## Generate the ignored deterministic Synthea candidate pool
+	bash scripts/generate_synthea.sh
+
+synthea-select: $(UV_BIN) ## Select and write the reviewed synthetic cohort
+	$(UV_ENV) $(UV) run --project backend python -m scripts.synthetic_cohort select \
+		--candidate-dir data/generated/synthea-v4.0.0/fhir \
+		--generation-metadata data/generated/synthea-v4.0.0/generation-metadata.json \
+		--fixture-dir data/synthetic/fhir \
+		--manifest data/synthetic/cohort-manifest.json \
+		--lock data/synthetic/cohort-lock.json
+
+synthea-verify: $(UV_BIN) ## Verify local cohort structure and locked checksums
+	$(UV_ENV) $(UV) run --project backend python -m scripts.synthetic_cohort verify \
+		--manifest data/synthetic/cohort-manifest.json \
+		--lock data/synthetic/cohort-lock.json
+
+synthea-cohort: synthea-generate synthea-select synthea-verify ## Generate and verify the reviewed cohort
+
+synthea-generated-reset: ## Delete ignored Synthea candidates (requires CONFIRM=1)
+	@test "$(CONFIRM)" = "1" || \
+		{ echo "Refusing to delete generated candidates. Re-run with CONFIRM=1."; exit 1; }
+	rm --recursive --force -- data/generated/synthea-v4.0.0
+
+synthea-fixtures-reset: ## Delete local selected cohort output (requires CONFIRM=1)
+	@test "$(CONFIRM)" = "1" || \
+		{ echo "Refusing to delete selected fixtures. Re-run with CONFIRM=1."; exit 1; }
+	rm --recursive --force -- data/synthetic/fhir
+	rm --force -- data/synthetic/cohort-manifest.json
 
 check: backend-check frontend-check frontend-build infra-config ## Run every required local quality check

@@ -31,6 +31,8 @@ frontend/.vite/
 *.db-shm
 *.db-wal
 data/generated/
+data/synthetic/cohort-manifest.json
+data/synthetic/fhir/
 
 # Editors and operating systems
 .idea/

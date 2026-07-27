@@ -2,8 +2,7 @@
 
 This plan expands Phase 1 of the
 [project roadmap](PROJECT_ROADMAP.md) into reviewable implementation
-checkpoints. It is a planning artifact only; Phase 1 implementation has not
-started.
+checkpoints and tracks implementation progress.
 
 ## Objective
 
@@ -28,7 +27,7 @@ directly into PostgreSQL.
 | Sub-phase | Deliverable | Status |
 |---|---|---|
 | 1.1 Cohort contract and provenance | Synthetic cohort purpose, size, scenarios, and provenance are explicit | `[x]` |
-| 1.2 Generation and fixture review | Synthea output is reproducible, minimal, reviewed, and versioned intentionally | `[ ]` |
+| 1.2 Generation and fixture review | Synthea output is reproducible, reviewed, checksum-locked, and local-only | `[x]` |
 | 1.3 HAPI seed and reset workflow | Developers can import and verify the cohort with one command | `[ ]` |
 | 1.4 FHIR client foundation | Backend has a bounded async client with typed failures | `[ ]` |
 | 1.5 Retrieval and normalization | Required resources become minimum-necessary domain summaries | `[ ]` |
@@ -92,27 +91,53 @@ Verified on 2026-07-27:
 **Purpose:** Generate the cohort reproducibly and retain only reviewed inputs
 needed for deterministic development.
 
+**Status:** `[x]` Complete — ready for review
+
 ### Deliverables
 
-- `[ ]` Pin or containerize the selected Synthea release.
-- `[ ]` Add a deterministic generation command using the recorded seed.
-- `[ ]` Write raw generated output only to ignored `data/generated/`.
-- `[ ]` Validate JSON and FHIR Bundle structure.
-- `[ ]` Review files for synthetic markers, accidental secrets, and scope.
-- `[ ]` Select and version the minimal reviewed cohort under
-  `data/synthetic/`.
-- `[ ]` Add fixture metadata and integrity checksums.
+- `[x]` Pin or containerize the selected Synthea release.
+- `[x]` Add a deterministic generation command using the recorded seed.
+- `[x]` Write raw generated output only to ignored `data/generated/`.
+- `[x]` Validate JSON and FHIR Bundle structure.
+- `[x]` Review files for synthetic markers, accidental secrets, and scope.
+- `[x]` Select the minimal reviewed cohort into ignored local storage.
+- `[x]` Commit a metadata-only checksum lock without generated FHIR content.
 
 ### Acceptance Criteria
 
-- `[ ]` Repeating generation with the same inputs produces the expected cohort.
-- `[ ]` Unreviewed generated output remains ignored.
-- `[ ]` Versioned fixtures are small, valid, clearly synthetic, and documented.
+- `[x]` Repeating generation with the same inputs produces the expected cohort.
+- `[x]` Unreviewed generated output remains ignored.
+- `[x]` Local fixtures are small, valid, clearly synthetic, and documented.
+- `[x]` No generated FHIR Bundle or detailed runtime manifest is tracked by Git.
 
 ### Review Checkpoint
 
-Inspect every proposed fixture and its provenance before it is committed or
-loaded.
+Inspect every selected fixture, its provenance, and its checksum lock before it
+is loaded.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- Pinned the official Synthea `v4.0.0` executable JAR by SHA-256 digest and
+  verified it before every generation run.
+- Generated exactly 100 candidates with the contracted seeds, reference date,
+  age range, geography, history window, and FHIR R4 transaction settings.
+- Confirmed all unreviewed candidates remain under ignored `data/generated/`.
+- Deterministically selected four distinct scenario fixtures totaling about
+  8.8 MiB; every fixture remains below 8 MiB and 1,000 Bundle entries.
+- Confirmed every Bundle and the detailed runtime manifest are ignored; the
+  committed lock contains only aliases, provenance, checksums, sizes, and entry
+  counts.
+- Verified valid UTF-8 JSON, transaction Bundle shape, one patient per Bundle,
+  resolvable internal references, clinical scenario evidence, safe resource
+  scope, forbidden payload absence, secret-marker absence, and SHA-256
+  checksums.
+- Repeated generation from an empty temporary directory and reproduced every
+  selected patient ID, fixture checksum, entry count, and byte size exactly.
+- Added focused unit coverage for selection, local-manifest and checksum-lock
+  verification, checksum drift, and unresolved-reference rejection.
+- No fixture has been imported into HAPI; that remains Phase 1.3 work.
 
 ---
 

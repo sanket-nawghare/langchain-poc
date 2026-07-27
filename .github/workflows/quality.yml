@@ -31,19 +31,19 @@ jobs:
         run: uv sync --project backend --frozen
 
       - name: Check formatting
-        run: uv run --project backend ruff format --check backend
+        run: uv run --project backend ruff format --check backend scripts
 
       - name: Lint
-        run: uv run --project backend ruff check backend
+        run: uv run --project backend ruff check backend scripts
 
       - name: Type-check
         run: >-
           uv run --project backend mypy
           --config-file backend/pyproject.toml
-          backend/app backend/tests
+          backend/app backend/tests scripts
 
       - name: Test
-        run: uv run --project backend pytest
+        run: uv run --project backend pytest -c backend/pyproject.toml
 
   frontend:
     name: Frontend quality

@@ -6,13 +6,13 @@ repos:
         entry: make backend-format-check
         language: system
         pass_filenames: false
-        files: ^backend/.*\.py$
+        files: ^(backend|scripts)/.*\.py$
       - id: backend-lint
         name: backend lint
         entry: make backend-lint
         language: system
         pass_filenames: false
-        files: ^backend/.*\.py$
+        files: ^(backend|scripts)/.*\.py$
       - id: frontend-format
         name: frontend format
         entry: make frontend-format-check

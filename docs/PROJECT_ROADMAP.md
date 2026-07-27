@@ -109,8 +109,11 @@ records through FHIR.
 
 - `[x]` Run HAPI FHIR locally with persistent Docker storage. Completed early
   in Phase 0.4.
-- `[ ]` Add a repeatable Synthea generation/import workflow.
-- `[ ]` Seed a small, versioned patient cohort for development and tests.
+- `[~]` Add a repeatable Synthea generation/import workflow. Generation is
+  complete; HAPI import is planned for Phase 1.3.
+- `[~]` Seed a small, reproducibly locked local patient cohort for development
+  and tests. Local selection is complete; HAPI seeding is planned for Phase
+  1.3.
 - `[ ]` Implement a FHIR client with timeouts, retries, and typed errors.
 - `[ ]` Implement patient lookup by synthetic patient ID.
 - `[ ]` Retrieve and normalize conditions, allergies, medications, encounters,
@@ -368,7 +371,9 @@ when the explanation no longer fits here.
 | 2026-07-27 | Bind development services to loopback and keep Weaviate anonymous access local-only | Supports simple local development without presenting the configuration as production-safe | Accepted |
 | 2026-07-27 | Mirror locked local quality gates in separate backend, frontend, and Compose CI jobs | Keeps failures focused while preserving local/CI parity and safe dependency caching | Accepted |
 | 2026-07-27 | Keep external FHIR, retrieval, and model payloads inside adapters | Prevents vendor-specific objects and excessive patient context from entering durable workflow state | Accepted |
-| 2026-07-27 | Pin Synthea v4.0.0 and select four scenario-driven fixtures from deterministic candidate generation | Makes cohort provenance reproducible while keeping committed patient data small and purposeful | Accepted |
+| 2026-07-27 | Pin Synthea v4.0.0 and select four scenario-driven fixtures from deterministic candidate generation | Makes cohort provenance and selection reproducible | Accepted |
+| 2026-07-27 | Pin the official Synthea v4.0.0 executable JAR by SHA-256 and cap reviewed fixtures at 8 MiB and 1,000 entries each | Makes execution provenance verifiable while accommodating the smallest deterministic metabolic scenario | Accepted |
+| 2026-07-27 | Keep generated FHIR Bundles and the detailed runtime manifest out of Git; commit only a non-clinical checksum lock | Avoids repository bloat and generated clinical content while preserving exact reproducibility | Accepted |
 
 ## Progress Log
 
@@ -376,6 +381,9 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 1.2 | Kept all generated FHIR content local and ignored; added a metadata-only checksum lock that reproduces and verifies the four reviewed selections exactly | Stop for review before sub-phase 1.3 |
+| 2026-07-27 | Phase 1.2 | Completed pinned deterministic generation, four reviewed local FHIR fixtures, manifest integrity checks, and byte-for-byte repeatability verification; no HAPI import performed | Decide whether generated fixtures belong in Git |
+| 2026-07-27 | Phase 1.2 | Started pinned Synthea execution, deterministic candidate generation, fixture selection, and review tooling | Generate and review the four contracted FHIR bundles |
 | 2026-07-27 | Phase 1.1 | Completed the four-patient cohort contract, pinned Synthea provenance and deterministic inputs, and defined resource, manifest, review, and size requirements; no patient data generated | Stop for review before sub-phase 1.2 |
 | 2026-07-27 | Phase 1.1 | Started the synthetic cohort contract and provenance work on the Phase 1 branch | Pin Synthea inputs and define reviewed cohort scenarios |
 | 2026-07-27 | Phase 0 | Completed all foundation scope and exit criteria; isolated setup, local quality gates, smoke tests, and the GitHub Quality workflow pass | Create the Phase 1 branch, then begin sub-phase 1.1 |
