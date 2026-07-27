@@ -4,6 +4,10 @@ An educational, open-source clinical workflow orchestration project using
 LangChain, LangGraph, FHIR, and retrieval-augmented generation with synthetic
 patient data.
 
+> This project is an educational workflow demonstration, not a medical device,
+> and its output must not be treated as medical advice. Only synthetic patient
+> data is permitted.
+
 Application shells:
 
 - [FastAPI backend](backend/README.md)
@@ -32,9 +36,12 @@ Project documents:
 - [Original concept and architecture](plan.md)
 - [Phased roadmap and progress tracker](docs/PROJECT_ROADMAP.md)
 - [Phase 0 foundations execution plan](docs/PHASE_0_FOUNDATIONS.md)
+- [Foundation architecture and data flow](docs/ARCHITECTURE.md)
+- [Local development and troubleshooting](docs/DEVELOPMENT.md)
 - [MVP scope](docs/MVP_SCOPE.md)
 - [Foundation decisions](docs/FOUNDATION_DECISIONS.md)
 - [Contracts and configuration](docs/CONTRACTS_AND_CONFIGURATION.md)
 - [Development safety and data policy](docs/SAFETY_AND_DATA_POLICY.md)
 - [Quality gates and CI](docs/QUALITY_GATES.md)
 - [Local infrastructure](docker/README.md)
+- [Phase 1 synthetic FHIR execution plan](docs/PHASE_1_SYNTHETIC_FHIR.md)

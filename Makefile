@@ -8,6 +8,10 @@ UV_PYTHON_INSTALL_DIR ?= .python
 UV_ENV = UV_CACHE_DIR=$(UV_CACHE_DIR) UV_PYTHON_INSTALL_DIR=$(UV_PYTHON_INSTALL_DIR)
 PRE_COMMIT_HOME ?= .pre-commit-cache
 PRE_COMMIT_ENV = PRE_COMMIT_HOME=$(PRE_COMMIT_HOME)
+BACKEND_HOST ?= 127.0.0.1
+BACKEND_PORT ?= 8000
+FRONTEND_HOST ?= 127.0.0.1
+FRONTEND_PORT ?= 5173
 
 .PHONY: help setup backend-sync frontend-install dev backend-dev frontend-dev \
 	backend-format backend-format-check backend-lint backend-typecheck \
@@ -35,10 +39,11 @@ dev: ## Start backend and frontend development servers
 	$(MAKE) --jobs=2 backend-dev frontend-dev
 
 backend-dev: $(UV_BIN) ## Start the FastAPI development server
-	$(UV_ENV) $(UV) run --project backend uvicorn app.main:app --app-dir backend --reload
+	$(UV_ENV) $(UV) run --project backend uvicorn app.main:app --app-dir backend \
+		--host $(BACKEND_HOST) --port $(BACKEND_PORT) --reload
 
 frontend-dev: ## Start the Vite development server
-	$(PNPM) --dir frontend dev
+	$(PNPM) --dir frontend exec vite --host $(FRONTEND_HOST) --port $(FRONTEND_PORT)
 
 backend-format: $(UV_BIN) ## Format backend Python files
 	$(UV_ENV) $(UV) run --project backend ruff format backend

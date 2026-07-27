@@ -27,7 +27,7 @@ workflow, or clinical response generation.
 | 0.3 Contracts and configuration | Typed shared concepts and safe configuration exist | `[x]` |
 | 0.4 Local infrastructure | Required services have reproducible local configuration | `[x]` |
 | 0.5 Quality automation | Local and CI quality gates are operational | `[x]` |
-| 0.6 Documentation and foundation gate | Clean-checkout setup is verified and documented | `[ ]` |
+| 0.6 Documentation and foundation gate | Clean-checkout setup is verified and documented | `[~]` |
 
 ## Review Protocol
 
@@ -283,26 +283,28 @@ Verified on 2026-07-27:
 **Purpose:** Prove that the foundation is reproducible and hand Phase 1 a clean,
 documented starting point.
 
+**Status:** `[~]` Awaiting the post-push CI run
+
 ### Deliverables
 
-- `[ ]` Add architecture, component-boundary, and local data-flow diagrams.
-- `[ ]` Document setup, configuration, startup, testing, and troubleshooting.
-- `[ ]` Document synthetic-data handling, logging/redaction expectations, and
+- `[x]` Add architecture, component-boundary, and local data-flow diagrams.
+- `[x]` Document setup, configuration, startup, testing, and troubleshooting.
+- `[x]` Document synthetic-data handling, logging/redaction expectations, and
   the non-medical-device disclaimer.
-- `[ ]` Document how future LangGraph nodes, tools, and provider adapters fit the
+- `[x]` Document how future LangGraph nodes, tools, and provider adapters fit the
   structure.
-- `[ ]` Verify the complete setup from a clean checkout or equivalent clean
+- `[x]` Verify the complete setup from a clean checkout or equivalent clean
   environment.
-- `[ ]` Resolve or record all Phase 0 documentation and test gaps.
-- `[ ]` Update every Phase 0 checklist, decision, and progress entry.
-- `[ ]` Prepare the Phase 1 sub-phase plan without starting its implementation.
+- `[x]` Resolve or record all Phase 0 documentation and test gaps.
+- `[x]` Update every Phase 0 checklist, decision, and progress entry.
+- `[x]` Prepare the Phase 1 sub-phase plan without starting its implementation.
 
 ### Acceptance Criteria
 
-- `[ ]` A new contributor can install, configure, start, and test the skeleton
+- `[x]` A new contributor can install, configure, start, and test the skeleton
   using repository documentation.
-- `[ ]` Backend health and readiness behavior is documented and verified.
-- `[ ]` Frontend and backend smoke checks pass.
+- `[x]` Backend health and readiness behavior is documented and verified.
+- `[x]` Frontend and backend smoke checks pass.
 - `[ ]` CI is green.
 - `[ ]` The parent roadmap's Phase 0 exit criteria all pass.
 
@@ -310,11 +312,32 @@ documented starting point.
 
 Perform a final Phase 0 review. Phase 1 begins only after this gate is accepted.
 
+### Verification Record
+
+Verified on 2026-07-27 from an isolated source-only copy containing no local
+tooling, dependency directories, caches, environment files, application data,
+build output, or Git history:
+
+- `make setup` bootstrapped pinned `uv`, installed managed Python 3.12.13 and
+  locked backend dependencies, and completed the frozen pnpm install.
+- `make check` passed Ruff, strict mypy, 13 backend tests, Prettier, ESLint,
+  TypeScript, 6 frontend tests, the Vite build, and Compose validation.
+- After adding temporary Git metadata to model a real checkout,
+  `make pre-commit` passed every configured hook.
+- The isolated FastAPI server started on loopback port 18000;
+  `/health/live` and dependency-aware `/health/ready` both returned HTTP 200.
+- The isolated Vite server started on loopback port 15173 and served the
+  application HTML.
+- Startup verification exposed and resolved missing Makefile port overrides and
+  incorrect frontend CLI argument forwarding.
+- The actual GitHub `Quality` workflow remains pending until this Phase 0.6
+  source state is committed and pushed.
+
 ## Phase 0 Completion Checklist
 
 - `[ ]` All six sub-phases are complete.
-- `[ ]` All parent roadmap Phase 0 scope items are complete.
+- `[x]` All parent roadmap Phase 0 scope items are complete.
 - `[ ]` All parent roadmap Phase 0 exit criteria pass.
-- `[ ]` The decision log reflects the implemented foundation.
-- `[ ]` The progress log contains a final Phase 0 entry.
-- `[ ]` No Phase 1+ feature was introduced without an explicit decision.
+- `[x]` The decision log reflects the implemented foundation.
+- `[ ]` The progress log contains a final Phase 0 entry after CI confirmation.
+- `[x]` No Phase 1+ feature was introduced without an explicit decision.

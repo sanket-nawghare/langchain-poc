@@ -86,13 +86,13 @@ Implementation is divided into stop-and-review checkpoints in the
 - `[x]` Add Docker Compose services for the backend dependencies.
 - `[x]` Define the core `WorkflowState` as a typed schema.
 - `[x]` Define error, API response, audit event, and citation schemas.
-- `[ ]` Create architecture and data-flow diagrams.
+- `[x]` Create architecture and data-flow diagrams.
 - `[x]` Add CI for backend and frontend quality checks.
 - `[x]` Add a security/privacy policy for synthetic-only development.
 
 ### Exit Criteria
 
-- `[ ]` A clean checkout can install dependencies and start the skeleton apps.
+- `[x]` A clean checkout can install dependencies and start the skeleton apps.
 - `[x]` Backend health and readiness endpoints pass.
 - `[x]` Frontend loads a placeholder screen.
 - `[ ]` CI passes lint, type, and smoke-test checks.
@@ -365,6 +365,8 @@ when the explanation no longer fits here.
 | 2026-07-27 | Keep workflow, tools, RAG, and adapters within one backend package | Makes dependency direction explicit while retaining provider-neutral interfaces | Accepted |
 | 2026-07-27 | Back HAPI FHIR with PostgreSQL 16 | PostgreSQL is already available locally, is supported by HAPI, and provides explicit durable storage | Accepted |
 | 2026-07-27 | Bind development services to loopback and keep Weaviate anonymous access local-only | Supports simple local development without presenting the configuration as production-safe | Accepted |
+| 2026-07-27 | Mirror locked local quality gates in separate backend, frontend, and Compose CI jobs | Keeps failures focused while preserving local/CI parity and safe dependency caching | Accepted |
+| 2026-07-27 | Keep external FHIR, retrieval, and model payloads inside adapters | Prevents vendor-specific objects and excessive patient context from entering durable workflow state | Accepted |
 
 ## Progress Log
 
@@ -372,6 +374,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 0.6 | Completed local foundation documentation and isolated source verification; fixed configurable dev ports and frontend argument forwarding found by startup smoke tests | Commit and push Phase 0.6, then confirm the GitHub Quality workflow is green |
+| 2026-07-27 | Phase 0.6 | Started the documentation, clean-environment verification, and foundation handoff gate | Complete documentation, verify isolated setup, and prepare Phase 1 plan |
 | 2026-07-27 | Phase 0.5 | Completed local backend/frontend quality gates, project-local pre-commit hooks, lockfile-based CI jobs and safe dependency caching; verified a deliberate lint failure is rejected | Stop for review before sub-phase 0.6 |
 | 2026-07-27 | Phase 0.5 | Started backend/frontend quality gates, pre-commit hooks, and CI automation | Verify every gate and stop for review |
 | 2026-07-27 | Phase 0.4 | Exposed HAPI PostgreSQL on loopback port 5434 for local pgAdmin access and documented the connection settings | Stop for review before sub-phase 0.5 |
