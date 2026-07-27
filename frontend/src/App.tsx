@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 
-type ApiStatus = "checking" | "available" | "unavailable";
+import { config } from "./config";
 
-const apiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:8000";
+type ApiStatus = "checking" | "available" | "unavailable";
 
 export function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
@@ -14,7 +12,7 @@ export function App() {
 
     async function checkApi() {
       try {
-        const response = await fetch(`${apiBaseUrl}/health/live`, {
+        const response = await fetch(`${config.apiBaseUrl}/health/live`, {
           signal: controller.signal,
         });
         setApiStatus(response.ok ? "available" : "unavailable");
@@ -46,4 +44,3 @@ export function App() {
     </main>
   );
 }
-

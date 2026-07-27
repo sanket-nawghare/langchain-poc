@@ -22,6 +22,7 @@ build/
 node_modules/
 frontend/dist/
 frontend/coverage/
+*.tsbuildinfo
 
 # Application data
 *.db

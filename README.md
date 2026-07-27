@@ -27,4 +27,5 @@ Project documents:
 - [Phase 0 foundations execution plan](docs/PHASE_0_FOUNDATIONS.md)
 - [MVP scope](docs/MVP_SCOPE.md)
 - [Foundation decisions](docs/FOUNDATION_DECISIONS.md)
+- [Contracts and configuration](docs/CONTRACTS_AND_CONFIGURATION.md)
 - [Development safety and data policy](docs/SAFETY_AND_DATA_POLICY.md)

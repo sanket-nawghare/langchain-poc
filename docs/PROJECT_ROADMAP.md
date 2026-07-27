@@ -81,11 +81,11 @@ Implementation is divided into stop-and-review checkpoints in the
 - `[x]` Create the initial repository structure for backend, frontend, workflow,
   tools, RAG, data, tests, and Docker assets.
 - `[x]` Select the Python/package manager and Node/package manager.
-- `[ ]` Add configuration loading and a documented `.env.example`.
+- `[x]` Add configuration loading and a documented `.env.example`.
 - `[ ]` Add formatting, linting, type checking, unit test, and pre-commit setup.
 - `[ ]` Add Docker Compose services for the backend dependencies.
-- `[ ]` Define the core `WorkflowState` as a typed schema.
-- `[ ]` Define error, API response, audit event, and citation schemas.
+- `[x]` Define the core `WorkflowState` as a typed schema.
+- `[x]` Define error, API response, audit event, and citation schemas.
 - `[ ]` Create architecture and data-flow diagrams.
 - `[ ]` Add CI for backend and frontend quality checks.
 - `[x]` Add a security/privacy policy for synthetic-only development.
@@ -370,6 +370,9 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 0.3 | Moved backend environment template to `backend/.env.example` and documented the ignored `backend/.env` local copy | Review before sub-phase 0.4 |
+| 2026-07-27 | Phase 0.3 | Completed validated configuration and strict provider-neutral workflow, API, clinical, safety, and audit contracts | Stop for review before sub-phase 0.4 |
+| 2026-07-27 | Phase 0.3 | Started typed contracts and validated configuration | Implement schemas and configuration, then verify their failure behavior |
 | 2026-07-27 | Phase 0.2 | Fixed Makefile backend commands to bootstrap and use a pinned project-local `uv` | Re-run `make backend-sync`, then review before sub-phase 0.3 |
 | 2026-07-27 | Phase 0.2 | Added a root Makefile for setup, development servers, tests, and frontend builds; completed the related Phase 0.5 task early | Review Makefile commands before sub-phase 0.3 |
 | 2026-07-27 | Phase 0.2 | Completed and verified FastAPI and React/Vite application skeletons with locked dependencies and smoke tests | Stop for review before sub-phase 0.3 |

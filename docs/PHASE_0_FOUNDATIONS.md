@@ -24,7 +24,7 @@ workflow, or clinical response generation.
 |---|---|---|
 | 0.1 Scope and technical decisions | MVP boundaries and foundation choices are explicit | `[x]` |
 | 0.2 Repository and application skeletons | Backend and frontend have an intentional structure | `[x]` |
-| 0.3 Contracts and configuration | Typed shared concepts and safe configuration exist | `[ ]` |
+| 0.3 Contracts and configuration | Typed shared concepts and safe configuration exist | `[x]` |
 | 0.4 Local infrastructure | Required services have reproducible local configuration | `[ ]` |
 | 0.5 Quality automation | Local and CI quality gates are operational | `[ ]` |
 | 0.6 Documentation and foundation gate | Clean-checkout setup is verified and documented | `[ ]` |
@@ -134,30 +134,44 @@ Verified on 2026-07-27:
 **Purpose:** Establish typed boundaries early so later graph nodes and tools can
 evolve without exchanging unstructured dictionaries.
 
+**Status:** `[x]` Complete — ready for review
+
 ### Deliverables
 
-- `[ ]` Add environment-based backend configuration with startup validation.
-- `[ ]` Add frontend environment configuration for the API base URL.
-- `[ ]` Create a safe `.env.example` with documented variables and no secrets.
-- `[ ]` Define the initial typed `WorkflowState`.
-- `[ ]` Define API success/error envelopes.
-- `[ ]` Define audit-event, citation, safety-result, and workflow-status schemas.
-- `[ ]` Define identifier and timestamp conventions.
-- `[ ]` Add schema serialization and validation tests.
-- `[ ]` Ensure configuration errors fail clearly without printing secret values.
+- `[x]` Add environment-based backend configuration with startup validation.
+- `[x]` Add frontend environment configuration for the API base URL.
+- `[x]` Create a safe `.env.example` with documented variables and no secrets.
+- `[x]` Define the initial typed `WorkflowState`.
+- `[x]` Define API success/error envelopes.
+- `[x]` Define audit-event, citation, safety-result, and workflow-status schemas.
+- `[x]` Define identifier and timestamp conventions.
+- `[x]` Add schema serialization and validation tests.
+- `[x]` Ensure configuration errors fail clearly without printing secret values.
 
 ### Acceptance Criteria
 
-- `[ ]` The application starts with documented local defaults.
-- `[ ]` Invalid required configuration produces an actionable error.
-- `[ ]` Contracts serialize predictably and reject invalid data.
-- `[ ]` Phase 1 and Phase 2 can extend contracts without changing their basic
+- `[x]` The application starts with documented local defaults.
+- `[x]` Invalid required configuration produces an actionable error.
+- `[x]` Contracts serialize predictably and reject invalid data.
+- `[x]` Phase 1 and Phase 2 can extend contracts without changing their basic
   ownership boundaries.
 
 ### Review Checkpoint
 
 Review naming, optionality, serialization, and whether any schema encodes
 premature clinical assumptions.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- `make check` passed.
+- Backend: 10 tests passed, including settings, serialization, strict-field,
+  timestamp, safety-consistency, API-error, CORS, and health tests.
+- Frontend: 6 tests passed, including default, normalized, and invalid API URL
+  configuration.
+- TypeScript compilation and Vite production build passed.
+- Python and frontend lockfiles remain reproducible.
 
 ---
 
