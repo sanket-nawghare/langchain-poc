@@ -385,6 +385,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 1 | Final review accepted after the Phase 1.6 changes were committed; all Phase 1 scope and exit criteria remain complete | Create the Phase 2 branch, then begin sub-phase 2.1 when requested |
 | 2026-07-27 | Phase 1.6 | Completed the normalized patient API, safe FHIR error mapping, live seed-to-query and missing-patient checks, local and isolated-source gates, documentation, and Phase 2 sub-phase plan | Stop for final Phase 1 review before Phase 2 |
 | 2026-07-27 | Phase 1.6 | Started the normalized summary API boundary, end-to-end failure verification, reproducibility gate, and Phase 2 handoff plan | Complete the three Phase 1.6 reviewable steps |
 | 2026-07-27 | Phase 1.5 | Completed minimum-necessary patient summaries, seven-category normalization, deterministic ordering, explicit truncation, partial-record tests, and a live seeded-patient smoke check | Stop for review before sub-phase 1.6 |

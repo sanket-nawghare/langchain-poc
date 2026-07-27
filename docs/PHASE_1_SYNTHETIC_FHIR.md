@@ -10,6 +10,8 @@ Provide repeatable, read-only access to a small, realistic synthetic patient
 cohort through HAPI FHIR, while exposing only normalized minimum-necessary
 patient context to later workflows.
 
+**Status:** `[x]` Complete — final review accepted
+
 ## Prerequisite Already Delivered
 
 Phase 0.4 provides pinned, persistent HAPI FHIR and PostgreSQL services,
@@ -350,7 +352,7 @@ Verified on 2026-07-27:
 **Purpose:** Prove that a clean developer environment can seed and read the
 synthetic cohort safely.
 
-**Status:** `[x]` Complete — ready for final Phase 1 review
+**Status:** `[x]` Complete — final Phase 1 review accepted
 
 ### Reviewable Implementation Steps
 
@@ -388,7 +390,8 @@ Stop for final Phase 1 review after all three steps pass.
 
 ### Review Checkpoint
 
-Perform a final Phase 1 review. Phase 2 starts only after this gate is accepted.
+Final Phase 1 review accepted on 2026-07-27. Phase 2 may begin on its own
+branch when requested.
 
 ### Verification Record
 
