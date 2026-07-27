@@ -50,9 +50,13 @@ Rules:
 All durable models reject unknown fields. This prevents misspelled or
 provider-specific data from silently entering persisted workflow state.
 
-The initial clinical record summary is intentionally small. Phase 1 can extend
-it after real synthetic FHIR fixtures expose the necessary normalization
-details.
+The Phase 1 clinical record summary is intentionally small: code, display,
+status, effective time, and an optional compact result value. Patient summaries
+contain separate condition, allergy, medication, encounter, observation,
+procedure, and diagnostic-report collections. `truncated_categories` makes a
+configured retrieval bound visible instead of presenting a partial collection
+as complete. Resource IDs, references, identifiers, addresses, notes,
+narratives, and raw FHIR payloads are excluded.
 
 ## Serialization Rules
 
@@ -64,5 +68,8 @@ details.
 - The HAPI adapter returns application-owned JSON/resource and search-page
   types; HTTP requests, responses, exceptions, and upstream error bodies never
   leave the service boundary.
+- The patient-summary service follows only adapter-approved pagination links,
+  applies configured page and per-resource bounds, and emits normalized domain
+  models in deterministic effective-time order.
 - Audit details accept scalar metadata only; raw patient context and prompt
   bodies do not belong there.

@@ -30,7 +30,7 @@ directly into PostgreSQL.
 | 1.2 Generation and fixture review | Synthea output is reproducible, reviewed, checksum-locked, and local-only | `[x]` |
 | 1.3 HAPI seed and reset workflow | Developers can import and verify the cohort with one command | `[x]` |
 | 1.4 FHIR client foundation | Backend has a bounded async client with typed failures | `[x]` |
-| 1.5 Retrieval and normalization | Required resources become minimum-necessary domain summaries | `[ ]` |
+| 1.5 Retrieval and normalization | Required resources become minimum-necessary domain summaries | `[x]` |
 | 1.6 Integration and Phase 1 gate | Seeded patient lookup and failure behavior are verified end to end | `[ ]` |
 
 Every sub-phase follows the review protocol in `PHASE_0_FOUNDATIONS.md`: mark
@@ -281,27 +281,67 @@ Verified on 2026-07-27:
 **Purpose:** Convert relevant FHIR R4 resources into minimum-necessary,
 provider-neutral patient context.
 
+**Status:** `[x]` Complete — ready for review
+
+### Reviewable Implementation Steps
+
+1. **1.5.1 Summary contract** — define the minimum fields needed for the
+   reviewed cohort, including explicit collection-truncation metadata.
+2. **1.5.2 Bounded retrieval and normalization** — retrieve the approved
+   resource types through the read-only client, follow confined pagination, and
+   normalize variant and missing FHIR fields deterministically.
+3. **1.5.3 Partial-record verification** — test all categories, pagination
+   bounds, missing optional data, malformed fields, stable ordering, and
+   exclusion of raw FHIR content.
+
+Stop at this sub-phase's review checkpoint before API integration begins.
+
 ### Deliverables
 
-- `[ ]` Retrieve a patient by validated synthetic patient ID.
-- `[ ]` Retrieve conditions, allergies, medications, encounters, observations,
+- `[x]` Retrieve a patient by validated synthetic patient ID.
+- `[x]` Retrieve conditions, allergies, medications, encounters, observations,
   procedures, and diagnostic/lab results required by the cohort scenarios.
-- `[ ]` Handle FHIR search pagination and Bundle links safely.
-- `[ ]` Normalize coding, display, status, effective time, and missing fields.
-- `[ ]` Extend domain contracts only where reviewed fixtures demonstrate need.
-- `[ ]` Bound returned collection sizes and exclude irrelevant raw fields.
-- `[ ]` Add fixture-driven normalization tests for partial and variant records.
+- `[x]` Handle FHIR search pagination and Bundle links safely.
+- `[x]` Normalize coding, display, status, effective time, and missing fields.
+- `[x]` Extend domain contracts only where reviewed fixtures demonstrate need.
+- `[x]` Bound returned collection sizes and exclude irrelevant raw fields.
+- `[x]` Add fixture-driven normalization tests for partial and variant records.
 
 ### Acceptance Criteria
 
-- `[ ]` A known patient produces a stable normalized summary.
-- `[ ]` Missing optional resources produce empty or partial summaries safely.
-- `[ ]` Raw FHIR resources never enter workflow state or application logs.
+- `[x]` A known patient produces a stable normalized summary.
+- `[x]` Missing optional resources produce empty or partial summaries safely.
+- `[x]` Raw FHIR resources never enter workflow state or application logs.
 
 ### Review Checkpoint
 
 Review clinical-field selection, missing-data semantics, pagination bounds, and
 minimum-necessary output.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- Added a validated patient-summary service that uses only the application-owned
+  read-only FHIR client and retrieves the seven approved clinical resource
+  categories concurrently.
+- Normalized code, display, status, effective time, compact observation values,
+  patient display name variants, and safe fallback labels without exposing raw
+  resources, resource IDs, references, addresses, notes, or narratives.
+- Added configurable bounds of five pages and 100 records per resource type;
+  repeated cursors fail safely and `truncated_categories` explicitly identifies
+  incomplete bounded collections.
+- Added deterministic ordering and 6 focused summary-service tests covering all
+  categories, missing and variant fields, pagination, record and page bounds,
+  repeated cursors, invalid IDs, missing patients, and raw-field exclusion.
+- Preserved malformed-upstream-ID classification as a response error and added
+  transport regression coverage.
+- Ran a read-only smoke check against one seeded synthetic patient. All seven
+  categories normalized successfully; observations and procedures reached the
+  configured limit and were explicitly marked truncated. No patient content
+  was printed.
+- `make check` passed with 46 backend tests and 6 frontend tests, the frontend
+  production build, and Compose validation.
 
 ---
 

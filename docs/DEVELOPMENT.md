@@ -99,6 +99,8 @@ The read-only FHIR adapter supports these validated backend settings:
 | `CLINICAL_FHIR_REQUEST_TIMEOUT_SECONDS` | `5` | Greater than 0, at most 30 |
 | `CLINICAL_FHIR_MAX_RETRIES` | `2` | 0–3 |
 | `CLINICAL_FHIR_RETRY_BACKOFF_SECONDS` | `0.1` | 0–5 |
+| `CLINICAL_FHIR_MAX_PAGES_PER_SEARCH` | `5` | 1–20 |
+| `CLINICAL_FHIR_MAX_RECORDS_PER_TYPE` | `100` | 1–500 |
 
 Compose supports these shell or root `.env` overrides:
 

@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     fhir_request_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     fhir_max_retries: int = Field(default=2, ge=0, le=3)
     fhir_retry_backoff_seconds: float = Field(default=0.1, ge=0, le=5)
+    fhir_max_pages_per_search: int = Field(default=5, ge=1, le=20)
+    fhir_max_records_per_type: int = Field(default=100, ge=1, le=500)
     weaviate_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8081")
 
     llm_provider: str = "fake"

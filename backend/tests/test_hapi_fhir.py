@@ -211,6 +211,31 @@ async def test_rejects_malformed_or_unexpected_fhir_json() -> None:
 
 
 @pytest.mark.anyio
+async def test_rejects_invalid_upstream_resource_id_as_response_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "resourceType": "Bundle",
+                "type": "searchset",
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "Condition",
+                            "id": "unsafe/id",
+                        }
+                    }
+                ],
+            },
+            request=request,
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(FhirResponseError, match="unexpected entry"):
+            await adapter(client).search("Condition", {"patient": "patient-1"})
+
+
+@pytest.mark.anyio
 async def test_rejects_unbounded_or_unsupported_requests_before_transport() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("unsafe request reached transport")

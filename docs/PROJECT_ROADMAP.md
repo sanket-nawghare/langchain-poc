@@ -113,21 +113,21 @@ records through FHIR.
 - `[x]` Seed a small, reproducibly locked local patient cohort for development
   and tests.
 - `[x]` Implement a FHIR client with timeouts, retries, and typed errors.
-- `[ ]` Implement patient lookup by synthetic patient ID.
-- `[ ]` Retrieve and normalize conditions, allergies, medications, encounters,
+- `[x]` Implement patient lookup by synthetic patient ID.
+- `[x]` Retrieve and normalize conditions, allergies, medications, encounters,
   observations, procedures, and lab results.
-- `[ ]` Add pagination and FHIR bundle handling.
-- `[ ]` Return a minimum-necessary patient summary to the workflow.
-- `[ ]` Add fixtures or a stub FHIR server for deterministic tests.
-- `[ ]` Verify logs do not contain full patient resources.
+- `[x]` Add pagination and FHIR bundle handling.
+- `[x]` Return a minimum-necessary patient summary to the workflow.
+- `[x]` Add fixtures or a stub FHIR server for deterministic tests.
+- `[x]` Verify logs do not contain full patient resources.
 
 ### Exit Criteria
 
 - `[x]` A developer can seed HAPI FHIR with one command.
 - `[ ]` The API can return a normalized summary for a known synthetic patient.
-- `[ ]` Missing patients, unavailable FHIR service, malformed resources, and
+- `[x]` Missing patients, unavailable FHIR service, malformed resources, and
   partial records have tested behavior.
-- `[ ]` No real patient data is required or included.
+- `[x]` No real patient data is required or included.
 
 ---
 
@@ -376,6 +376,7 @@ when the explanation no longer fits here.
 | 2026-07-27 | Reset FHIR by replacing only the validated local HAPI PostgreSQL Compose volume | Provides predictable recovery without enabling destructive HAPI operations or deleting Weaviate data | Accepted |
 | 2026-07-27 | Expose only eight read-only resource types through an application-owned async FHIR protocol | Prevents write operations and HTTP/HAPI objects from crossing into workflow-facing code | Accepted |
 | 2026-07-27 | Bound FHIR reads to a 5-second timeout, two retries, 100-resource pages, and same-origin/base-path pagination | Keeps dependency failures and server-issued links constrained and testable | Accepted |
+| 2026-07-27 | Normalize at most 100 records per type across at most five pages and expose truncated categories explicitly | Keeps workflow context bounded without silently presenting partial clinical collections as complete | Accepted |
 
 ## Progress Log
 
@@ -383,6 +384,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 1.5 | Completed minimum-necessary patient summaries, seven-category normalization, deterministic ordering, explicit truncation, partial-record tests, and a live seeded-patient smoke check | Stop for review before sub-phase 1.6 |
+| 2026-07-27 | Phase 1.5 | Started the minimum-necessary summary contract, bounded multi-resource retrieval, normalization, and partial-record tests | Complete the three Phase 1.5 reviewable steps |
 | 2026-07-27 | Phase 1.4 | Completed the read-only FHIR protocol, bounded async HAPI adapter, typed safe failures, confined pagination, deterministic transport tests, and live read/search smoke check | Stop for review before sub-phase 1.5 |
 | 2026-07-27 | Phase 1.4 | Started the application-owned read-only FHIR interface, bounded HAPI transport, typed failures, and deterministic transport tests | Complete the three Phase 1.4 reviewable steps |
 | 2026-07-27 | Phase 1.3 | Completed loopback-only idempotent HAPI seeding, exact resource/patient verification, contamination refusal, confirmed HAPI-only reset, recovery, and pgAdmin safety documentation | Stop for review before sub-phase 1.4 |

@@ -1,8 +1,20 @@
 """Normalized patient-context and citation contracts."""
 
+from typing import Literal
+
 from pydantic import AnyHttpUrl, Field
 
 from app.domain.base import ContractModel, NonEmptyString, PatientId
+
+type ClinicalSummaryCategory = Literal[
+    "conditions",
+    "allergies",
+    "medications",
+    "encounters",
+    "observations",
+    "procedures",
+    "diagnostic_reports",
+]
 
 
 class ClinicalRecordSummary(ContractModel):
@@ -12,6 +24,7 @@ class ClinicalRecordSummary(ContractModel):
     display: NonEmptyString
     status: NonEmptyString | None = None
     effective_at: str | None = None
+    value: NonEmptyString | None = None
 
 
 class PatientSummary(ContractModel):
@@ -22,7 +35,11 @@ class PatientSummary(ContractModel):
     conditions: list[ClinicalRecordSummary] = Field(default_factory=list)
     allergies: list[ClinicalRecordSummary] = Field(default_factory=list)
     medications: list[ClinicalRecordSummary] = Field(default_factory=list)
+    encounters: list[ClinicalRecordSummary] = Field(default_factory=list)
     observations: list[ClinicalRecordSummary] = Field(default_factory=list)
+    procedures: list[ClinicalRecordSummary] = Field(default_factory=list)
+    diagnostic_reports: list[ClinicalRecordSummary] = Field(default_factory=list)
+    truncated_categories: list[ClinicalSummaryCategory] = Field(default_factory=list)
 
 
 class Citation(ContractModel):

@@ -21,9 +21,9 @@ from app.tools.fhir import (
     FhirSearchParams,
     FhirTimeoutError,
     FhirUnavailableError,
+    validate_fhir_resource_id,
 )
 
-FHIR_ID_PATTERN = re.compile(r"^[A-Za-z0-9.-]{1,64}$")
 SEARCH_PARAMETER_PATTERN = re.compile(r"^_?[A-Za-z][A-Za-z0-9_.:-]{0,63}$")
 RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
 FHIR_JSON_MEDIA_TYPE = "application/fhir+json"
@@ -65,8 +65,7 @@ def _normalize_base_url(raw_url: str) -> str:
 
 
 def _validate_resource_id(resource_id: str) -> None:
-    if not FHIR_ID_PATTERN.fullmatch(resource_id):
-        raise FhirRequestError("invalid FHIR resource ID")
+    validate_fhir_resource_id(resource_id)
 
 
 def _validate_resource_type(resource_type: str) -> None:
@@ -275,9 +274,14 @@ class HapiFhirClient:
                 not isinstance(resource, dict)
                 or resource.get("resourceType") != resource_type
                 or not isinstance(resource_id, str)
-                or not FHIR_ID_PATTERN.fullmatch(resource_id)
             ):
                 raise FhirResponseError("FHIR search returned an unexpected entry")
+            try:
+                validate_fhir_resource_id(resource_id)
+            except FhirRequestError as error:
+                raise FhirResponseError(
+                    "FHIR search returned an unexpected entry"
+                ) from error
             resources.append(cast(FhirResource, resource))
 
         next_cursor: str | None = None

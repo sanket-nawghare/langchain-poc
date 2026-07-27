@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -20,6 +21,16 @@ type FhirResourceType = Literal[
 ]
 type FhirSearchValue = str | tuple[str, ...]
 type FhirSearchParams = dict[str, FhirSearchValue]
+
+FHIR_ID_PATTERN = re.compile(r"^[A-Za-z0-9.-]{1,64}$")
+
+
+def validate_fhir_resource_id(resource_id: str) -> str:
+    """Return a valid FHIR ID or raise the application-owned request error."""
+
+    if not FHIR_ID_PATTERN.fullmatch(resource_id):
+        raise FhirRequestError("invalid FHIR resource ID")
+    return resource_id
 
 
 class FhirClientError(RuntimeError):
