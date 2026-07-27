@@ -53,7 +53,7 @@ This baseline can change through a recorded decision before implementation.
 
 | Phase | Outcome | Status |
 |---|---|---|
-| 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[ ]` |
+| 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[~]` |
 | 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[ ]` |
 | 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[ ]` |
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[ ]` |
@@ -68,6 +68,9 @@ This baseline can change through a recorded decision before implementation.
 ## Phase 0 — Foundations
 
 **Goal:** Establish a safe, repeatable development base and lock the MVP scope.
+
+Implementation is divided into stop-and-review checkpoints in the
+[Phase 0 execution plan](PHASE_0_FOUNDATIONS.md).
 
 ### Scope
 
@@ -355,9 +358,11 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
-| TBD | Use FastAPI as the initial backend | Aligns with the Python LangChain/LangGraph ecosystem | Proposed |
+| 2026-07-27 | Use FastAPI as the initial backend | Aligns with the Python LangChain/LangGraph ecosystem | Accepted |
 | 2026-07-27 | Use Weaviate as the initial vector store | Reuses the existing local Docker image; the RAG layer will retain a replaceable vector-store interface | Accepted |
-| TBD | Build clinical QA before appointment and medication intents | Delivers a thin, testable vertical slice first | Proposed |
+| 2026-07-27 | Build clinical QA before appointment and medication intents | Delivers a thin, testable vertical slice first | Accepted |
+| 2026-07-27 | Use Python 3.12 with `uv` and Node.js 24 with pnpm | Provides reproducible dependency management and a conservative Python compatibility target | Accepted |
+| 2026-07-27 | Keep workflow, tools, RAG, and adapters within one backend package | Makes dependency direction explicit while retaining provider-neutral interfaces | Accepted |
 
 ## Progress Log
 
@@ -365,5 +370,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 0.1 | Completed MVP scope, foundation decisions, module boundaries, and development safety policy | Stop for review before sub-phase 0.2 |
+| 2026-07-27 | Phase 0.1 | Started scope and technical-decision work on `create-foundations` | Document and review the MVP boundaries and foundation choices |
+| 2026-07-27 | Phase 0 | Added the Phase 0 sub-phase plan for implementation on `create-foundations` | Review and begin sub-phase 0.1 |
 | 2026-07-27 | Planning | Selected Weaviate instead of Qdrant for guideline retrieval | Confirm the local image version and Docker configuration during Phase 0 |
 | 2026-07-27 | Planning | Converted the original concept into this phased delivery roadmap | Review Phase 0 scope and begin repository scaffolding |
