@@ -27,7 +27,7 @@ workflow, or clinical response generation.
 | 0.3 Contracts and configuration | Typed shared concepts and safe configuration exist | `[x]` |
 | 0.4 Local infrastructure | Required services have reproducible local configuration | `[x]` |
 | 0.5 Quality automation | Local and CI quality gates are operational | `[x]` |
-| 0.6 Documentation and foundation gate | Clean-checkout setup is verified and documented | `[~]` |
+| 0.6 Documentation and foundation gate | Clean-checkout setup is verified and documented | `[x]` |
 
 ## Review Protocol
 
@@ -283,7 +283,7 @@ Verified on 2026-07-27:
 **Purpose:** Prove that the foundation is reproducible and hand Phase 1 a clean,
 documented starting point.
 
-**Status:** `[~]` Awaiting the post-push CI run
+**Status:** `[x]` Complete — final review accepted
 
 ### Deliverables
 
@@ -305,8 +305,8 @@ documented starting point.
   using repository documentation.
 - `[x]` Backend health and readiness behavior is documented and verified.
 - `[x]` Frontend and backend smoke checks pass.
-- `[ ]` CI is green.
-- `[ ]` The parent roadmap's Phase 0 exit criteria all pass.
+- `[x]` CI is green.
+- `[x]` The parent roadmap's Phase 0 exit criteria all pass.
 
 ### Review Checkpoint
 
@@ -330,14 +330,14 @@ build output, or Git history:
   application HTML.
 - Startup verification exposed and resolved missing Makefile port overrides and
   incorrect frontend CLI argument forwarding.
-- The actual GitHub `Quality` workflow remains pending until this Phase 0.6
-  source state is committed and pushed.
+- The GitHub `Quality` workflow passed after the Phase 0.6 source state was
+  committed and pushed.
 
 ## Phase 0 Completion Checklist
 
-- `[ ]` All six sub-phases are complete.
+- `[x]` All six sub-phases are complete.
 - `[x]` All parent roadmap Phase 0 scope items are complete.
-- `[ ]` All parent roadmap Phase 0 exit criteria pass.
+- `[x]` All parent roadmap Phase 0 exit criteria pass.
 - `[x]` The decision log reflects the implemented foundation.
-- `[ ]` The progress log contains a final Phase 0 entry after CI confirmation.
+- `[x]` The progress log contains a final Phase 0 entry.
 - `[x]` No Phase 1+ feature was introduced without an explicit decision.

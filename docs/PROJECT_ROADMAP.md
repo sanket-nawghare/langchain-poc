@@ -53,7 +53,7 @@ This baseline can change through a recorded decision before implementation.
 
 | Phase | Outcome | Status |
 |---|---|---|
-| 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[~]` |
+| 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[x]` |
 | 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[ ]` |
 | 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[ ]` |
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[ ]` |
@@ -95,7 +95,7 @@ Implementation is divided into stop-and-review checkpoints in the
 - `[x]` A clean checkout can install dependencies and start the skeleton apps.
 - `[x]` Backend health and readiness endpoints pass.
 - `[x]` Frontend loads a placeholder screen.
-- `[ ]` CI passes lint, type, and smoke-test checks.
+- `[x]` CI passes lint, type, and smoke-test checks.
 - `[x]` MVP scope and safety boundaries are documented.
 
 ---
@@ -374,6 +374,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 0 | Completed all foundation scope and exit criteria; isolated setup, local quality gates, smoke tests, and the GitHub Quality workflow pass | Create the Phase 1 branch, then begin sub-phase 1.1 |
 | 2026-07-27 | Phase 0.6 | Completed local foundation documentation and isolated source verification; fixed configurable dev ports and frontend argument forwarding found by startup smoke tests | Commit and push Phase 0.6, then confirm the GitHub Quality workflow is green |
 | 2026-07-27 | Phase 0.6 | Started the documentation, clean-environment verification, and foundation handoff gate | Complete documentation, verify isolated setup, and prepare Phase 1 plan |
 | 2026-07-27 | Phase 0.5 | Completed local backend/frontend quality gates, project-local pre-commit hooks, lockfile-based CI jobs and safe dependency caching; verified a deliberate lint failure is rejected | Stop for review before sub-phase 0.6 |
