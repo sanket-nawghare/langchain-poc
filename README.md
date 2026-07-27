@@ -4,6 +4,22 @@ An educational, open-source clinical workflow orchestration project using
 LangChain, LangGraph, FHIR, and retrieval-augmented generation with synthetic
 patient data.
 
+Application shells:
+
+- [FastAPI backend](backend/README.md)
+- [React frontend](frontend/README.md)
+
+After installing Python 3, pnpm, and Node.js 24:
+
+```bash
+make setup
+make dev
+```
+
+`make setup` bootstraps a pinned, project-local `uv`, which then installs the
+managed Python 3.12 runtime and locked backend dependencies. Run `make help` to
+list the available development commands.
+
 Project documents:
 
 - [Original concept and architecture](plan.md)

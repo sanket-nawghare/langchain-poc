@@ -23,7 +23,7 @@ workflow, or clinical response generation.
 | Sub-phase | Deliverable | Status |
 |---|---|---|
 | 0.1 Scope and technical decisions | MVP boundaries and foundation choices are explicit | `[x]` |
-| 0.2 Repository and application skeletons | Backend and frontend have an intentional structure | `[ ]` |
+| 0.2 Repository and application skeletons | Backend and frontend have an intentional structure | `[x]` |
 | 0.3 Contracts and configuration | Typed shared concepts and safe configuration exist | `[ ]` |
 | 0.4 Local infrastructure | Required services have reproducible local configuration | `[ ]` |
 | 0.5 Quality automation | Local and CI quality gates are operational | `[ ]` |
@@ -88,31 +88,44 @@ application scaffolding is generated.
 **Purpose:** Create minimal runnable shells without prematurely implementing
 clinical behavior.
 
+**Status:** `[x]` Complete — ready for review
+
 ### Deliverables
 
-- `[ ]` Create top-level backend, frontend, data, Docker, and test locations
+- `[x]` Create top-level backend, frontend, data, Docker, and test locations
   based on the accepted layout.
-- `[ ]` Initialize the Python backend package.
-- `[ ]` Add a FastAPI application with health and readiness endpoints.
-- `[ ]` Initialize the React/Vite/TypeScript frontend.
-- `[ ]` Add a minimal application shell and backend-health display.
-- `[ ]` Add shared repository files such as `.gitignore` and editor settings
+- `[x]` Initialize the Python backend package.
+- `[x]` Add a FastAPI application with health and readiness endpoints.
+- `[x]` Initialize the React/Vite/TypeScript frontend.
+- `[x]` Add a minimal application shell and backend-health display.
+- `[x]` Add shared repository files such as `.gitignore` and editor settings
   where useful.
-- `[ ]` Keep LangGraph, FHIR, RAG, and safety modules as explicit boundaries
+- `[x]` Keep LangGraph, FHIR, RAG, and safety modules as explicit boundaries
   without implementing their Phase 1+ behavior.
-- `[ ]` Add focused smoke tests for both application shells.
+- `[x]` Add focused smoke tests for both application shells.
 
 ### Acceptance Criteria
 
-- `[ ]` The backend starts locally and its health endpoint returns success.
-- `[ ]` The frontend starts locally and renders its placeholder screen.
-- `[ ]` Backend and frontend smoke tests pass.
-- `[ ]` No real patient data, secrets, or clinical logic is introduced.
+- `[x]` The backend starts locally and its health endpoint returns success.
+- `[x]` The frontend starts locally and renders its placeholder screen.
+- `[x]` Backend and frontend smoke tests pass.
+- `[x]` No real patient data, secrets, or clinical logic is introduced.
 
 ### Review Checkpoint
 
 Review repository ergonomics, dependency footprint, application startup, and
 module ownership before defining durable contracts.
+
+### Verification Record
+
+Verified on 2026-07-27:
+
+- Python 3.12.13 managed by `uv`; backend lockfile generated.
+- Backend: `pytest` — 2 tests passed.
+- Backend: Uvicorn started; `/health/live` and `/health/ready` returned HTTP 200.
+- Frontend: `pnpm test` — 2 tests passed.
+- Frontend: `pnpm build` — TypeScript and Vite production build passed.
+- Frontend: Vite development server started and served the application HTML.
 
 ---
 
@@ -193,7 +206,7 @@ continuous integration.
 
 - `[ ]` Configure backend formatting, linting, static typing, and tests.
 - `[ ]` Configure frontend formatting, linting, type checking, and tests.
-- `[ ]` Add repository-level commands for common setup and verification tasks.
+- `[x]` Add repository-level commands for common setup and verification tasks.
 - `[ ]` Add pre-commit checks that are fast enough for normal development.
 - `[ ]` Add CI jobs for backend and frontend checks.
 - `[ ]` Add a Docker Compose configuration validation check.

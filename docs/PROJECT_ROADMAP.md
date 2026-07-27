@@ -74,13 +74,13 @@ Implementation is divided into stop-and-review checkpoints in the
 
 ### Scope
 
-- `[ ]` Define the first supported use case: clinical question answering for one
+- `[x]` Define the first supported use case: clinical question answering for one
   synthetic patient.
-- `[ ]` Write explicit non-goals for the MVP, including diagnosis, prescribing,
+- `[x]` Write explicit non-goals for the MVP, including diagnosis, prescribing,
   real patient data, and autonomous clinical decisions.
-- `[ ]` Create the initial repository structure for backend, frontend, workflow,
+- `[x]` Create the initial repository structure for backend, frontend, workflow,
   tools, RAG, data, tests, and Docker assets.
-- `[ ]` Select the Python/package manager and Node/package manager.
+- `[x]` Select the Python/package manager and Node/package manager.
 - `[ ]` Add configuration loading and a documented `.env.example`.
 - `[ ]` Add formatting, linting, type checking, unit test, and pre-commit setup.
 - `[ ]` Add Docker Compose services for the backend dependencies.
@@ -88,15 +88,15 @@ Implementation is divided into stop-and-review checkpoints in the
 - `[ ]` Define error, API response, audit event, and citation schemas.
 - `[ ]` Create architecture and data-flow diagrams.
 - `[ ]` Add CI for backend and frontend quality checks.
-- `[ ]` Add a security/privacy policy for synthetic-only development.
+- `[x]` Add a security/privacy policy for synthetic-only development.
 
 ### Exit Criteria
 
 - `[ ]` A clean checkout can install dependencies and start the skeleton apps.
-- `[ ]` Backend health and readiness endpoints pass.
-- `[ ]` Frontend loads a placeholder screen.
+- `[x]` Backend health and readiness endpoints pass.
+- `[x]` Frontend loads a placeholder screen.
 - `[ ]` CI passes lint, type, and smoke-test checks.
-- `[ ]` MVP scope and safety boundaries are documented.
+- `[x]` MVP scope and safety boundaries are documented.
 
 ---
 
@@ -370,6 +370,10 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-27 | Phase 0.2 | Fixed Makefile backend commands to bootstrap and use a pinned project-local `uv` | Re-run `make backend-sync`, then review before sub-phase 0.3 |
+| 2026-07-27 | Phase 0.2 | Added a root Makefile for setup, development servers, tests, and frontend builds; completed the related Phase 0.5 task early | Review Makefile commands before sub-phase 0.3 |
+| 2026-07-27 | Phase 0.2 | Completed and verified FastAPI and React/Vite application skeletons with locked dependencies and smoke tests | Stop for review before sub-phase 0.3 |
+| 2026-07-27 | Phase 0.2 | Started backend and frontend application skeletons | Build and verify the minimal application shells |
 | 2026-07-27 | Phase 0.1 | Completed MVP scope, foundation decisions, module boundaries, and development safety policy | Stop for review before sub-phase 0.2 |
 | 2026-07-27 | Phase 0.1 | Started scope and technical-decision work on `create-foundations` | Document and review the MVP boundaries and foundation choices |
 | 2026-07-27 | Phase 0 | Added the Phase 0 sub-phase plan for implementation on `create-foundations` | Review and begin sub-phase 0.1 |
