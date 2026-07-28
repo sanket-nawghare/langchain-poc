@@ -42,8 +42,10 @@ Rules:
 |---|---|---|
 | API envelopes | `domain/api.py` | Stable success and safe error shapes |
 | Read-only FHIR capability | `tools/fhir.py` | Supported reads/searches, parsed pages, and safe transport failures |
+| Patient-summary capability | `tools/patient.py` | Workflow-facing normalized patient retrieval without raw FHIR |
 | Patient summary and citations | `domain/clinical.py` | Normalized data outside FHIR and retrieval adapters |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
+| Safety-policy capability | `tools/safety.py` | Versioned deterministic evaluation over normalized context |
 | Audit event | `domain/audit.py` | Minimal attributable workflow history |
 | Workflow state, transitions, and execution result | `domain/workflow.py` | Provider-neutral state and status history exchanged by graph nodes |
 | Workflow request and intent classification | `domain/workflow.py` | Bounded untrusted input and strict structured routing output |
@@ -86,13 +88,21 @@ narratives, and raw FHIR payloads are excluded.
 - Execution results require a non-empty, contiguous, monotonic transition
   history whose final status and timestamp match the returned workflow state.
 - Immutable run-scoped context carries application-owned dependencies. Phase
-  2.2 injects a clock and intent classifier so deterministic tests do not
-  depend on wall time or a model provider.
+  2.3 injects a clock, intent classifier, patient-summary reader, and safety
+  policy so deterministic tests do not depend on wall time or external
+  providers.
 - Graph execution explicitly disables inherited LangSmith tracing. This keeps
   queries and workflow state local until a later phase defines reviewed,
   redacted observability.
 - Workflow requests trim queries and limit them to 2,000 characters before
   graph execution. Classifier results are revalidated as the strict
   `IntentClassification` contract before their intent enters workflow state.
+- Patient retrieval revalidates the strict normalized `PatientSummary`
+  contract and matching patient ID before context enters workflow state.
+  Typed FHIR failures map to stable workflow codes without exposing upstream
+  messages.
+- Safety results are revalidated before entering workflow state.
+  `initial-safety-v1` emits only stable reason codes, generic messages, and
+  bounded category references; it does not echo query or patient content.
 - Audit details accept scalar metadata only; raw patient context and prompt
   bodies do not belong there.

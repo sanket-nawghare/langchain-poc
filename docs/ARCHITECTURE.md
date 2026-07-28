@@ -2,10 +2,11 @@
 
 ## Current System
 
-Phase 1 adds reproducible synthetic FHIR seeding, a bounded read-only HAPI
-adapter, minimum-necessary normalization, and a normalized patient-summary API
-to the Phase 0 application and infrastructure foundation. Guideline ingestion,
-model calls, and LangGraph execution remain unimplemented.
+Phase 2.3 extends the application foundation and Phase 1 synthetic FHIR path
+with a typed LangGraph workflow. The graph validates input, classifies intent,
+retrieves only normalized patient context, and applies a deterministic safety
+pre-check. Guideline ingestion, model calls, response generation, and workflow
+API/persistence remain unimplemented.
 
 ```mermaid
 flowchart LR
@@ -50,8 +51,8 @@ flowchart TD
     Domain["app/domain<br/>durable provider-neutral contracts"]
 
     API --> Domain
-    API -. "Phase 2" .-> Workflow
-    Workflow -. "Phase 2" .-> Tools
+    API -. "Phase 2.5" .-> Workflow
+    Workflow --> Tools
     Workflow -. "Phase 3" .-> RAG
     Workflow --> Domain
     API --> Services
@@ -65,35 +66,48 @@ flowchart TD
 Solid arrows represent current dependencies. Dotted arrows are planned
 extension paths and do not imply implemented behavior. The patient API creates
 a request-scoped HAPI adapter, injects it into the summary service through the
-read-only FHIR interface, and closes the transport after the request.
+read-only FHIR interface, and closes the transport after the request. The
+workflow graph receives its clock, classifier, normalized patient reader, and
+safety policy through immutable run-scoped context.
 
 ## Current Workflow Skeleton
 
-Phase 2.2 adds bounded request classification and explicit intent routing but
-still contains no patient retrieval or clinical answer behavior:
+Phase 2.3 adds normalized patient retrieval and deterministic safety routing.
+It still contains no clinical answer behavior:
 
 ```mermaid
 flowchart LR
     Start(["START"])
     Begin["begin_execution<br/>queued → running"]
     Classify["classify_intent"]
+    Retrieve["retrieve_patient"]
+    Safety["safety_precheck"]
     Reject["reject_unsupported<br/>running → rejected"]
     Halt["halt_unimplemented<br/>running → failed"]
-    Failed["classifier failure<br/>running → failed"]
+    Review["review<br/>running → pending_review"]
+    Block["block<br/>running → rejected"]
+    Failed["typed or malformed failure<br/>running → failed"]
     End(["END"])
 
     Start --> Begin --> Classify
-    Classify -->|"clinical_qa"| Halt --> End
+    Classify -->|"clinical_qa"| Retrieve
     Classify -->|"unknown"| Reject --> End
-    Classify -->|"invalid result / typed failure"| Failed --> End
+    Classify -->|"invalid result / typed failure"| Failed
+    Retrieve -->|"normalized summary"| Safety
+    Retrieve -->|"FHIR / contract failure"| Failed
+    Safety -->|"pass"| Halt --> End
+    Safety -->|"review"| Review --> End
+    Safety -->|"block"| Block --> End
+    Safety -->|"policy / contract failure"| Failed --> End
 ```
 
 The graph wraps the durable `WorkflowState` with an append-only transition
 list. An immutable run-scoped context supplies the application-owned clock.
-It also supplies the application-owned classifier capability. Until sub-phase
-2.3 adds reviewed retrieval and safety nodes, supported clinical QA ends with
-`workflow_not_implemented`; unknown intent is rejected and classifier failures
-use `intent_classification_failed`.
+It also supplies application-owned classifier, normalized patient-summary, and
+safety-policy capabilities. A passing clinical QA request still ends with
+`workflow_not_implemented` until sub-phase 2.4 adds response generation.
+Review and block outcomes terminate without approval/resume behavior, which
+remains deferred to Phase 4.
 
 Boundary rules:
 

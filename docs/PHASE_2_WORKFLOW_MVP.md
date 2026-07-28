@@ -30,7 +30,7 @@ safety check, returns a qualified response, and records minimum audit metadata.
 |---|---|---|
 | 2.1 Execution contracts and graph skeleton | Graph dependencies, state transitions, reducers, and terminal outcomes are explicit | `[x]` |
 | 2.2 Input validation and intent routing | Valid clinical-QA requests route deterministically and unsupported input fails safely | `[x]` |
-| 2.3 Patient retrieval and safety pre-check | The graph retrieves Phase 1 context and applies initial deterministic safety rules | `[ ]` |
+| 2.3 Patient retrieval and safety pre-check | The graph retrieves Phase 1 context and applies initial deterministic safety rules | `[x]` |
 | 2.4 Qualified response and audit | A provider-neutral model boundary returns structured output with disclaimers and minimal audit events | `[ ]` |
 | 2.5 Run API, persistence, and recovery | Workflow runs have IDs, inspectable status, checkpoints, timeouts, and safe failures | `[ ]` |
 | 2.6 Integration and Phase 2 gate | The complete thin path passes deterministic end-to-end and reproducibility checks | `[ ]` |
@@ -211,21 +211,73 @@ Verified on 2026-07-28:
 **Purpose:** Bring Phase 1 context into the graph without exposing raw FHIR
 data, then apply an initial deterministic risk screen.
 
-### Planned Deliverables
+**Status:** `[x]` Complete — ready for review
 
-- Add a FHIR retrieval node using the Phase 1 summary capability.
-- Map missing, unavailable, timeout, malformed, and partial/truncated context
+### Reviewable Implementation Steps
+
+1. **2.3.1 Capability and policy contracts** — define workflow-facing
+   patient-summary and safety-policy protocols, typed safe failures, policy
+   version, reviewed rules, and minimum context semantics.
+2. **2.3.2 Retrieval and safety routing** — add native async retrieval and
+   safety nodes, map every FHIR failure to a stable workflow code, revalidate
+   provider-neutral results, and route pass/review/block explicitly.
+3. **2.3.3 Clinical-boundary verification** — test complete, sparse, truncated,
+   urgent, missing-patient, dependency-failure, malformed-result, review, block,
+   redaction, topology, and deterministic replay paths.
+
+`review` ends at `pending_review`; no approval or resume action is implemented.
+`pass` reaches only the Phase 2.4 response placeholder. No model or guideline
+retrieval is added in this sub-phase.
+
+### Deliverables
+
+- `[x]` Add a FHIR retrieval node using the Phase 1 summary capability.
+- `[x]` Map missing, unavailable, timeout, malformed, and partial/truncated context
   to explicit workflow results.
-- Define the initial versioned safety policy and rule result contract.
-- Add bounded rules for urgent-language and missing-critical-context examples.
-- Keep Phase 4 human approval/resume behavior out of scope.
-- Test successful, sparse, truncated, missing-patient, dependency-failure, and
+- `[x]` Define the initial versioned safety policy and rule result contract.
+- `[x]` Add bounded rules for urgent-language and missing-critical-context
+  examples.
+- `[x]` Keep Phase 4 human approval/resume behavior out of scope.
+- `[x]` Test successful, sparse, truncated, missing-patient, dependency-failure, and
   safety-flag routes.
+
+### Acceptance Criteria
+
+- `[x]` Only a revalidated, normalized `PatientSummary` enters workflow state;
+  raw FHIR resources and transport errors remain outside the graph contract.
+- `[x]` Missing patients and FHIR request, timeout, availability, response, and
+  generic failures end with stable, safe workflow failure codes.
+- `[x]` Urgent language, missing core clinical context, and truncated context
+  deterministically end as `pending_review`.
+- `[x]` Explicit policy `block` results end as `rejected`; policy failures and
+  malformed results end safely as `failed`.
+- `[x]` A passing safety result reaches only the Phase 2.4 response placeholder.
+- `[x]` Safety reasons contain stable codes and references without echoing the
+  user query or raw patient content.
 
 ### Review Checkpoint
 
 Review minimum patient context, failure semantics, safety-rule determinism, and
 the boundary with future human review.
+
+### Verification Record
+
+Verified on 2026-07-28:
+
+- Added workflow-facing `PatientSummaryReader` and `SafetyPolicy` capabilities
+  backed only by application-owned domain contracts.
+- Added native async retrieval and safety nodes. Retrieval revalidates the
+  normalized summary, checks its patient ID, and maps each typed FHIR failure
+  to a stable workflow code.
+- Added `initial-safety-v1`, a deterministic conservative policy that flags
+  reviewed urgent-language examples, missing core context, and truncated
+  collections without returning patient or query content in its reasons.
+- Added explicit pass, review, block, and failure routing. Review stops at
+  `pending_review`, block stops at `rejected`, and pass reaches the existing
+  `workflow_not_implemented` placeholder.
+- Added 19 focused retrieval, policy, topology, redaction, malformed-result,
+  failure-mapping, and deterministic replay cases.
+- `make backend-check` passed with 102 backend tests.
 
 ---
 

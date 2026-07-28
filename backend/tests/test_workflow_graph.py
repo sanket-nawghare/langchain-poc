@@ -11,6 +11,17 @@ import langsmith as ls
 import pytest
 from pydantic import ValidationError
 
+from app.domain.clinical import (
+    ClinicalRecordSummary,
+    ClinicalSummaryCategory,
+    PatientSummary,
+)
+from app.domain.safety import (
+    SafetyDecision,
+    SafetyReason,
+    SafetyResult,
+    SafetySeverity,
+)
 from app.domain.workflow import (
     Intent,
     IntentClassification,
@@ -20,13 +31,28 @@ from app.domain.workflow import (
     WorkflowTransition,
 )
 from app.services.deterministic_intent import DeterministicIntentClassifier
+from app.services.deterministic_safety import DeterministicSafetyPolicy
+from app.tools.fhir import (
+    FhirClientError,
+    FhirNotFoundError,
+    FhirRequestError,
+    FhirResponseError,
+    FhirTimeoutError,
+    FhirUnavailableError,
+)
 from app.tools.intent import IntentClassificationError, IntentClassifier
+from app.tools.patient import PatientSummaryReader
+from app.tools.safety import SafetyPolicy, SafetyPolicyError
 from app.workflow.graph import (
     BEGIN_EXECUTION_NODE,
     CLASSIFICATION_FAILURE_CODE,
     CLASSIFY_INTENT_NODE,
     HALT_UNIMPLEMENTED_NODE,
+    INVALID_PATIENT_SUMMARY_CODE,
     REJECT_UNSUPPORTED_NODE,
+    RETRIEVE_PATIENT_NODE,
+    SAFETY_FAILURE_CODE,
+    SAFETY_PRECHECK_NODE,
     UNIMPLEMENTED_FAILURE_CODE,
     build_workflow_graph,
     execute_workflow_skeleton,
@@ -65,12 +91,98 @@ class MalformedClassifier:
         )
 
 
+class StaticPatientSummaryReader:
+    def __init__(
+        self,
+        result: PatientSummary | FhirClientError,
+    ) -> None:
+        self.result = result
+        self.calls = 0
+
+    async def get(self, patient_id: str) -> PatientSummary:
+        self.calls += 1
+        if isinstance(self.result, FhirClientError):
+            raise self.result
+        return self.result
+
+
+class MalformedPatientSummaryReader:
+    async def get(self, patient_id: str) -> PatientSummary:
+        return cast(
+            PatientSummary,
+            {
+                "patient_id": patient_id,
+                "unexpected_raw_field": "sensitive patient payload",
+            },
+        )
+
+
+class StaticSafetyPolicy:
+    def __init__(
+        self,
+        result: SafetyResult | SafetyPolicyError,
+    ) -> None:
+        self.result = result
+
+    async def evaluate(
+        self,
+        *,
+        query: str,
+        patient: PatientSummary,
+    ) -> SafetyResult:
+        if isinstance(self.result, SafetyPolicyError):
+            raise self.result
+        return self.result
+
+
+class MalformedSafetyPolicy:
+    async def evaluate(
+        self,
+        *,
+        query: str,
+        patient: PatientSummary,
+    ) -> SafetyResult:
+        return cast(
+            SafetyResult,
+            {
+                "decision": "unsafe-provider-value",
+                "requires_human_review": False,
+                "policy_version": "malformed",
+            },
+        )
+
+
+def complete_patient_summary(
+    *,
+    patient_id: str = "synthetic-patient-1",
+    truncated_categories: list[ClinicalSummaryCategory] | None = None,
+) -> PatientSummary:
+    return PatientSummary(
+        patient_id=patient_id,
+        conditions=[
+            ClinicalRecordSummary(
+                code="example",
+                display="Synthetic condition",
+                status="active",
+            )
+        ],
+        truncated_categories=truncated_categories or [],
+    )
+
+
 def workflow_runtime(
     classifier: IntentClassifier | None = None,
+    *,
+    patient_reader: PatientSummaryReader | None = None,
+    safety_policy: SafetyPolicy | None = None,
 ) -> WorkflowRuntime:
     return WorkflowRuntime(
         clock=FixedClock(EXECUTED_AT),
         intent_classifier=classifier or DeterministicIntentClassifier(),
+        patient_summary_reader=(
+            patient_reader or StaticPatientSummaryReader(complete_patient_summary())
+        ),
+        safety_policy=safety_policy or DeterministicSafetyPolicy(),
     )
 
 
@@ -239,7 +351,7 @@ def test_execution_result_rejects_broken_transition_history() -> None:
         )
 
 
-def test_graph_has_only_the_reviewed_intent_routing_topology() -> None:
+def test_graph_has_only_the_reviewed_retrieval_and_safety_topology() -> None:
     graph = build_workflow_graph().get_graph()
 
     assert set(graph.nodes) == {
@@ -247,15 +359,21 @@ def test_graph_has_only_the_reviewed_intent_routing_topology() -> None:
         BEGIN_EXECUTION_NODE,
         CLASSIFY_INTENT_NODE,
         REJECT_UNSUPPORTED_NODE,
+        RETRIEVE_PATIENT_NODE,
+        SAFETY_PRECHECK_NODE,
         HALT_UNIMPLEMENTED_NODE,
         "__end__",
     }
     assert {(edge.source, edge.target) for edge in graph.edges} == {
         ("__start__", BEGIN_EXECUTION_NODE),
         (BEGIN_EXECUTION_NODE, CLASSIFY_INTENT_NODE),
-        (CLASSIFY_INTENT_NODE, HALT_UNIMPLEMENTED_NODE),
+        (CLASSIFY_INTENT_NODE, RETRIEVE_PATIENT_NODE),
         (CLASSIFY_INTENT_NODE, REJECT_UNSUPPORTED_NODE),
         (CLASSIFY_INTENT_NODE, "__end__"),
+        (RETRIEVE_PATIENT_NODE, SAFETY_PRECHECK_NODE),
+        (RETRIEVE_PATIENT_NODE, "__end__"),
+        (SAFETY_PRECHECK_NODE, HALT_UNIMPLEMENTED_NODE),
+        (SAFETY_PRECHECK_NODE, "__end__"),
         (REJECT_UNSUPPORTED_NODE, "__end__"),
         (HALT_UNIMPLEMENTED_NODE, "__end__"),
     }
@@ -272,6 +390,9 @@ async def test_supported_intent_reaches_safe_unimplemented_stop() -> None:
     assert result.workflow.intent == Intent.CLINICAL_QA
     assert result.workflow.failure_code == UNIMPLEMENTED_FAILURE_CODE
     assert result.workflow.updated_at == EXECUTED_AT
+    assert result.workflow.patient_data == complete_patient_summary()
+    assert result.workflow.safety_result is not None
+    assert result.workflow.safety_result.decision == SafetyDecision.PASS
     assert [
         (item.from_status, item.to_status, item.step) for item in result.transitions
     ] == [
@@ -286,7 +407,6 @@ async def test_supported_intent_reaches_safe_unimplemented_stop() -> None:
             HALT_UNIMPLEMENTED_NODE,
         ),
     ]
-    assert result.workflow.patient_data is None
     assert result.workflow.final_response is None
     assert result.workflow.audit_log == []
 
@@ -305,6 +425,167 @@ async def test_unknown_intent_is_rejected_without_reaching_clinical_path() -> No
         BEGIN_EXECUTION_NODE,
         REJECT_UNSUPPORTED_NODE,
     ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("error", "expected_code"),
+    [
+        (FhirNotFoundError("sensitive"), "patient_not_found"),
+        (FhirRequestError("sensitive"), "invalid_patient_id"),
+        (FhirTimeoutError("sensitive"), "fhir_timeout"),
+        (FhirUnavailableError("sensitive"), "fhir_unavailable"),
+        (FhirResponseError("sensitive"), "invalid_fhir_response"),
+        (FhirClientError("sensitive"), "fhir_request_failed"),
+    ],
+)
+async def test_maps_patient_retrieval_failures_to_safe_workflow_codes(
+    error: FhirClientError,
+    expected_code: str,
+) -> None:
+    result = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(patient_reader=StaticPatientSummaryReader(error)),
+    )
+
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.failure_code == expected_code
+    assert result.workflow.patient_data is None
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        RETRIEVE_PATIENT_NODE,
+    ]
+    assert "sensitive" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "patient_reader",
+    [
+        MalformedPatientSummaryReader(),
+        StaticPatientSummaryReader(
+            complete_patient_summary(patient_id="different-patient")
+        ),
+    ],
+)
+async def test_rejects_malformed_or_mismatched_patient_summary(
+    patient_reader: PatientSummaryReader,
+) -> None:
+    result = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(patient_reader=patient_reader),
+    )
+
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.failure_code == INVALID_PATIENT_SUMMARY_CODE
+    assert result.workflow.patient_data is None
+    assert "sensitive patient payload" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.anyio
+async def test_urgent_language_pauses_for_future_review() -> None:
+    result = await execute_workflow_skeleton(
+        queued_workflow("What precautions apply to chest pain?"),
+        runtime=workflow_runtime(),
+    )
+
+    assert result.workflow.status == WorkflowStatus.PENDING_REVIEW
+    assert result.workflow.requires_human_review is True
+    assert result.workflow.safety_result is not None
+    assert [reason.code for reason in result.workflow.safety_result.reasons] == [
+        "urgent_language"
+    ]
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        SAFETY_PRECHECK_NODE,
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("patient", "expected_reason"),
+    [
+        (
+            PatientSummary(patient_id="synthetic-patient-1"),
+            "missing_core_context",
+        ),
+        (
+            complete_patient_summary(
+                truncated_categories=["observations"],
+            ),
+            "patient_context_truncated",
+        ),
+    ],
+)
+async def test_sparse_or_truncated_context_pauses_for_review(
+    patient: PatientSummary,
+    expected_reason: str,
+) -> None:
+    result = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(patient_reader=StaticPatientSummaryReader(patient)),
+    )
+
+    assert result.workflow.status == WorkflowStatus.PENDING_REVIEW
+    assert result.workflow.safety_result is not None
+    assert expected_reason in {
+        reason.code for reason in result.workflow.safety_result.reasons
+    }
+
+
+@pytest.mark.anyio
+async def test_block_decision_rejects_without_implementing_review_actions() -> None:
+    blocked = SafetyResult(
+        decision=SafetyDecision.BLOCK,
+        requires_human_review=False,
+        policy_version="test-policy",
+        reasons=[
+            SafetyReason(
+                code="test_block",
+                message="A deterministic test block.",
+                severity=SafetySeverity.HIGH,
+            )
+        ],
+    )
+    result = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(
+            safety_policy=StaticSafetyPolicy(blocked),
+        ),
+    )
+
+    assert result.workflow.status == WorkflowStatus.REJECTED
+    assert result.workflow.safety_result == blocked
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        SAFETY_PRECHECK_NODE,
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "safety_policy",
+    [
+        StaticSafetyPolicy(SafetyPolicyError("sensitive safety failure")),
+        MalformedSafetyPolicy(),
+    ],
+)
+async def test_safety_failure_or_malformed_output_fails_safely(
+    safety_policy: SafetyPolicy,
+) -> None:
+    result = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(safety_policy=safety_policy),
+    )
+
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.failure_code == SAFETY_FAILURE_CODE
+    assert result.workflow.safety_result is None
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        SAFETY_PRECHECK_NODE,
+    ]
+    assert "sensitive" not in str(result.model_dump(mode="json"))
 
 
 @pytest.mark.anyio

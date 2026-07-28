@@ -5,6 +5,8 @@ from typing import Annotated, TypedDict
 
 from pydantic import ValidationError
 
+from app.domain.clinical import PatientSummary
+from app.domain.safety import SafetyResult
 from app.domain.workflow import (
     Intent,
     WorkflowState,
@@ -85,6 +87,33 @@ def set_workflow_intent(
 
     values = workflow.model_dump()
     values["intent"] = intent
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_patient_data(
+    workflow: WorkflowState,
+    patient: PatientSummary,
+) -> WorkflowState:
+    """Return a validated workflow copy with normalized patient context."""
+
+    values = workflow.model_dump()
+    values["patient_data"] = patient
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_safety_result(
+    workflow: WorkflowState,
+    safety_result: SafetyResult,
+) -> WorkflowState:
+    """Return a validated workflow copy with a structured safety result."""
+
+    values = workflow.model_dump()
+    values.update(
+        {
+            "safety_result": safety_result,
+            "requires_human_review": safety_result.requires_human_review,
+        }
+    )
     return WorkflowState.model_validate(values)
 
 

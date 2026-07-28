@@ -14,6 +14,8 @@ from app.tools.fhir import (
     FhirUnavailableError,
 )
 from app.tools.intent import IntentClassificationError, IntentClassifier
+from app.tools.patient import PatientSummaryError, PatientSummaryReader
+from app.tools.safety import SafetyPolicy, SafetyPolicyError
 
 __all__ = [
     "FhirClient",
@@ -29,4 +31,8 @@ __all__ = [
     "FhirUnavailableError",
     "IntentClassificationError",
     "IntentClassifier",
+    "PatientSummaryError",
+    "PatientSummaryReader",
+    "SafetyPolicy",
+    "SafetyPolicyError",
 ]

@@ -154,8 +154,9 @@ Request
 - `[x]` Implement the typed workflow state and reducers.
 - `[x]` Implement deterministic input validation.
 - `[x]` Implement structured intent classification with an `unknown` fallback.
-- `[ ]` Implement the FHIR retrieval node using Phase 1 tools.
-- `[ ]` Implement basic safety pre-check and response nodes.
+- `[x]` Implement the FHIR retrieval node using Phase 1 tools.
+- `[x]` Implement the basic safety pre-check.
+- `[ ]` Implement response nodes.
 - `[x]` Add conditional graph routing and explicit terminal states.
 - `[ ]` Expose a workflow-run endpoint in FastAPI.
 - `[ ]` Assign correlation, workflow-run, and trace IDs.
@@ -390,6 +391,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-28 | Phase 2.3 | Completed normalized patient retrieval, typed FHIR failure mapping, `initial-safety-v1`, explicit pass/review/block/failure routing, and deterministic boundary coverage; 102 backend tests pass | Stop for review before sub-phase 2.4 |
+| 2026-07-28 | Phase 2.3 | Started normalized patient retrieval, typed FHIR failure mapping, a versioned deterministic safety pre-check, and explicit pass/review/block routing | Complete the three Phase 2.3 reviewable steps |
 | 2026-07-28 | Phase 2.2 | Completed bounded request contracts, conservative structured intent classification, explicit supported/unknown/failure routing, redaction, and deterministic coverage | Stop for review before sub-phase 2.3 |
 | 2026-07-28 | Phase 2.2 | Started bounded request validation, the structured classifier boundary, deterministic intent classification, and explicit routing outcomes | Complete the three Phase 2.2 reviewable steps |
 | 2026-07-28 | Phase 2.1 | Completed typed graph state, lifecycle rules, transition reducer, run-scoped clock, safely terminating async LangGraph skeleton, and deterministic replay coverage | Stop for review before sub-phase 2.2 |

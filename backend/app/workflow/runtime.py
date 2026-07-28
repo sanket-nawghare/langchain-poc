@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from app.tools.intent import IntentClassifier
+from app.tools.patient import PatientSummaryReader
+from app.tools.safety import SafetyPolicy
 
 
 class WorkflowClock(Protocol):
@@ -29,3 +31,5 @@ class WorkflowRuntime:
 
     clock: WorkflowClock
     intent_classifier: IntentClassifier
+    patient_summary_reader: PatientSummaryReader
+    safety_policy: SafetyPolicy
