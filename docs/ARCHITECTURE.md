@@ -2,13 +2,17 @@
 
 ## Current System
 
-Phase 2.5 extends the application foundation and Phase 1 synthetic FHIR path
+Completed Phase 2 extends the application foundation and Phase 1 synthetic FHIR path
 with a typed LangGraph workflow. The graph validates input, classifies intent,
 retrieves only normalized patient context, and applies a deterministic safety
 pre-check before producing a qualified deterministic response and minimal
 audit events. Synchronous run creation/status APIs persist redacted queued and
 final checkpoints in SQLite. Guideline ingestion and real model-provider calls
 remain unimplemented.
+
+The Phase 2 live gate verifies this complete path against the checksum-locked
+`sparse-control-01` fixture and confirms the redacted final snapshot can be
+read back unchanged from SQLite.
 
 ```mermaid
 flowchart LR

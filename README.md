@@ -45,3 +45,5 @@ Project documents:
 - [Quality gates and CI](docs/QUALITY_GATES.md)
 - [Local infrastructure](docker/README.md)
 - [Phase 1 synthetic FHIR execution plan](docs/PHASE_1_SYNTHETIC_FHIR.md)
+- [Phase 2 LangGraph workflow execution record](docs/PHASE_2_WORKFLOW_MVP.md)
+- [Phase 3 guidelines RAG execution plan](docs/PHASE_3_GUIDELINES_RAG.md)

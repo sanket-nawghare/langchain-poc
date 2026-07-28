@@ -15,6 +15,7 @@ FRONTEND_PORT ?= 5173
 HAPI_FHIR_PORT ?= 8080
 FHIR_BASE_URL ?= http://127.0.0.1:$(HAPI_FHIR_PORT)/fhir
 FHIR_REQUEST_TIMEOUT_SECONDS ?= 120
+BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 
 .PHONY: help setup backend-sync frontend-install dev backend-dev frontend-dev \
 	backend-format backend-format-check backend-lint backend-typecheck \
@@ -24,7 +25,7 @@ FHIR_REQUEST_TIMEOUT_SECONDS ?= 120
 	infra-status infra-logs infra-down infra-reset app-data-reset \
 	synthea-generate synthea-select synthea-verify synthea-cohort \
 	synthea-ensure synthea-generated-reset synthea-fixtures-reset \
-	fhir-seed fhir-verify fhir-reset
+	fhir-seed fhir-verify fhir-reset phase2-live-gate
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -189,5 +190,10 @@ fhir-reset: synthea-ensure ## Reset only local HAPI data (requires CONFIRM=1)
 	CONFIRM="$(CONFIRM)" FHIR_BASE_URL="$(FHIR_BASE_URL)" \
 		FHIR_REQUEST_TIMEOUT_SECONDS="$(FHIR_REQUEST_TIMEOUT_SECONDS)" \
 		bash scripts/reset_local_hapi.sh
+
+phase2-live-gate: fhir-verify ## Run the opt-in seeded Phase 2 API integration gate
+	$(UV_ENV) $(UV) run --project backend python -m scripts.phase2_live_gate \
+		--base-url "$(BACKEND_BASE_URL)" \
+		--manifest data/synthetic/cohort-manifest.json
 
 check: backend-check frontend-check frontend-build infra-config ## Run every required local quality check

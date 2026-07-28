@@ -14,6 +14,7 @@ def test_safe_local_defaults_require_no_secret() -> None:
     assert settings.fhir_request_timeout_seconds == 5
     assert settings.fhir_max_retries == 2
     assert settings.fhir_retry_backoff_seconds == 0.1
+    assert settings.fhir_max_records_per_type == 500
     assert settings.workflow_node_timeout_seconds == 10
     assert settings.workflow_node_max_retries == 1
     assert settings.llm_provider == "fake"

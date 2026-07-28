@@ -55,7 +55,7 @@ This baseline can change through a recorded decision before implementation.
 |---|---|---|
 | 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[x]` |
 | 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[x]` |
-| 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[~]` |
+| 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[x]` |
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[ ]` |
 | 4. Safety and Human Review | Risk rules can pause, approve, reject, and resume work | `[ ]` |
 | 5. Product UI | Users can submit requests and inspect workflow progress | `[ ]` |
@@ -166,8 +166,8 @@ Request
 
 ### Exit Criteria
 
-- `[ ]` A clinical question for a seeded patient completes end to end.
-- `[ ]` Each node emits inspectable state transitions and audit metadata.
+- `[x]` A clinical question for a seeded patient completes end to end.
+- `[x]` Each node emits inspectable state transitions or audit metadata.
 - `[x]` Structured-output parsing failures are handled safely.
 - `[x]` Replaying a test case produces deterministic routing.
 
@@ -177,6 +177,9 @@ Request
 
 **Goal:** Ground clinical-QA responses in a curated guideline corpus with
 traceable citations.
+
+Implementation will proceed through the review checkpoints in the
+[Phase 3 execution plan](PHASE_3_GUIDELINES_RAG.md).
 
 ### Scope
 
@@ -361,6 +364,7 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
+| 2026-07-28 | Raise the default normalized FHIR record cap from 100 to 500 while retaining 100-resource pages and a five-page maximum | All four checksum-locked Synthea fixtures exceed 100 observations; verified maxima of 354 observations and 139 procedures fit within the existing reviewed hard cap and allow a real seeded Phase 2 happy path without hiding truncation | Accepted |
 | 2026-07-28 | Persist redacted queued/final workflow snapshots in application-owned SQLite and fail interrupted work on startup | Provides inspectable recovery without storing query/patient context or automatically replaying clinical work | Accepted |
 | 2026-07-28 | Let response generators draft bounded answer text only; application code owns disclaimers and citations | Prevents a model/provider from removing educational qualifications or fabricating evidence | Accepted |
 | 2026-07-27 | Use FastAPI as the initial backend | Aligns with the Python LangChain/LangGraph ecosystem | Accepted |
@@ -393,6 +397,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-28 | Phase 2.6 | Completed the seeded live workflow/failure gate, persisted-status and redaction proof, bounded cohort-cap reconciliation, clean source-only bootstrap/check, Phase 2 documentation, and Phase 3 review plan; 128 backend and 6 frontend tests pass | Stop for final Phase 2 review before Phase 3 |
+| 2026-07-28 | Phase 2.6 | Started the seeded end-to-end, failure-path, reproducibility, isolated-source, and Phase 2 closeout gate | Complete the three Phase 2.6 reviewable steps |
 | 2026-07-28 | Phase 2.5 | Completed redacted SQLite checkpoints, synchronous run/status APIs, workflow/correlation/trace identity, bounded capability timeout/retry, interrupted-run recovery, and safe error mappings; 128 backend tests pass | Stop for review before sub-phase 2.6 |
 | 2026-07-28 | Phase 2.5 | Started redacted workflow-run persistence, synchronous run/status APIs, bounded capability execution, and interrupted-run recovery | Complete the three Phase 2.5 reviewable steps |
 | 2026-07-28 | Phase 2.4 | Completed bounded response generation, application-owned qualification, empty Phase 3 citation enforcement, minimal redacted audit events, safe model failure routing, and deterministic replay; 112 backend tests pass | Stop for review before sub-phase 2.5 |

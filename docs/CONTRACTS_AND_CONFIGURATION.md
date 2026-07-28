@@ -85,6 +85,9 @@ narratives, and raw FHIR payloads are excluded.
 - The patient-summary service follows only adapter-approved pagination links,
   applies configured page and per-resource bounds, and emits normalized domain
   models in deterministic effective-time order.
+- The local default permits at most 500 normalized records per resource type
+  across at most five 100-resource pages. Any collection beyond either bound is
+  still reported in `truncated_categories`.
 - LangGraph operates on a typed wrapper around `WorkflowState`. Nodes replace
   the validated workflow contract and append `WorkflowTransition` values
   through a non-mutating reducer; provider objects never become graph state.

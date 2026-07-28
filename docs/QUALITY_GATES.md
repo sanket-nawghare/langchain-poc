@@ -21,10 +21,16 @@ Use the smaller targets while developing:
 | Frontend | `make frontend-format`, `make frontend-check` |
 | Tests only | `make test` |
 | Compose | `make infra-config` |
+| Seeded Phase 2 API | `make phase2-live-gate` |
 | Everything | `make check` |
 
 `backend-check` runs Ruff formatting and linting, mypy strict type checking,
 and pytest. `frontend-check` runs Prettier, ESLint, TypeScript, and Vitest.
+
+`phase2-live-gate` is deliberately opt-in because it requires healthy local
+infrastructure, the checksum-locked synthetic cohort loaded in HAPI, and a
+running backend. It verifies the cohort before exercising completed, review,
+rejected, missing-patient, invalid-input, persistence, and redaction paths.
 
 ## Pre-commit
 

@@ -1,9 +1,8 @@
 # Phase 2 — LangGraph Workflow MVP Plan
 
-This plan expands Phase 2 of the
+This execution record expands Phase 2 of the
 [project roadmap](PROJECT_ROADMAP.md) into reviewable implementation
-checkpoints. It is a handoff plan only; no Phase 2 behavior is implemented
-during the Phase 1 gate.
+checkpoints and records the completed verification for each boundary.
 
 ## Objective
 
@@ -33,7 +32,7 @@ safety check, returns a qualified response, and records minimum audit metadata.
 | 2.3 Patient retrieval and safety pre-check | The graph retrieves Phase 1 context and applies initial deterministic safety rules | `[x]` |
 | 2.4 Qualified response and audit | A provider-neutral model boundary returns structured output with disclaimers and minimal audit events | `[x]` |
 | 2.5 Run API, persistence, and recovery | Workflow runs have IDs, inspectable status, checkpoints, timeouts, and safe failures | `[x]` |
-| 2.6 Integration and Phase 2 gate | The complete thin path passes deterministic end-to-end and reproducibility checks | `[ ]` |
+| 2.6 Integration and Phase 2 gate | The complete thin path passes deterministic end-to-end and reproducibility checks | `[x]` |
 
 Every sub-phase must be marked in progress before implementation, split into
 its own reviewable steps, verified independently, marked complete, and stopped
@@ -455,28 +454,79 @@ Verified on 2026-07-28:
 **Purpose:** Prove the thin clinical-QA graph works from API request through
 normalized patient context, safety, response, audit, and persistence.
 
-### Planned Deliverables
+**Status:** `[x]` Complete — ready for final Phase 2 review
 
-- Test the full seeded-patient happy path using deterministic fake model
+### Reviewable Implementation Steps
+
+1. **2.6.1 Seeded integration contract** — select a reviewed cohort alias,
+   reconcile bounded retrieval with its verified HAPI counts, and define
+   live happy-path and failure-path assertions.
+2. **2.6.2 End-to-end and reproducibility gate** — add an opt-in live API gate
+   plus deterministic isolated tests for success, rejection, invalid/missing
+   patients, dependency/model failure, safety review, timeout, persistence,
+   audit redaction, and replay.
+3. **2.6.3 Phase closeout** — run repository and isolated-source checks, verify
+   the live seeded workflow and stored status, finish Phase 2 documentation,
+   and prepare only the Phase 3 sub-phase plan.
+
+The live gate uses only the checksum-locked synthetic cohort, loopback HAPI,
+the deterministic local providers, and redacted SQLite workflow snapshots.
+Phase 3 corpus ingestion and guideline retrieval remain out of scope.
+
+### Deliverables
+
+- `[x]` Test the full seeded-patient happy path using deterministic fake model
   dependencies.
-- Test unsupported intent, invalid and missing patient, tool failure, malformed
-  model output, safety flag, timeout, and replay behavior.
-- Verify inspectable state transitions, correlation metadata, and audit
+- `[x]` Test unsupported intent, invalid and missing patient, tool failure,
+  malformed model output, safety flag, timeout, and replay behavior.
+- `[x]` Verify inspectable state transitions, correlation metadata, and audit
   redaction.
-- Run repository and isolated-source quality gates.
-- Update architecture, development, contracts, decisions, and roadmap status.
-- Prepare the Phase 3 sub-phase plan without implementing guideline RAG.
+- `[x]` Run repository and isolated-source quality gates.
+- `[x]` Update architecture, development, contracts, decisions, and roadmap
+  status.
+- `[x]` Prepare the Phase 3 sub-phase plan without implementing guideline RAG.
 
 ### Phase Exit Criteria
 
-- A clinical question for a seeded synthetic patient completes end to end.
-- Every node exposes deterministic, testable state transitions.
-- Unsupported input and dependency/model failures terminate safely.
-- Replaying a deterministic test produces the same routing and result.
-- No real patient data, raw FHIR resource, prompt body, or model payload is
+- `[x]` A clinical question for a seeded synthetic patient completes end to end.
+- `[x]` Every node exposes deterministic, testable state transitions or audit
+  outcomes.
+- `[x]` Unsupported input and dependency/model failures terminate safely.
+- `[x]` Replaying a deterministic test produces the same routing and result.
+- `[x]` No real patient data, raw FHIR resource, prompt body, or model payload is
   persisted or logged.
 
 ### Review Checkpoint
 
 Perform the final Phase 2 review. Phase 3 begins only after this gate is
 accepted.
+
+### Verification Record
+
+Verified on 2026-07-28:
+
+- Measured all four checksum-locked cohort fixtures against local HAPI. Their
+  maxima were 354 observations and 139 procedures, so the former 100-record
+  default made every real seeded run stop for truncation review.
+- Raised only the configurable record cap to the existing reviewed hard maximum
+  of 500. The 100-resource page size and five-page maximum remain unchanged;
+  explicit truncation remains active above either bound.
+- Verified `sparse-control-01` through the normalized API with 262 observations,
+  99 procedures, and no truncated categories.
+- Added `make phase2-live-gate`. It first verifies the checksum-locked HAPI
+  cohort, then proves completed, pending-review, unsupported, missing-patient,
+  and invalid-request paths plus persisted snapshot equality and redaction.
+- The live completed run carried distinct request/workflow/correlation/trace
+  IDs, `queued → running → completed` lifecycle transitions, six expected audit
+  events, the exact educational disclaimer, and zero Phase 3 citations.
+- Existing deterministic coverage verifies malformed classifier/patient/safety/
+  response output, typed and unexpected dependency failures, timeout and retry
+  exhaustion, restart recovery, concurrent IDs, audit redaction, and replay.
+- `make check`, `make pre-commit`, and `git diff --check` passed with 128 backend
+  tests, 6 frontend tests, the frontend production build, and Compose
+  validation.
+- A source-only copy with no Git history, tooling, dependencies, caches,
+  environment files, generated cohort, database, or build output bootstrapped
+  with `make setup`; `make check` passed there with the same test counts.
+- Added [the Phase 3 execution plan](PHASE_3_GUIDELINES_RAG.md) without adding
+  a corpus, Weaviate schema, ingestion, retrieval, embeddings, or citations.

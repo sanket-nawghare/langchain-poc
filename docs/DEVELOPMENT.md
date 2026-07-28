@@ -133,6 +133,18 @@ Run creation is synchronous in Phase 2.5. If the process stops after storing an
 incomplete checkpoint, the next application startup marks it failed with
 `workflow_interrupted`; it does not automatically replay clinical work.
 
+With infrastructure seeded and the backend running, execute the complete
+opt-in Phase 2 gate:
+
+```bash
+make phase2-live-gate
+```
+
+The target verifies the locked HAPI cohort, then exercises the reviewed
+`sparse-control-01` happy path, safety review, unsupported intent, missing
+patient, invalid request, persistence, and redaction. It uses no model API key
+or network model call.
+
 ## Configuration
 
 Backend variables use the `CLINICAL_` prefix and are documented in
@@ -146,7 +158,7 @@ The read-only FHIR adapter supports these validated backend settings:
 | `CLINICAL_FHIR_MAX_RETRIES` | `2` | 0–3 |
 | `CLINICAL_FHIR_RETRY_BACKOFF_SECONDS` | `0.1` | 0–5 |
 | `CLINICAL_FHIR_MAX_PAGES_PER_SEARCH` | `5` | 1–20 |
-| `CLINICAL_FHIR_MAX_RECORDS_PER_TYPE` | `100` | 1–500 |
+| `CLINICAL_FHIR_MAX_RECORDS_PER_TYPE` | `500` | 1–500 |
 | `CLINICAL_WORKFLOW_NODE_TIMEOUT_SECONDS` | `10` | Greater than 0, at most 30 |
 | `CLINICAL_WORKFLOW_NODE_MAX_RETRIES` | `1` | 0–3 |
 
