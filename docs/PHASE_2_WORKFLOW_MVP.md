@@ -31,7 +31,7 @@ safety check, returns a qualified response, and records minimum audit metadata.
 | 2.1 Execution contracts and graph skeleton | Graph dependencies, state transitions, reducers, and terminal outcomes are explicit | `[x]` |
 | 2.2 Input validation and intent routing | Valid clinical-QA requests route deterministically and unsupported input fails safely | `[x]` |
 | 2.3 Patient retrieval and safety pre-check | The graph retrieves Phase 1 context and applies initial deterministic safety rules | `[x]` |
-| 2.4 Qualified response and audit | A provider-neutral model boundary returns structured output with disclaimers and minimal audit events | `[ ]` |
+| 2.4 Qualified response and audit | A provider-neutral model boundary returns structured output with disclaimers and minimal audit events | `[x]` |
 | 2.5 Run API, persistence, and recovery | Workflow runs have IDs, inspectable status, checkpoints, timeouts, and safe failures | `[ ]` |
 | 2.6 Integration and Phase 2 gate | The complete thin path passes deterministic end-to-end and reproducibility checks | `[ ]` |
 
@@ -286,22 +286,82 @@ Verified on 2026-07-28:
 **Purpose:** Generate a structured educational response while preserving
 provider neutrality and minimal audit data.
 
-### Planned Deliverables
+**Status:** `[x]` Complete — ready for review
 
-- Define a provider-neutral structured model capability and deterministic fake.
-- Generate a bounded answer with the required synthetic/educational disclaimer.
-- Make the absence of Phase 3 guideline evidence explicit; do not fabricate
+### Reviewable Implementation Steps
+
+1. **2.4.1 Response and audit contracts** — define a bounded response-draft
+   capability, safe generator failures, an application-owned audit ID source,
+   the required disclaimer, and allowed audit metadata.
+2. **2.4.2 Generation and completion routing** — add native async response
+   generation after a passing safety decision, construct the qualified response
+   in application code, complete the workflow, and emit minimal audit events.
+3. **2.4.3 Qualification-boundary verification** — test successful completion,
+   empty Phase 3 citations, exact disclaimer, malformed and fabricated output,
+   timeout, safety stops, audit redaction, topology, and deterministic replay.
+
+The response generator may draft answer text only. Application code owns the
+disclaimer and citations, so a provider cannot fabricate evidence or remove the
+educational limitation. Persistence and HTTP integration remain Phase 2.5 work.
+
+### Deliverables
+
+- `[x]` Define a provider-neutral structured model capability and deterministic
+  fake.
+- `[x]` Generate a bounded answer with the required synthetic/educational
+  disclaimer.
+- `[x]` Make the absence of Phase 3 guideline evidence explicit; do not fabricate
   citations.
-- Validate model output and fail safely on malformed or unsupported content.
-- Emit minimal audit events for node transitions, tool calls, results, and
+- `[x]` Validate model output and fail safely on malformed or unsupported
+  content.
+- `[x]` Emit minimal audit events for node transitions, tool calls, results, and
   failures without queries, patient context, prompts, or model payloads.
-- Test success, malformed output, timeout, safety stop, disclaimer, empty
+- `[x]` Test success, malformed output, timeout, safety stop, disclaimer, empty
   citations, and audit redaction.
+
+### Acceptance Criteria
+
+- `[x]` The generator can return only a bounded `ResponseDraft`; unknown fields
+  such as provider-controlled citations or disclaimers are rejected.
+- `[x]` Application code attaches the exact educational disclaimer and only
+  citations already present in trusted workflow state.
+- `[x]` Because Phase 3 is not implemented, successful Phase 2.4 responses have
+  no citations and explicitly state that curated guideline evidence is absent.
+- `[x]` Unexpected preloaded guideline evidence fails safely rather than being
+  represented as trusted evidence.
+- `[x]` Typed generator timeouts, other generator failures, and malformed output
+  terminate with stable failure codes and no partial final response.
+- `[x]` Review and block safety outcomes never invoke response generation.
+- `[x]` Only completed workflows may contain a final response.
+- `[x]` Audit events contain IDs, correlation metadata, stable event types, and
+  small scalar results without query, patient, prompt, or response content.
 
 ### Review Checkpoint
 
 Review response qualification, model isolation, failure fallback, and audit
 field selection before persistence or HTTP integration.
+
+### Verification Record
+
+Verified on 2026-07-28:
+
+- Added the provider-neutral `ResponseDraft` and `ResponseGenerator` contracts,
+  typed timeout/failure boundaries, and a deterministic local generator that
+  needs no API key or network call.
+- Added a native async response node after a passing safety result. It
+  revalidates the draft, rejects premature guideline evidence, attaches the
+  application-owned disclaimer and empty trusted citation list, and transitions
+  atomically to `completed`.
+- Added immutable audit-event appends with injected clocks and ID generation.
+  The graph records status changes, classifier and patient-summary outcomes,
+  safety decisions, response completion, and safe failure codes using scalar
+  metadata only.
+- Preserved safety stops: review ends at `pending_review`, block ends at
+  `rejected`, and neither path calls the response generator.
+- Added ten focused contract, deterministic-generator, completion, timeout,
+  malformed/fabricated-output, citation-boundary, audit-redaction, and replay
+  cases.
+- `make backend-check` passed with 112 backend tests.
 
 ---
 

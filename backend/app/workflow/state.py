@@ -5,9 +5,11 @@ from typing import Annotated, TypedDict
 
 from pydantic import ValidationError
 
+from app.domain.audit import AuditEvent
 from app.domain.clinical import PatientSummary
 from app.domain.safety import SafetyResult
 from app.domain.workflow import (
+    GeneratedResponse,
     Intent,
     WorkflowState,
     WorkflowStatus,
@@ -117,6 +119,17 @@ def set_workflow_safety_result(
     return WorkflowState.model_validate(values)
 
 
+def append_workflow_audit_events(
+    workflow: WorkflowState,
+    events: list[AuditEvent],
+) -> WorkflowState:
+    """Append validated audit events without mutating either input."""
+
+    values = workflow.model_dump()
+    values["audit_log"] = [*workflow.audit_log, *events]
+    return WorkflowState.model_validate(values)
+
+
 def transition_workflow(
     workflow: WorkflowState,
     to_status: WorkflowStatus,
@@ -124,6 +137,7 @@ def transition_workflow(
     occurred_at: datetime,
     step: str,
     failure_code: str | None = None,
+    final_response: GeneratedResponse | None = None,
 ) -> tuple[WorkflowState, WorkflowTransition]:
     """Apply one validated, monotonic workflow status transition."""
 
@@ -134,6 +148,10 @@ def transition_workflow(
     if (to_status == WorkflowStatus.FAILED) != (failure_code is not None):
         raise InvalidWorkflowTransition(
             "failure_code must be set only when transitioning to failed"
+        )
+    if (to_status == WorkflowStatus.COMPLETED) != (final_response is not None):
+        raise InvalidWorkflowTransition(
+            "final_response must be set only when transitioning to completed"
         )
 
     try:
@@ -158,6 +176,7 @@ def transition_workflow(
             "status": to_status,
             "updated_at": transition.occurred_at,
             "failure_code": failure_code,
+            "final_response": final_response,
         }
     )
     return WorkflowState.model_validate(updated_values), transition

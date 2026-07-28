@@ -49,6 +49,8 @@ Rules:
 | Audit event | `domain/audit.py` | Minimal attributable workflow history |
 | Workflow state, transitions, and execution result | `domain/workflow.py` | Provider-neutral state and status history exchanged by graph nodes |
 | Workflow request and intent classification | `domain/workflow.py` | Bounded untrusted input and strict structured routing output |
+| Response draft and qualified response | `domain/workflow.py` | Bounded provider draft plus application-owned citations and disclaimer |
+| Response-generator capability | `tools/response.py` | Provider-neutral structured answer drafting and safe failures |
 
 All durable models reject unknown fields. This prevents misspelled or
 provider-specific data from silently entering persisted workflow state.
@@ -89,7 +91,8 @@ narratives, and raw FHIR payloads are excluded.
   history whose final status and timestamp match the returned workflow state.
 - Immutable run-scoped context carries application-owned dependencies. Phase
   2.3 injects a clock, intent classifier, patient-summary reader, and safety
-  policy so deterministic tests do not depend on wall time or external
+  policy. Phase 2.4 also injects a response generator and audit-event ID source
+  so deterministic tests do not depend on wall time, random IDs, or external
   providers.
 - Graph execution explicitly disables inherited LangSmith tracing. This keeps
   queries and workflow state local until a later phase defines reviewed,
@@ -104,5 +107,14 @@ narratives, and raw FHIR payloads are excluded.
 - Safety results are revalidated before entering workflow state.
   `initial-safety-v1` emits only stable reason codes, generic messages, and
   bounded category references; it does not echo query or patient content.
+- Response generators return only `ResponseDraft.answer`, bounded to 4,000
+  characters. Unknown fields are rejected; application code attaches the
+  educational disclaimer and trusted citations.
+- Until Phase 3 populates reviewed guideline evidence, response citations must
+  remain empty and unexpected preloaded citations fail safely.
+- A final response exists exactly when workflow status is `completed`.
+- In-memory audit events contain application IDs, timestamps, stable event
+  types, and small scalar outcome metadata. Queries, patient summaries, prompts,
+  response text, provider payloads, and upstream errors are excluded.
 - Audit details accept scalar metadata only; raw patient context and prompt
   bodies do not belong there.

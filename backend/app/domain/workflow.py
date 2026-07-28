@@ -17,6 +17,9 @@ from app.domain.base import (
 from app.domain.clinical import Citation, PatientSummary
 from app.domain.safety import SafetyResult
 
+MAX_RESPONSE_ANSWER_LENGTH = 4000
+MAX_RESPONSE_DISCLAIMER_LENGTH = 500
+
 
 class Intent(StrEnum):
     """Supported and safely handled request intents."""
@@ -38,6 +41,12 @@ class IntentClassification(ContractModel):
     intent: Intent
 
 
+class ResponseDraft(ContractModel):
+    """Bounded answer text returned by a provider-neutral generator."""
+
+    answer: str = Field(min_length=1, max_length=MAX_RESPONSE_ANSWER_LENGTH)
+
+
 class WorkflowStatus(StrEnum):
     """Persistable workflow lifecycle states."""
 
@@ -52,9 +61,12 @@ class WorkflowStatus(StrEnum):
 class GeneratedResponse(ContractModel):
     """Qualified final output returned by the workflow."""
 
-    answer: NonEmptyString
+    answer: str = Field(min_length=1, max_length=MAX_RESPONSE_ANSWER_LENGTH)
     citations: list[Citation] = Field(default_factory=list)
-    disclaimer: NonEmptyString
+    disclaimer: str = Field(
+        min_length=1,
+        max_length=MAX_RESPONSE_DISCLAIMER_LENGTH,
+    )
 
 
 class WorkflowTransition(ContractModel):
@@ -93,6 +105,20 @@ class WorkflowState(ContractModel):
             raise ValueError("updated_at must not precede created_at")
         if (self.status == WorkflowStatus.FAILED) != (self.failure_code is not None):
             raise ValueError("failure_code must be set only for a failed workflow")
+        if (self.status == WorkflowStatus.COMPLETED) != (
+            self.final_response is not None
+        ):
+            raise ValueError("final_response must be set only for a completed workflow")
+        event_ids = set()
+        for event in self.audit_log:
+            if (
+                event.workflow_id != self.workflow_id
+                or event.correlation_id != self.correlation_id
+            ):
+                raise ValueError("audit events must match workflow identifiers")
+            if event.event_id in event_ids:
+                raise ValueError("audit event IDs must be unique within a workflow")
+            event_ids.add(event.event_id)
         if self.safety_result is None:
             return self
         if self.requires_human_review != self.safety_result.requires_human_review:

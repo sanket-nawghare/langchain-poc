@@ -7,15 +7,21 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain import (
+    ActorType,
     ApiError,
+    AuditEvent,
+    AuditEventType,
     Citation,
     ErrorDetail,
+    GeneratedResponse,
     Intent,
+    ResponseDraft,
     SafetyDecision,
     SafetyReason,
     SafetyResult,
     SafetySeverity,
     WorkflowState,
+    WorkflowStatus,
 )
 
 
@@ -127,6 +133,82 @@ def test_safety_result_rejects_contradictory_review_flag() -> None:
                     severity=SafetySeverity.WARNING,
                 )
             ],
+        )
+
+
+def test_response_draft_is_bounded_and_rejects_provider_qualifications() -> None:
+    with pytest.raises(ValidationError, match="at most 4000"):
+        ResponseDraft(answer="x" * 4001)
+
+    with pytest.raises(ValidationError, match="citations"):
+        ResponseDraft.model_validate(
+            {
+                "answer": "Draft answer",
+                "citations": ["provider-controlled"],
+            }
+        )
+
+
+def test_final_response_exists_only_on_completed_workflow() -> None:
+    now = datetime.now(UTC)
+    values = {
+        "workflow_id": uuid4(),
+        "correlation_id": uuid4(),
+        "created_at": now,
+        "updated_at": now,
+        "user_query": "Question",
+        "patient_id": "synthetic-patient-001",
+    }
+    response = GeneratedResponse(
+        answer="Bounded educational answer.",
+        disclaimer="Educational demonstration only.",
+    )
+
+    with pytest.raises(ValidationError, match="final_response"):
+        WorkflowState.model_validate({**values, "status": WorkflowStatus.COMPLETED})
+    with pytest.raises(ValidationError, match="final_response"):
+        WorkflowState.model_validate({**values, "final_response": response})
+
+    completed = WorkflowState.model_validate(
+        {
+            **values,
+            "status": WorkflowStatus.COMPLETED,
+            "final_response": response,
+        }
+    )
+    assert completed.final_response == response
+
+
+@pytest.mark.parametrize("invalid_audit", ["mismatched_workflow", "duplicate_id"])
+def test_workflow_rejects_mismatched_or_duplicate_audit_events(
+    invalid_audit: str,
+) -> None:
+    now = datetime.now(UTC)
+    workflow_id = uuid4()
+    correlation_id = uuid4()
+    event_id = uuid4()
+    event = AuditEvent(
+        event_id=event_id,
+        workflow_id=(
+            uuid4() if invalid_audit == "mismatched_workflow" else workflow_id
+        ),
+        correlation_id=correlation_id,
+        event_type=AuditEventType.STATUS_CHANGED,
+        occurred_at=now,
+        actor_type=ActorType.SYSTEM,
+        details={"step": "test"},
+    )
+    audit_log = [event, event] if invalid_audit == "duplicate_id" else [event]
+
+    with pytest.raises(ValidationError, match="audit"):
+        WorkflowState(
+            workflow_id=workflow_id,
+            correlation_id=correlation_id,
+            created_at=now,
+            updated_at=now,
+            user_query="Question",
+            patient_id="synthetic-patient-001",
+            audit_log=audit_log,
         )
 
 

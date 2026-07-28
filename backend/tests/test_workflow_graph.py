@@ -11,7 +11,9 @@ import langsmith as ls
 import pytest
 from pydantic import ValidationError
 
+from app.domain.audit import AuditEventType
 from app.domain.clinical import (
+    Citation,
     ClinicalRecordSummary,
     ClinicalSummaryCategory,
     PatientSummary,
@@ -23,14 +25,17 @@ from app.domain.safety import (
     SafetySeverity,
 )
 from app.domain.workflow import (
+    GeneratedResponse,
     Intent,
     IntentClassification,
+    ResponseDraft,
     WorkflowExecutionResult,
     WorkflowState,
     WorkflowStatus,
     WorkflowTransition,
 )
 from app.services.deterministic_intent import DeterministicIntentClassifier
+from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
 from app.tools.fhir import (
     FhirClientError,
@@ -42,19 +47,28 @@ from app.tools.fhir import (
 )
 from app.tools.intent import IntentClassificationError, IntentClassifier
 from app.tools.patient import PatientSummaryReader
+from app.tools.response import (
+    ResponseGenerationError,
+    ResponseGenerationTimeoutError,
+    ResponseGenerator,
+)
 from app.tools.safety import SafetyPolicy, SafetyPolicyError
 from app.workflow.graph import (
     BEGIN_EXECUTION_NODE,
     CLASSIFICATION_FAILURE_CODE,
     CLASSIFY_INTENT_NODE,
-    HALT_UNIMPLEMENTED_NODE,
+    EDUCATIONAL_DISCLAIMER,
+    GENERATE_RESPONSE_NODE,
+    GUIDELINE_EVIDENCE_UNAVAILABLE_CODE,
     INVALID_PATIENT_SUMMARY_CODE,
     REJECT_UNSUPPORTED_NODE,
+    RESPONSE_FAILURE_CODE,
+    RESPONSE_TIMEOUT_CODE,
     RETRIEVE_PATIENT_NODE,
     SAFETY_FAILURE_CODE,
     SAFETY_PRECHECK_NODE,
-    UNIMPLEMENTED_FAILURE_CODE,
     build_workflow_graph,
+    execute_workflow,
     execute_workflow_skeleton,
 )
 from app.workflow.runtime import WorkflowRuntime
@@ -76,6 +90,16 @@ class FixedClock:
 
     def now(self) -> datetime:
         return self.value
+
+
+class SequentialAuditEventIdFactory:
+    def __init__(self) -> None:
+        self.next_value = 1
+
+    def new(self) -> UUID:
+        event_id = UUID(int=self.next_value)
+        self.next_value += 1
+        return event_id
 
 
 class FailingClassifier:
@@ -152,6 +176,45 @@ class MalformedSafetyPolicy:
         )
 
 
+class StaticResponseGenerator:
+    def __init__(
+        self,
+        result: ResponseDraft | ResponseGenerationError,
+    ) -> None:
+        self.result = result
+        self.calls = 0
+
+    async def generate(
+        self,
+        *,
+        query: str,
+        patient: PatientSummary,
+        guidelines: list[Citation],
+    ) -> ResponseDraft:
+        self.calls += 1
+        if isinstance(self.result, ResponseGenerationError):
+            raise self.result
+        return self.result
+
+
+class MalformedResponseGenerator:
+    async def generate(
+        self,
+        *,
+        query: str,
+        patient: PatientSummary,
+        guidelines: list[Citation],
+    ) -> ResponseDraft:
+        return cast(
+            ResponseDraft,
+            {
+                "answer": "Unqualified output",
+                "citations": ["fabricated-provider-citation"],
+                "disclaimer": "Provider-controlled disclaimer",
+            },
+        )
+
+
 def complete_patient_summary(
     *,
     patient_id: str = "synthetic-patient-1",
@@ -175,6 +238,7 @@ def workflow_runtime(
     *,
     patient_reader: PatientSummaryReader | None = None,
     safety_policy: SafetyPolicy | None = None,
+    response_generator: ResponseGenerator | None = None,
 ) -> WorkflowRuntime:
     return WorkflowRuntime(
         clock=FixedClock(EXECUTED_AT),
@@ -183,6 +247,8 @@ def workflow_runtime(
             patient_reader or StaticPatientSummaryReader(complete_patient_summary())
         ),
         safety_policy=safety_policy or DeterministicSafetyPolicy(),
+        response_generator=response_generator or DeterministicResponseGenerator(),
+        audit_event_ids=SequentialAuditEventIdFactory(),
     )
 
 
@@ -269,6 +335,11 @@ def test_rejects_invalid_and_terminal_transitions(
 ) -> None:
     values = queued_workflow().model_dump()
     values["status"] = initial_status
+    if initial_status == WorkflowStatus.COMPLETED:
+        values["final_response"] = GeneratedResponse(
+            answer="Completed educational answer.",
+            disclaimer=EDUCATIONAL_DISCLAIMER,
+        )
     if initial_status == WorkflowStatus.FAILED:
         values["failure_code"] = "already_failed"
     workflow = WorkflowState.model_validate(values)
@@ -351,7 +422,7 @@ def test_execution_result_rejects_broken_transition_history() -> None:
         )
 
 
-def test_graph_has_only_the_reviewed_retrieval_and_safety_topology() -> None:
+def test_graph_has_only_the_reviewed_response_and_audit_topology() -> None:
     graph = build_workflow_graph().get_graph()
 
     assert set(graph.nodes) == {
@@ -361,7 +432,7 @@ def test_graph_has_only_the_reviewed_retrieval_and_safety_topology() -> None:
         REJECT_UNSUPPORTED_NODE,
         RETRIEVE_PATIENT_NODE,
         SAFETY_PRECHECK_NODE,
-        HALT_UNIMPLEMENTED_NODE,
+        GENERATE_RESPONSE_NODE,
         "__end__",
     }
     assert {(edge.source, edge.target) for edge in graph.edges} == {
@@ -372,23 +443,23 @@ def test_graph_has_only_the_reviewed_retrieval_and_safety_topology() -> None:
         (CLASSIFY_INTENT_NODE, "__end__"),
         (RETRIEVE_PATIENT_NODE, SAFETY_PRECHECK_NODE),
         (RETRIEVE_PATIENT_NODE, "__end__"),
-        (SAFETY_PRECHECK_NODE, HALT_UNIMPLEMENTED_NODE),
+        (SAFETY_PRECHECK_NODE, GENERATE_RESPONSE_NODE),
         (SAFETY_PRECHECK_NODE, "__end__"),
         (REJECT_UNSUPPORTED_NODE, "__end__"),
-        (HALT_UNIMPLEMENTED_NODE, "__end__"),
+        (GENERATE_RESPONSE_NODE, "__end__"),
     }
 
 
 @pytest.mark.anyio
-async def test_supported_intent_reaches_safe_unimplemented_stop() -> None:
-    result = await execute_workflow_skeleton(
+async def test_supported_intent_completes_with_qualified_response_and_audit() -> None:
+    result = await execute_workflow(
         queued_workflow(),
         runtime=workflow_runtime(),
     )
 
-    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.status == WorkflowStatus.COMPLETED
     assert result.workflow.intent == Intent.CLINICAL_QA
-    assert result.workflow.failure_code == UNIMPLEMENTED_FAILURE_CODE
+    assert result.workflow.failure_code is None
     assert result.workflow.updated_at == EXECUTED_AT
     assert result.workflow.patient_data == complete_patient_summary()
     assert result.workflow.safety_result is not None
@@ -403,12 +474,31 @@ async def test_supported_intent_reaches_safe_unimplemented_stop() -> None:
         ),
         (
             WorkflowStatus.RUNNING,
-            WorkflowStatus.FAILED,
-            HALT_UNIMPLEMENTED_NODE,
+            WorkflowStatus.COMPLETED,
+            GENERATE_RESPONSE_NODE,
         ),
     ]
-    assert result.workflow.final_response is None
-    assert result.workflow.audit_log == []
+    assert result.workflow.final_response is not None
+    assert result.workflow.final_response.disclaimer == EDUCATIONAL_DISCLAIMER
+    assert result.workflow.final_response.citations == []
+    assert "No curated guideline evidence" in result.workflow.final_response.answer
+    assert [event.event_type for event in result.workflow.audit_log] == [
+        AuditEventType.STATUS_CHANGED,
+        AuditEventType.TOOL_CALLED,
+        AuditEventType.TOOL_CALLED,
+        AuditEventType.SAFETY_EVALUATED,
+        AuditEventType.RESPONSE_GENERATED,
+        AuditEventType.STATUS_CHANGED,
+    ]
+    assert len({event.event_id for event in result.workflow.audit_log}) == len(
+        result.workflow.audit_log
+    )
+    serialized_audit = str(
+        [event.model_dump(mode="json") for event in result.workflow.audit_log]
+    )
+    assert result.workflow.user_query not in serialized_audit
+    assert result.workflow.patient_id not in serialized_audit
+    assert "Synthetic condition" not in serialized_audit
 
 
 @pytest.mark.anyio
@@ -484,9 +574,10 @@ async def test_rejects_malformed_or_mismatched_patient_summary(
 
 @pytest.mark.anyio
 async def test_urgent_language_pauses_for_future_review() -> None:
+    response_generator = StaticResponseGenerator(ResponseDraft(answer="must not run"))
     result = await execute_workflow_skeleton(
         queued_workflow("What precautions apply to chest pain?"),
-        runtime=workflow_runtime(),
+        runtime=workflow_runtime(response_generator=response_generator),
     )
 
     assert result.workflow.status == WorkflowStatus.PENDING_REVIEW
@@ -499,6 +590,8 @@ async def test_urgent_language_pauses_for_future_review() -> None:
         BEGIN_EXECUTION_NODE,
         SAFETY_PRECHECK_NODE,
     ]
+    assert response_generator.calls == 0
+    assert result.workflow.final_response is None
 
 
 @pytest.mark.anyio
@@ -612,11 +705,79 @@ async def test_classifier_failure_or_malformed_output_fails_safely(
 
 
 @pytest.mark.anyio
-async def test_skeleton_replay_is_deterministic() -> None:
-    runtime = workflow_runtime()
+@pytest.mark.parametrize(
+    ("response_generator", "expected_code"),
+    [
+        (
+            StaticResponseGenerator(
+                ResponseGenerationTimeoutError("sensitive timeout")
+            ),
+            RESPONSE_TIMEOUT_CODE,
+        ),
+        (
+            StaticResponseGenerator(ResponseGenerationError("sensitive failure")),
+            RESPONSE_FAILURE_CODE,
+        ),
+        (MalformedResponseGenerator(), RESPONSE_FAILURE_CODE),
+    ],
+)
+async def test_response_failure_timeout_or_untrusted_output_fails_safely(
+    response_generator: ResponseGenerator,
+    expected_code: str,
+) -> None:
+    result = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(response_generator=response_generator),
+    )
 
-    first = await execute_workflow_skeleton(queued_workflow(), runtime=runtime)
-    second = await execute_workflow_skeleton(queued_workflow(), runtime=runtime)
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.failure_code == expected_code
+    assert result.workflow.final_response is None
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        GENERATE_RESPONSE_NODE,
+    ]
+    serialized = str(result.model_dump(mode="json"))
+    assert "sensitive" not in serialized
+    assert "fabricated-provider-citation" not in serialized
+    assert "Provider-controlled disclaimer" not in serialized
+
+
+@pytest.mark.anyio
+async def test_phase_3_guideline_context_is_not_accepted_early() -> None:
+    values = queued_workflow().model_dump()
+    values["retrieved_guidelines"] = [
+        Citation(
+            document_id="future-guideline",
+            chunk_id="future-chunk",
+            title="Future guideline",
+            publisher="Future publisher",
+            source_url="https://example.test/future",
+        )
+    ]
+    response_generator = StaticResponseGenerator(ResponseDraft(answer="must not run"))
+
+    result = await execute_workflow_skeleton(
+        WorkflowState.model_validate(values),
+        runtime=workflow_runtime(response_generator=response_generator),
+    )
+
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.failure_code == GUIDELINE_EVIDENCE_UNAVAILABLE_CODE
+    assert result.workflow.final_response is None
+    assert response_generator.calls == 0
+
+
+@pytest.mark.anyio
+async def test_workflow_replay_is_deterministic() -> None:
+    first = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(),
+    )
+    second = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(),
+    )
 
     assert first.model_dump(mode="json") == second.model_dump(mode="json")
 

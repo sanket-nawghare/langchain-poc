@@ -1,4 +1,4 @@
-"""Safely terminating Phase 2.1 LangGraph skeleton."""
+"""Provider-neutral clinical workflow graph."""
 
 from typing import Literal
 
@@ -8,14 +8,18 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 from pydantic import ValidationError
 
+from app.domain.audit import ActorType, AuditEvent, AuditEventType, AuditValue
 from app.domain.clinical import PatientSummary
 from app.domain.safety import SafetyDecision, SafetyResult
 from app.domain.workflow import (
+    GeneratedResponse,
     Intent,
     IntentClassification,
+    ResponseDraft,
     WorkflowExecutionResult,
     WorkflowState,
     WorkflowStatus,
+    WorkflowTransition,
 )
 from app.tools.fhir import (
     FhirClientError,
@@ -27,11 +31,16 @@ from app.tools.fhir import (
 )
 from app.tools.intent import IntentClassificationError
 from app.tools.patient import PatientSummaryError
+from app.tools.response import (
+    ResponseGenerationError,
+    ResponseGenerationTimeoutError,
+)
 from app.tools.safety import SafetyPolicyError
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import (
     WorkflowGraphState,
     WorkflowGraphUpdate,
+    append_workflow_audit_events,
     set_workflow_intent,
     set_workflow_patient_data,
     set_workflow_safety_result,
@@ -43,11 +52,18 @@ CLASSIFY_INTENT_NODE = "classify_intent"
 REJECT_UNSUPPORTED_NODE = "reject_unsupported"
 RETRIEVE_PATIENT_NODE = "retrieve_patient"
 SAFETY_PRECHECK_NODE = "safety_precheck"
-HALT_UNIMPLEMENTED_NODE = "halt_unimplemented"
-UNIMPLEMENTED_FAILURE_CODE = "workflow_not_implemented"
+GENERATE_RESPONSE_NODE = "generate_response"
 CLASSIFICATION_FAILURE_CODE = "intent_classification_failed"
 INVALID_PATIENT_SUMMARY_CODE = "invalid_patient_summary"
 SAFETY_FAILURE_CODE = "safety_evaluation_failed"
+RESPONSE_FAILURE_CODE = "response_generation_failed"
+RESPONSE_TIMEOUT_CODE = "response_generation_timeout"
+GUIDELINE_EVIDENCE_UNAVAILABLE_CODE = "guideline_evidence_not_available"
+EDUCATIONAL_DISCLAIMER = (
+    "Educational demonstration using synthetic data only. This response is not "
+    "medical advice and must not replace evaluation by a qualified healthcare "
+    "professional."
+)
 
 type ClassificationRoute = Literal["supported", "unsupported", "failed"]
 type RetrievalRoute = Literal["retrieved", "failed"]
@@ -61,29 +77,86 @@ type WorkflowCompiledGraph = CompiledStateGraph[
 ]
 
 
+def _audit_event(
+    workflow: WorkflowState,
+    runtime: Runtime[WorkflowRuntime],
+    event_type: AuditEventType,
+    *,
+    details: dict[str, AuditValue],
+) -> AuditEvent:
+    return AuditEvent(
+        event_id=runtime.context.audit_event_ids.new(),
+        workflow_id=workflow.workflow_id,
+        correlation_id=workflow.correlation_id,
+        event_type=event_type,
+        occurred_at=runtime.context.clock.now(),
+        actor_type=ActorType.SYSTEM,
+        details=details,
+    )
+
+
+def _transition_with_audit(
+    workflow: WorkflowState,
+    runtime: Runtime[WorkflowRuntime],
+    to_status: WorkflowStatus,
+    *,
+    step: str,
+    failure_code: str | None = None,
+) -> tuple[WorkflowState, WorkflowTransition]:
+    updated, transition = transition_workflow(
+        workflow,
+        to_status,
+        occurred_at=runtime.context.clock.now(),
+        step=step,
+        failure_code=failure_code,
+    )
+    audited = append_workflow_audit_events(
+        updated,
+        [
+            _status_audit_event(
+                updated,
+                runtime,
+                from_status=workflow.status,
+                step=step,
+                failure_code=failure_code,
+            )
+        ],
+    )
+    return audited, transition
+
+
+def _status_audit_event(
+    workflow: WorkflowState,
+    runtime: Runtime[WorkflowRuntime],
+    *,
+    from_status: WorkflowStatus,
+    step: str,
+    failure_code: str | None = None,
+) -> AuditEvent:
+    details: dict[str, AuditValue] = {
+        "step": step,
+        "from_status": from_status.value,
+        "to_status": workflow.status.value,
+    }
+    if failure_code is not None:
+        details["failure_code"] = failure_code
+    event_type = (
+        AuditEventType.WORKFLOW_FAILED
+        if workflow.status == WorkflowStatus.FAILED
+        else AuditEventType.STATUS_CHANGED
+    )
+    return _audit_event(workflow, runtime, event_type, details=details)
+
+
 async def _begin_execution(
     state: WorkflowGraphState,
     runtime: Runtime[WorkflowRuntime],
 ) -> WorkflowGraphUpdate:
-    workflow, transition = transition_workflow(
+    workflow, transition = _transition_with_audit(
         state["workflow"],
+        runtime,
         WorkflowStatus.RUNNING,
-        occurred_at=runtime.context.clock.now(),
         step=BEGIN_EXECUTION_NODE,
-    )
-    return {"workflow": workflow, "transitions": [transition]}
-
-
-async def _halt_unimplemented(
-    state: WorkflowGraphState,
-    runtime: Runtime[WorkflowRuntime],
-) -> WorkflowGraphUpdate:
-    workflow, transition = transition_workflow(
-        state["workflow"],
-        WorkflowStatus.FAILED,
-        occurred_at=runtime.context.clock.now(),
-        step=HALT_UNIMPLEMENTED_NODE,
-        failure_code=UNIMPLEMENTED_FAILURE_CODE,
     )
     return {"workflow": workflow, "transitions": [transition]}
 
@@ -105,25 +178,40 @@ async def _classify_intent(
         classification = IntentClassification.model_validate(raw_payload)
         classified_workflow = set_workflow_intent(workflow, classification.intent)
     except (IntentClassificationError, ValidationError):
-        failed_workflow, transition = transition_workflow(
+        failed_workflow, transition = _transition_with_audit(
             workflow,
+            runtime,
             WorkflowStatus.FAILED,
-            occurred_at=runtime.context.clock.now(),
             step=CLASSIFY_INTENT_NODE,
             failure_code=CLASSIFICATION_FAILURE_CODE,
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
-    return {"workflow": classified_workflow}
+    audited_workflow = append_workflow_audit_events(
+        classified_workflow,
+        [
+            _audit_event(
+                classified_workflow,
+                runtime,
+                AuditEventType.TOOL_CALLED,
+                details={
+                    "tool": "intent_classifier",
+                    "outcome": "success",
+                    "intent": classification.intent.value,
+                },
+            )
+        ],
+    )
+    return {"workflow": audited_workflow}
 
 
 async def _reject_unsupported(
     state: WorkflowGraphState,
     runtime: Runtime[WorkflowRuntime],
 ) -> WorkflowGraphUpdate:
-    workflow, transition = transition_workflow(
+    workflow, transition = _transition_with_audit(
         state["workflow"],
+        runtime,
         WorkflowStatus.REJECTED,
-        occurred_at=runtime.context.clock.now(),
         step=REJECT_UNSUPPORTED_NODE,
     )
     return {"workflow": workflow, "transitions": [transition]}
@@ -162,24 +250,39 @@ async def _retrieve_patient(
             raise PatientSummaryError("patient summary ID does not match workflow")
         updated_workflow = set_workflow_patient_data(workflow, summary)
     except FhirClientError as error:
-        failed_workflow, transition = transition_workflow(
+        failed_workflow, transition = _transition_with_audit(
             workflow,
+            runtime,
             WorkflowStatus.FAILED,
-            occurred_at=runtime.context.clock.now(),
             step=RETRIEVE_PATIENT_NODE,
             failure_code=_fhir_failure_code(error),
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
     except (PatientSummaryError, ValidationError):
-        failed_workflow, transition = transition_workflow(
+        failed_workflow, transition = _transition_with_audit(
             workflow,
+            runtime,
             WorkflowStatus.FAILED,
-            occurred_at=runtime.context.clock.now(),
             step=RETRIEVE_PATIENT_NODE,
             failure_code=INVALID_PATIENT_SUMMARY_CODE,
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
-    return {"workflow": updated_workflow}
+    audited_workflow = append_workflow_audit_events(
+        updated_workflow,
+        [
+            _audit_event(
+                updated_workflow,
+                runtime,
+                AuditEventType.TOOL_CALLED,
+                details={
+                    "tool": "patient_summary_reader",
+                    "outcome": "success",
+                    "truncated": bool(summary.truncated_categories),
+                },
+            )
+        ],
+    )
+    return {"workflow": audited_workflow}
 
 
 async def _safety_precheck(
@@ -205,32 +308,130 @@ async def _safety_precheck(
             safety_result,
         )
     except (SafetyPolicyError, ValidationError):
-        failed_workflow, transition = transition_workflow(
+        failed_workflow, transition = _transition_with_audit(
             workflow,
+            runtime,
             WorkflowStatus.FAILED,
-            occurred_at=runtime.context.clock.now(),
             step=SAFETY_PRECHECK_NODE,
             failure_code=SAFETY_FAILURE_CODE,
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
 
+    audited_workflow = append_workflow_audit_events(
+        updated_workflow,
+        [
+            _audit_event(
+                updated_workflow,
+                runtime,
+                AuditEventType.SAFETY_EVALUATED,
+                details={
+                    "decision": safety_result.decision.value,
+                    "policy_version": safety_result.policy_version,
+                    "reason_count": len(safety_result.reasons),
+                },
+            )
+        ],
+    )
     if safety_result.decision == SafetyDecision.REVIEW:
-        reviewed_workflow, transition = transition_workflow(
-            updated_workflow,
+        reviewed_workflow, transition = _transition_with_audit(
+            audited_workflow,
+            runtime,
             WorkflowStatus.PENDING_REVIEW,
-            occurred_at=runtime.context.clock.now(),
             step=SAFETY_PRECHECK_NODE,
         )
         return {"workflow": reviewed_workflow, "transitions": [transition]}
     if safety_result.decision == SafetyDecision.BLOCK:
-        blocked_workflow, transition = transition_workflow(
-            updated_workflow,
+        blocked_workflow, transition = _transition_with_audit(
+            audited_workflow,
+            runtime,
             WorkflowStatus.REJECTED,
-            occurred_at=runtime.context.clock.now(),
             step=SAFETY_PRECHECK_NODE,
         )
         return {"workflow": blocked_workflow, "transitions": [transition]}
-    return {"workflow": updated_workflow}
+    return {"workflow": audited_workflow}
+
+
+async def _generate_response(
+    state: WorkflowGraphState,
+    runtime: Runtime[WorkflowRuntime],
+) -> WorkflowGraphUpdate:
+    workflow = state["workflow"]
+    if workflow.patient_data is None or workflow.safety_result is None:
+        raise AssertionError("response generation requires patient and safety results")
+    if workflow.retrieved_guidelines:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=GENERATE_RESPONSE_NODE,
+            failure_code=GUIDELINE_EVIDENCE_UNAVAILABLE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    try:
+        raw_draft = await runtime.context.response_generator.generate(
+            query=workflow.user_query,
+            patient=workflow.patient_data,
+            guidelines=[],
+        )
+        raw_payload = (
+            raw_draft.model_dump()
+            if isinstance(raw_draft, ResponseDraft)
+            else raw_draft
+        )
+        draft = ResponseDraft.model_validate(raw_payload)
+        response = GeneratedResponse(
+            answer=draft.answer,
+            citations=[],
+            disclaimer=EDUCATIONAL_DISCLAIMER,
+        )
+    except ResponseGenerationTimeoutError:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=GENERATE_RESPONSE_NODE,
+            failure_code=RESPONSE_TIMEOUT_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except (ResponseGenerationError, ValidationError):
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=GENERATE_RESPONSE_NODE,
+            failure_code=RESPONSE_FAILURE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+
+    completed_workflow, transition = transition_workflow(
+        workflow,
+        WorkflowStatus.COMPLETED,
+        occurred_at=runtime.context.clock.now(),
+        step=GENERATE_RESPONSE_NODE,
+        final_response=response,
+    )
+    audited_workflow = append_workflow_audit_events(
+        completed_workflow,
+        [
+            _audit_event(
+                completed_workflow,
+                runtime,
+                AuditEventType.RESPONSE_GENERATED,
+                details={
+                    "generator": "response_generator",
+                    "outcome": "success",
+                    "citation_count": len(response.citations),
+                },
+            ),
+            _status_audit_event(
+                completed_workflow,
+                runtime,
+                from_status=workflow.status,
+                step=GENERATE_RESPONSE_NODE,
+            ),
+        ],
+    )
+    return {"workflow": audited_workflow, "transitions": [transition]}
 
 
 async def _route_classification(
@@ -262,7 +463,7 @@ async def _route_safety(state: WorkflowGraphState) -> SafetyRoute:
 
 
 def build_workflow_graph() -> WorkflowCompiledGraph:
-    """Compile deterministic intent, patient, and safety routing."""
+    """Compile deterministic routing through a qualified response."""
 
     builder = StateGraph(
         state_schema=WorkflowGraphState,
@@ -273,7 +474,7 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
     builder.add_node(REJECT_UNSUPPORTED_NODE, _reject_unsupported)
     builder.add_node(RETRIEVE_PATIENT_NODE, _retrieve_patient)
     builder.add_node(SAFETY_PRECHECK_NODE, _safety_precheck)
-    builder.add_node(HALT_UNIMPLEMENTED_NODE, _halt_unimplemented)
+    builder.add_node(GENERATE_RESPONSE_NODE, _generate_response)
     builder.add_edge(START, BEGIN_EXECUTION_NODE)
     builder.add_edge(BEGIN_EXECUTION_NODE, CLASSIFY_INTENT_NODE)
     builder.add_conditional_edges(
@@ -297,26 +498,26 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
         SAFETY_PRECHECK_NODE,
         _route_safety,
         {
-            "pass": HALT_UNIMPLEMENTED_NODE,
+            "pass": GENERATE_RESPONSE_NODE,
             "review": END,
             "block": END,
             "failed": END,
         },
     )
     builder.add_edge(REJECT_UNSUPPORTED_NODE, END)
-    builder.add_edge(HALT_UNIMPLEMENTED_NODE, END)
+    builder.add_edge(GENERATE_RESPONSE_NODE, END)
     return builder.compile()
 
 
 WORKFLOW_GRAPH = build_workflow_graph()
 
 
-async def execute_workflow_skeleton(
+async def execute_workflow(
     workflow: WorkflowState,
     *,
     runtime: WorkflowRuntime,
 ) -> WorkflowExecutionResult:
-    """Execute the skeleton and validate its provider-neutral result."""
+    """Execute the workflow and validate its provider-neutral result."""
 
     with ls.tracing_context(enabled=False):
         result = await WORKFLOW_GRAPH.ainvoke(
@@ -324,3 +525,13 @@ async def execute_workflow_skeleton(
             context=runtime,
         )
     return WorkflowExecutionResult.model_validate(result)
+
+
+async def execute_workflow_skeleton(
+    workflow: WorkflowState,
+    *,
+    runtime: WorkflowRuntime,
+) -> WorkflowExecutionResult:
+    """Backward-compatible name retained for callers from sub-phase 2.1."""
+
+    return await execute_workflow(workflow, runtime=runtime)
