@@ -55,7 +55,7 @@ This baseline can change through a recorded decision before implementation.
 |---|---|---|
 | 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[x]` |
 | 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[x]` |
-| 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[ ]` |
+| 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[~]` |
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[ ]` |
 | 4. Safety and Human Review | Risk rules can pause, approve, reject, and resume work | `[ ]` |
 | 5. Product UI | Users can submit requests and inspect workflow progress | `[ ]` |
@@ -151,7 +151,7 @@ Request
 
 ### Scope
 
-- `[ ]` Implement the typed workflow state and reducers.
+- `[x]` Implement the typed workflow state and reducers.
 - `[ ]` Implement deterministic input validation.
 - `[ ]` Implement structured intent classification with an `unknown` fallback.
 - `[ ]` Implement the FHIR retrieval node using Phase 1 tools.
@@ -378,6 +378,9 @@ when the explanation no longer fits here.
 | 2026-07-27 | Bound FHIR reads to a 5-second timeout, two retries, 100-resource pages, and same-origin/base-path pagination | Keeps dependency failures and server-issued links constrained and testable | Accepted |
 | 2026-07-27 | Normalize at most 100 records per type across at most five pages and expose truncated categories explicitly | Keeps workflow context bounded without silently presenting partial clinical collections as complete | Accepted |
 | 2026-07-27 | Expose normalized synthetic patient lookup as a loopback-development GET route with stable safe error envelopes | Verifies the complete application boundary without exposing raw FHIR resources, upstream payloads, or write capabilities | Accepted |
+| 2026-07-28 | Use LangGraph 1.2.x with typed shared state, append-only transition reduction, and immutable run-scoped dependency context | Keeps orchestration explicit, replayable, provider-neutral, and independently testable | Accepted |
+| 2026-07-28 | Make the Phase 2.1 skeleton terminate as failed with `workflow_not_implemented` | Prevents incomplete orchestration from appearing clinically successful before later nodes are reviewed | Accepted |
+| 2026-07-28 | Force external LangSmith tracing off around graph invocation | Prevents inherited developer environment settings from exporting patient queries or complete workflow state before redacted observability is designed | Accepted |
 
 ## Progress Log
 
@@ -385,6 +388,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-28 | Phase 2.1 | Completed typed graph state, lifecycle rules, transition reducer, run-scoped clock, safely terminating async LangGraph skeleton, and deterministic replay coverage | Stop for review before sub-phase 2.2 |
+| 2026-07-28 | Phase 2.1 | Started execution contracts, transition and reducer semantics, run-scoped dependencies, and a safely terminating LangGraph skeleton | Complete the three Phase 2.1 reviewable steps |
 | 2026-07-27 | Phase 1 | Final review accepted after the Phase 1.6 changes were committed; all Phase 1 scope and exit criteria remain complete | Create the Phase 2 branch, then begin sub-phase 2.1 when requested |
 | 2026-07-27 | Phase 1.6 | Completed the normalized patient API, safe FHIR error mapping, live seed-to-query and missing-patient checks, local and isolated-source gates, documentation, and Phase 2 sub-phase plan | Stop for final Phase 1 review before Phase 2 |
 | 2026-07-27 | Phase 1.6 | Started the normalized summary API boundary, end-to-end failure verification, reproducibility gate, and Phase 2 handoff plan | Complete the three Phase 1.6 reviewable steps |

@@ -1,6 +1,6 @@
 """Durable domain-contract tests."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -72,6 +72,30 @@ def test_workflow_state_rejects_naive_timestamps() -> None:
             user_query="Question",
             patient_id="synthetic-patient-001",
         )
+
+
+def test_workflow_state_requires_chronology_and_failed_status_code() -> None:
+    now = datetime.now(UTC)
+    base_values = {
+        "workflow_id": uuid4(),
+        "correlation_id": uuid4(),
+        "created_at": now,
+        "updated_at": now,
+        "user_query": "Question",
+        "patient_id": "synthetic-patient-001",
+    }
+
+    with pytest.raises(ValidationError, match="must not precede"):
+        WorkflowState.model_validate(
+            {
+                **base_values,
+                "updated_at": now - timedelta(seconds=1),
+            }
+        )
+    with pytest.raises(ValidationError, match="failure_code"):
+        WorkflowState.model_validate({**base_values, "status": "failed"})
+    with pytest.raises(ValidationError, match="failure_code"):
+        WorkflowState.model_validate({**base_values, "failure_code": "unexpected"})
 
 
 def test_contracts_reject_unknown_fields() -> None:

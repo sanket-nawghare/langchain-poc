@@ -45,7 +45,7 @@ Rules:
 | Patient summary and citations | `domain/clinical.py` | Normalized data outside FHIR and retrieval adapters |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
 | Audit event | `domain/audit.py` | Minimal attributable workflow history |
-| Workflow state | `domain/workflow.py` | Provider-neutral state exchanged by graph nodes |
+| Workflow state, transitions, and execution result | `domain/workflow.py` | Provider-neutral state and status history exchanged by graph nodes |
 
 All durable models reject unknown fields. This prevents misspelled or
 provider-specific data from silently entering persisted workflow state.
@@ -76,5 +76,18 @@ narratives, and raw FHIR payloads are excluded.
 - The patient-summary service follows only adapter-approved pagination links,
   applies configured page and per-resource bounds, and emits normalized domain
   models in deterministic effective-time order.
+- LangGraph operates on a typed wrapper around `WorkflowState`. Nodes replace
+  the validated workflow contract and append `WorkflowTransition` values
+  through a non-mutating reducer; provider objects never become graph state.
+- Workflow transitions follow an explicit lifecycle matrix, use monotonic
+  timezone-aware timestamps, and cannot leave a terminal status. A
+  `failure_code` is required exactly when the workflow status is `failed`.
+- Execution results require a non-empty, contiguous, monotonic transition
+  history whose final status and timestamp match the returned workflow state.
+- Immutable run-scoped context carries application-owned dependencies. Phase
+  2.1 injects only a clock so deterministic tests do not depend on wall time.
+- Graph execution explicitly disables inherited LangSmith tracing. This keeps
+  queries and workflow state local until a later phase defines reviewed,
+  redacted observability.
 - Audit details accept scalar metadata only; raw patient context and prompt
   bodies do not belong there.

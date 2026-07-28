@@ -12,8 +12,10 @@ from app.domain.safety import (
 from app.domain.workflow import (
     GeneratedResponse,
     Intent,
+    WorkflowExecutionResult,
     WorkflowState,
     WorkflowStatus,
+    WorkflowTransition,
 )
 
 __all__ = [
@@ -34,4 +36,6 @@ __all__ = [
     "SafetySeverity",
     "WorkflowState",
     "WorkflowStatus",
+    "WorkflowExecutionResult",
+    "WorkflowTransition",
 ]

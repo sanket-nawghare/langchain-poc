@@ -67,6 +67,26 @@ extension paths and do not imply implemented behavior. The patient API creates
 a request-scoped HAPI adapter, injects it into the summary service through the
 read-only FHIR interface, and closes the transport after the request.
 
+## Current Workflow Skeleton
+
+Phase 2.1 introduces only lifecycle mechanics and contains no clinical
+behavior:
+
+```mermaid
+flowchart LR
+    Start(["START"])
+    Begin["begin_execution<br/>queued → running"]
+    Halt["halt_unimplemented<br/>running → failed"]
+    End(["END"])
+
+    Start --> Begin --> Halt --> End
+```
+
+The graph wraps the durable `WorkflowState` with an append-only transition
+list. An immutable run-scoped context supplies the application-owned clock.
+Until later sub-phases add reviewed nodes, every execution ends with the stable
+`workflow_not_implemented` failure code.
+
 Boundary rules:
 
 - `api` translates HTTP input and output; workflow rules do not belong there.

@@ -28,7 +28,7 @@ safety check, returns a qualified response, and records minimum audit metadata.
 
 | Sub-phase | Deliverable | Status |
 |---|---|---|
-| 2.1 Execution contracts and graph skeleton | Graph dependencies, state transitions, reducers, and terminal outcomes are explicit | `[ ]` |
+| 2.1 Execution contracts and graph skeleton | Graph dependencies, state transitions, reducers, and terminal outcomes are explicit | `[x]` |
 | 2.2 Input validation and intent routing | Valid clinical-QA requests route deterministically and unsupported input fails safely | `[ ]` |
 | 2.3 Patient retrieval and safety pre-check | The graph retrieves Phase 1 context and applies initial deterministic safety rules | `[ ]` |
 | 2.4 Qualified response and audit | A provider-neutral model boundary returns structured output with disclaimers and minimal audit events | `[ ]` |
@@ -46,22 +46,84 @@ for review.
 **Purpose:** Establish deterministic graph semantics before adding external
 calls or model behavior.
 
-### Planned Deliverables
+**Status:** `[x]` Complete — ready for review
 
-- Review and extend `WorkflowState` only for demonstrated graph needs.
-- Define application-owned protocols for workflow dependencies and clocks/ID
+### Reviewable Implementation Steps
+
+1. **2.1.1 State and transition semantics** — define the graph-state wrapper,
+   append-only transition reducer, allowed status transitions, monotonic
+   timestamps, terminal-state behavior, and safe failure codes.
+2. **2.1.2 Runtime boundary and skeleton** — add the locked minimal LangGraph
+   dependency, inject an application-owned clock through run-scoped context,
+   and compile a graph containing only explicit start and safe
+   not-yet-implemented terminal nodes.
+3. **2.1.3 Determinism verification** — test reducer immutability, valid and
+   invalid transitions, terminal behavior, topology, context injection, and
+   byte-equivalent replay results.
+
+The skeleton must terminate safely as `failed` with a stable
+`workflow_not_implemented` code. It must not classify intent, retrieve patient
+data, apply safety rules, call a model, persist state, or expose an API.
+
+### Deliverables
+
+- `[x]` Review and extend `WorkflowState` only for demonstrated graph needs.
+- `[x]` Define application-owned protocols for workflow dependencies and clocks/ID
   generation needed by deterministic tests.
-- Define node input/output contracts, reducers, status transitions, failure
+- `[x]` Define node input/output contracts, reducers, status transitions, failure
   codes, and explicit terminal states.
-- Add the minimal LangGraph dependency with a locked version.
-- Assemble a graph skeleton using no-op or fake dependencies.
-- Test state merging, invalid transitions, terminal behavior, and replay
+- `[x]` Add the minimal LangGraph dependency with a locked version.
+- `[x]` Assemble a graph skeleton using no-op or fake dependencies.
+- `[x]` Test state merging, invalid transitions, terminal behavior, and replay
   determinism.
+
+### Acceptance Criteria
+
+- `[x]` The graph compiles with only the two reviewed skeleton nodes.
+- `[x]` Every run records `queued → running → failed` transitions and the stable
+  `workflow_not_implemented` failure code.
+- `[x]` Invalid, non-monotonic, and terminal-state transitions fail explicitly.
+- `[x]` Replaying identical state with the same run-scoped clock produces an
+  identical provider-neutral result.
+- `[x]` External LangSmith tracing is forced off around graph execution even if
+  a developer enables it globally.
+- `[x]` The skeleton performs no clinical classification, retrieval, safety,
+  generation, persistence, or API behavior.
 
 ### Review Checkpoint
 
 Review state ownership, reducer behavior, dependency direction, and graph
 topology before implementing classification.
+
+### Verification Record
+
+Verified on 2026-07-28:
+
+- Added LangGraph `1.2.9` under the bounded `>=1.2.9,<1.3` dependency and
+  explicitly locked the LangSmith runtime API used to disable external tracing;
+  then regenerated the locked backend environment.
+- Wrapped the durable `WorkflowState` in a small typed graph state with an
+  immutable append reducer for validated `WorkflowTransition` records.
+- Defined the allowed lifecycle matrix, terminal statuses, monotonic timestamp
+  enforcement, and the invariant that only failed workflows carry a failure
+  code. Final execution results additionally reject broken transition chains or
+  histories that disagree with the final workflow state.
+- Injected an application-owned clock through immutable run-scoped LangGraph
+  context. IDs remain caller-owned because the skeleton does not create runs;
+  run-ID generation is intentionally deferred to sub-phase 2.5.
+- Compiled two native async nodes:
+  `START → begin_execution → halt_unimplemented → END`. The terminal node
+  always fails safely with `workflow_not_implemented`; no external capability
+  is present.
+- Wrapped graph invocation in `tracing_context(enabled=False)` so patient
+  queries or future workflow state cannot be exported by inherited LangSmith
+  environment settings. Reviewed redacted observability remains deferred.
+- Added 15 focused cases covering reducer immutability, valid and invalid
+  transitions, terminal states, timestamp and failure-code rules, exact graph
+  topology, broken history rejection, runtime clock injection, tracing
+  suppression, safe output, and deterministic replay.
+- `make check` passed with 68 backend tests and 6 frontend tests, the frontend
+  production build, and Compose validation.
 
 ---
 
