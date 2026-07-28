@@ -12,7 +12,9 @@ from app.domain.safety import (
 from app.domain.workflow import (
     GeneratedResponse,
     Intent,
+    IntentClassification,
     WorkflowExecutionResult,
+    WorkflowRunRequest,
     WorkflowState,
     WorkflowStatus,
     WorkflowTransition,
@@ -29,6 +31,7 @@ __all__ = [
     "ErrorDetail",
     "GeneratedResponse",
     "Intent",
+    "IntentClassification",
     "PatientSummary",
     "SafetyDecision",
     "SafetyReason",
@@ -37,5 +40,6 @@ __all__ = [
     "WorkflowState",
     "WorkflowStatus",
     "WorkflowExecutionResult",
+    "WorkflowRunRequest",
     "WorkflowTransition",
 ]

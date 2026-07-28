@@ -69,23 +69,31 @@ read-only FHIR interface, and closes the transport after the request.
 
 ## Current Workflow Skeleton
 
-Phase 2.1 introduces only lifecycle mechanics and contains no clinical
-behavior:
+Phase 2.2 adds bounded request classification and explicit intent routing but
+still contains no patient retrieval or clinical answer behavior:
 
 ```mermaid
 flowchart LR
     Start(["START"])
     Begin["begin_execution<br/>queued → running"]
+    Classify["classify_intent"]
+    Reject["reject_unsupported<br/>running → rejected"]
     Halt["halt_unimplemented<br/>running → failed"]
+    Failed["classifier failure<br/>running → failed"]
     End(["END"])
 
-    Start --> Begin --> Halt --> End
+    Start --> Begin --> Classify
+    Classify -->|"clinical_qa"| Halt --> End
+    Classify -->|"unknown"| Reject --> End
+    Classify -->|"invalid result / typed failure"| Failed --> End
 ```
 
 The graph wraps the durable `WorkflowState` with an append-only transition
 list. An immutable run-scoped context supplies the application-owned clock.
-Until later sub-phases add reviewed nodes, every execution ends with the stable
-`workflow_not_implemented` failure code.
+It also supplies the application-owned classifier capability. Until sub-phase
+2.3 adds reviewed retrieval and safety nodes, supported clinical QA ends with
+`workflow_not_implemented`; unknown intent is rejected and classifier failures
+use `intent_classification_failed`.
 
 Boundary rules:
 

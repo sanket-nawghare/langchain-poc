@@ -6,6 +6,7 @@ from typing import Annotated, TypedDict
 from pydantic import ValidationError
 
 from app.domain.workflow import (
+    Intent,
     WorkflowState,
     WorkflowStatus,
     WorkflowTransition,
@@ -74,6 +75,17 @@ class WorkflowGraphUpdate(TypedDict, total=False):
 
     workflow: WorkflowState
     transitions: list[WorkflowTransition]
+
+
+def set_workflow_intent(
+    workflow: WorkflowState,
+    intent: Intent,
+) -> WorkflowState:
+    """Return a validated workflow copy with a structured intent."""
+
+    values = workflow.model_dump()
+    values["intent"] = intent
+    return WorkflowState.model_validate(values)
 
 
 def transition_workflow(

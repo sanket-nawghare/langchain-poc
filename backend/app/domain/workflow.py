@@ -12,6 +12,7 @@ from app.domain.base import (
     PatientId,
     UtcTimestamp,
     WorkflowId,
+    WorkflowQuery,
 )
 from app.domain.clinical import Citation, PatientSummary
 from app.domain.safety import SafetyResult
@@ -22,6 +23,19 @@ class Intent(StrEnum):
 
     CLINICAL_QA = "clinical_qa"
     UNKNOWN = "unknown"
+
+
+class WorkflowRunRequest(ContractModel):
+    """Bounded untrusted input accepted before graph execution."""
+
+    patient_id: PatientId
+    query: WorkflowQuery
+
+
+class IntentClassification(ContractModel):
+    """Structured provider-neutral output from an intent classifier."""
+
+    intent: Intent
 
 
 class WorkflowStatus(StrEnum):
@@ -60,7 +74,7 @@ class WorkflowState(ContractModel):
     created_at: UtcTimestamp
     updated_at: UtcTimestamp
     status: WorkflowStatus = WorkflowStatus.QUEUED
-    user_query: NonEmptyString = Field(max_length=4000)
+    user_query: WorkflowQuery
     intent: Intent = Intent.UNKNOWN
     patient_id: PatientId
     patient_data: PatientSummary | None = None

@@ -152,11 +152,11 @@ Request
 ### Scope
 
 - `[x]` Implement the typed workflow state and reducers.
-- `[ ]` Implement deterministic input validation.
-- `[ ]` Implement structured intent classification with an `unknown` fallback.
+- `[x]` Implement deterministic input validation.
+- `[x]` Implement structured intent classification with an `unknown` fallback.
 - `[ ]` Implement the FHIR retrieval node using Phase 1 tools.
 - `[ ]` Implement basic safety pre-check and response nodes.
-- `[ ]` Add conditional graph routing and explicit terminal states.
+- `[x]` Add conditional graph routing and explicit terminal states.
 - `[ ]` Expose a workflow-run endpoint in FastAPI.
 - `[ ]` Assign correlation, workflow-run, and trace IDs.
 - `[ ]` Persist workflow status and checkpoint state.
@@ -381,6 +381,8 @@ when the explanation no longer fits here.
 | 2026-07-28 | Use LangGraph 1.2.x with typed shared state, append-only transition reduction, and immutable run-scoped dependency context | Keeps orchestration explicit, replayable, provider-neutral, and independently testable | Accepted |
 | 2026-07-28 | Make the Phase 2.1 skeleton terminate as failed with `workflow_not_implemented` | Prevents incomplete orchestration from appearing clinically successful before later nodes are reviewed | Accepted |
 | 2026-07-28 | Force external LangSmith tracing off around graph invocation | Prevents inherited developer environment settings from exporting patient queries or complete workflow state before redacted observability is designed | Accepted |
+| 2026-07-28 | Bound workflow queries to 2,000 characters and align patient IDs with FHIR's 64-character safe-ID grammar | Rejects oversized or unsafe input before orchestration and keeps application and FHIR identifier boundaries consistent | Accepted |
+| 2026-07-28 | Use a conservative deterministic intent classifier until a reviewed provider-backed classifier is needed | Makes Phase 2 routing replayable and sends unsupported, mixed, or ambiguous requests to the safe `unknown` fallback | Accepted |
 
 ## Progress Log
 
@@ -388,6 +390,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-28 | Phase 2.2 | Completed bounded request contracts, conservative structured intent classification, explicit supported/unknown/failure routing, redaction, and deterministic coverage | Stop for review before sub-phase 2.3 |
+| 2026-07-28 | Phase 2.2 | Started bounded request validation, the structured classifier boundary, deterministic intent classification, and explicit routing outcomes | Complete the three Phase 2.2 reviewable steps |
 | 2026-07-28 | Phase 2.1 | Completed typed graph state, lifecycle rules, transition reducer, run-scoped clock, safely terminating async LangGraph skeleton, and deterministic replay coverage | Stop for review before sub-phase 2.2 |
 | 2026-07-28 | Phase 2.1 | Started execution contracts, transition and reducer semantics, run-scoped dependencies, and a safely terminating LangGraph skeleton | Complete the three Phase 2.1 reviewable steps |
 | 2026-07-27 | Phase 1 | Final review accepted after the Phase 1.6 changes were committed; all Phase 1 scope and exit criteria remain complete | Create the Phase 2 branch, then begin sub-phase 2.1 when requested |

@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID
 
 import langsmith as ls
@@ -11,14 +12,21 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.workflow import (
+    Intent,
+    IntentClassification,
     WorkflowExecutionResult,
     WorkflowState,
     WorkflowStatus,
     WorkflowTransition,
 )
+from app.services.deterministic_intent import DeterministicIntentClassifier
+from app.tools.intent import IntentClassificationError, IntentClassifier
 from app.workflow.graph import (
     BEGIN_EXECUTION_NODE,
+    CLASSIFICATION_FAILURE_CODE,
+    CLASSIFY_INTENT_NODE,
     HALT_UNIMPLEMENTED_NODE,
+    REJECT_UNSUPPORTED_NODE,
     UNIMPLEMENTED_FAILURE_CODE,
     build_workflow_graph,
     execute_workflow_skeleton,
@@ -44,13 +52,37 @@ class FixedClock:
         return self.value
 
 
-def queued_workflow() -> WorkflowState:
+class FailingClassifier:
+    async def classify(self, query: str) -> IntentClassification:
+        raise IntentClassificationError("sensitive classifier failure")
+
+
+class MalformedClassifier:
+    async def classify(self, query: str) -> IntentClassification:
+        return cast(
+            IntentClassification,
+            {"intent": "not-a-supported-intent"},
+        )
+
+
+def workflow_runtime(
+    classifier: IntentClassifier | None = None,
+) -> WorkflowRuntime:
+    return WorkflowRuntime(
+        clock=FixedClock(EXECUTED_AT),
+        intent_classifier=classifier or DeterministicIntentClassifier(),
+    )
+
+
+def queued_workflow(
+    query: str = "What precautions relate to this patient's conditions?",
+) -> WorkflowState:
     return WorkflowState(
         workflow_id=WORKFLOW_ID,
         correlation_id=CORRELATION_ID,
         created_at=CREATED_AT,
         updated_at=CREATED_AT,
-        user_query="A deterministic synthetic test question",
+        user_query=query,
         patient_id="synthetic-patient-1",
     )
 
@@ -207,30 +239,37 @@ def test_execution_result_rejects_broken_transition_history() -> None:
         )
 
 
-def test_graph_has_only_the_reviewed_skeleton_topology() -> None:
+def test_graph_has_only_the_reviewed_intent_routing_topology() -> None:
     graph = build_workflow_graph().get_graph()
 
     assert set(graph.nodes) == {
         "__start__",
         BEGIN_EXECUTION_NODE,
+        CLASSIFY_INTENT_NODE,
+        REJECT_UNSUPPORTED_NODE,
         HALT_UNIMPLEMENTED_NODE,
         "__end__",
     }
     assert {(edge.source, edge.target) for edge in graph.edges} == {
         ("__start__", BEGIN_EXECUTION_NODE),
-        (BEGIN_EXECUTION_NODE, HALT_UNIMPLEMENTED_NODE),
+        (BEGIN_EXECUTION_NODE, CLASSIFY_INTENT_NODE),
+        (CLASSIFY_INTENT_NODE, HALT_UNIMPLEMENTED_NODE),
+        (CLASSIFY_INTENT_NODE, REJECT_UNSUPPORTED_NODE),
+        (CLASSIFY_INTENT_NODE, "__end__"),
+        (REJECT_UNSUPPORTED_NODE, "__end__"),
         (HALT_UNIMPLEMENTED_NODE, "__end__"),
     }
 
 
 @pytest.mark.anyio
-async def test_skeleton_uses_runtime_clock_and_fails_safely() -> None:
+async def test_supported_intent_reaches_safe_unimplemented_stop() -> None:
     result = await execute_workflow_skeleton(
         queued_workflow(),
-        runtime=WorkflowRuntime(clock=FixedClock(EXECUTED_AT)),
+        runtime=workflow_runtime(),
     )
 
     assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.intent == Intent.CLINICAL_QA
     assert result.workflow.failure_code == UNIMPLEMENTED_FAILURE_CODE
     assert result.workflow.updated_at == EXECUTED_AT
     assert [
@@ -253,8 +292,47 @@ async def test_skeleton_uses_runtime_clock_and_fails_safely() -> None:
 
 
 @pytest.mark.anyio
+async def test_unknown_intent_is_rejected_without_reaching_clinical_path() -> None:
+    result = await execute_workflow_skeleton(
+        queued_workflow("Please schedule an appointment"),
+        runtime=workflow_runtime(),
+    )
+
+    assert result.workflow.status == WorkflowStatus.REJECTED
+    assert result.workflow.intent == Intent.UNKNOWN
+    assert result.workflow.failure_code is None
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        REJECT_UNSUPPORTED_NODE,
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "classifier",
+    [FailingClassifier(), MalformedClassifier()],
+)
+async def test_classifier_failure_or_malformed_output_fails_safely(
+    classifier: IntentClassifier,
+) -> None:
+    result = await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(classifier),
+    )
+
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.intent == Intent.UNKNOWN
+    assert result.workflow.failure_code == CLASSIFICATION_FAILURE_CODE
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        CLASSIFY_INTENT_NODE,
+    ]
+    assert "sensitive" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.anyio
 async def test_skeleton_replay_is_deterministic() -> None:
-    runtime = WorkflowRuntime(clock=FixedClock(EXECUTED_AT))
+    runtime = workflow_runtime()
 
     first = await execute_workflow_skeleton(queued_workflow(), runtime=runtime)
     second = await execute_workflow_skeleton(queued_workflow(), runtime=runtime)
@@ -281,7 +359,7 @@ async def test_skeleton_explicitly_disables_external_tracing(
 
     await execute_workflow_skeleton(
         queued_workflow(),
-        runtime=WorkflowRuntime(clock=FixedClock(EXECUTED_AT)),
+        runtime=workflow_runtime(),
     )
 
     assert tracing_values == [False]

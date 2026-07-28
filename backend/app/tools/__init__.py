@@ -13,6 +13,7 @@ from app.tools.fhir import (
     FhirTimeoutError,
     FhirUnavailableError,
 )
+from app.tools.intent import IntentClassificationError, IntentClassifier
 
 __all__ = [
     "FhirClient",
@@ -26,4 +27,6 @@ __all__ = [
     "FhirSearchParams",
     "FhirTimeoutError",
     "FhirUnavailableError",
+    "IntentClassificationError",
+    "IntentClassifier",
 ]

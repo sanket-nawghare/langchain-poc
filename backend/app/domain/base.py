@@ -15,9 +15,13 @@ PatientId = Annotated[
     StringConstraints(
         strip_whitespace=True,
         min_length=1,
-        max_length=128,
-        pattern=r"^[A-Za-z0-9._-]+$",
+        max_length=64,
+        pattern=r"^[A-Za-z0-9.-]+$",
     ),
+]
+WorkflowQuery = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=2000),
 ]
 WorkflowId = UUID
 CorrelationId = UUID

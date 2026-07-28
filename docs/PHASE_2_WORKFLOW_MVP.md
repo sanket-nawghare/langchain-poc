@@ -29,7 +29,7 @@ safety check, returns a qualified response, and records minimum audit metadata.
 | Sub-phase | Deliverable | Status |
 |---|---|---|
 | 2.1 Execution contracts and graph skeleton | Graph dependencies, state transitions, reducers, and terminal outcomes are explicit | `[x]` |
-| 2.2 Input validation and intent routing | Valid clinical-QA requests route deterministically and unsupported input fails safely | `[ ]` |
+| 2.2 Input validation and intent routing | Valid clinical-QA requests route deterministically and unsupported input fails safely | `[x]` |
 | 2.3 Patient retrieval and safety pre-check | The graph retrieves Phase 1 context and applies initial deterministic safety rules | `[ ]` |
 | 2.4 Qualified response and audit | A provider-neutral model boundary returns structured output with disclaimers and minimal audit events | `[ ]` |
 | 2.5 Run API, persistence, and recovery | Workflow runs have IDs, inspectable status, checkpoints, timeouts, and safe failures | `[ ]` |
@@ -131,20 +131,78 @@ Verified on 2026-07-28:
 
 **Purpose:** Ensure only bounded supported requests enter the clinical path.
 
-### Planned Deliverables
+**Status:** `[x]` Complete — ready for review
 
-- Define the workflow-run request contract and query bounds.
-- Implement deterministic patient-ID and query validation.
-- Add a structured intent-classifier interface with a deterministic fake.
-- Support `clinical_qa` and an explicit `unknown` fallback only.
-- Route invalid and unsupported requests to safe terminal results.
-- Test valid, empty, oversized, ambiguous, unsupported, and malformed
+### Reviewable Implementation Steps
+
+1. **2.2.1 Request and classifier contracts** — define strict patient-ID and
+   query bounds plus an application-owned structured intent result, classifier
+   protocol, and safe classifier error.
+2. **2.2.2 Deterministic classification and routing** — implement a local
+   deterministic classifier, add an async classification node, and route
+   `clinical_qa`, `unknown`, and classifier failure to explicit outcomes.
+3. **2.2.3 Boundary verification** — test trimming and bounds, valid clinical
+   requests, ambiguous and unsupported requests, malformed structured output,
+   classifier failure, topology, redaction, and deterministic replay.
+
+Invalid request shapes must fail contract validation before graph execution.
+Valid unsupported or ambiguous input must end as `rejected`; classifier
+contract failures must end as `failed`. Supported clinical QA continues only
+to the existing `workflow_not_implemented` stop because Phase 2.3 retrieval is
+not yet implemented.
+
+### Deliverables
+
+- `[x]` Define the workflow-run request contract and query bounds.
+- `[x]` Implement deterministic patient-ID and query validation.
+- `[x]` Add a structured intent-classifier interface with a deterministic fake.
+- `[x]` Support `clinical_qa` and an explicit `unknown` fallback only.
+- `[x]` Reject invalid requests before graph execution and route valid
+  unsupported requests to a safe terminal result.
+- `[x]` Test valid, empty, oversized, ambiguous, unsupported, and malformed
   classifier output.
+
+### Acceptance Criteria
+
+- `[x]` Patient IDs use the FHIR 64-character safe-ID grammar and queries are
+  trimmed, non-empty, and at most 2,000 characters.
+- `[x]` Invalid request shapes fail before graph execution.
+- `[x]` Supported clinical QA reaches only the Phase 2.3 placeholder failure.
+- `[x]` Unsupported, unrelated, or mixed/ambiguous intent is conservatively
+  classified as `unknown` and terminates as `rejected`.
+- `[x]` Typed classifier errors and malformed structured output terminate with
+  `intent_classification_failed` and expose no provider details.
+- `[x]` Classification and conditional routing remain deterministic and do not
+  retrieve patient data or call a model.
 
 ### Review Checkpoint
 
 Review accepted input, fallback behavior, and structured-output parsing before
 patient retrieval is connected.
+
+### Verification Record
+
+Verified on 2026-07-28:
+
+- Added strict `WorkflowRunRequest` and reusable workflow-query bounds; aligned
+  the application patient-ID contract with FHIR IDs at 1–64 safe characters.
+- Added the provider-neutral `IntentClassification` contract,
+  `IntentClassifier` protocol, and safe `IntentClassificationError` boundary.
+- Implemented a conservative local classifier. It recognizes only reviewed
+  clinical terms, gives unsupported appointment/prescribing terms precedence,
+  and maps mixed, unrelated, or ambiguous requests to `unknown`.
+- Extended the graph with native async classification and conditional routing:
+  supported clinical QA reaches the existing `workflow_not_implemented` stop,
+  `unknown` becomes `rejected`, and classifier contract failures become
+  `failed` with `intent_classification_failed`.
+- Forced structured-result revalidation even when a classifier claims to
+  return the application contract; unexpected fields and invalid enum values
+  cannot enter workflow state.
+- Added 15 focused cases for trimming, empty/oversized queries, invalid patient
+  IDs, supported, unsupported, ambiguous and unrelated intent, strict
+  structured output, all routing outcomes, redaction, and replay.
+- `make check` passed with 83 backend tests and 6 frontend tests, the frontend
+  production build, and Compose validation.
 
 ---
 
