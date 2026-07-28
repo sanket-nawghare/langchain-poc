@@ -1,5 +1,7 @@
 """Provider-neutral clinical workflow graph."""
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Literal
 
 import langsmith as ls
@@ -54,6 +56,7 @@ RETRIEVE_PATIENT_NODE = "retrieve_patient"
 SAFETY_PRECHECK_NODE = "safety_precheck"
 GENERATE_RESPONSE_NODE = "generate_response"
 CLASSIFICATION_FAILURE_CODE = "intent_classification_failed"
+CLASSIFICATION_TIMEOUT_CODE = "intent_classification_timeout"
 INVALID_PATIENT_SUMMARY_CODE = "invalid_patient_summary"
 SAFETY_FAILURE_CODE = "safety_evaluation_failed"
 RESPONSE_FAILURE_CODE = "response_generation_failed"
@@ -75,6 +78,32 @@ type WorkflowCompiledGraph = CompiledStateGraph[
     WorkflowGraphState,
     WorkflowGraphState,
 ]
+
+
+class WorkflowNodeTimeoutError(TimeoutError):
+    """A workflow capability exhausted its bounded attempts."""
+
+
+async def _run_bounded[ResultT](
+    operation: Callable[[], Awaitable[ResultT]],
+    runtime: Runtime[WorkflowRuntime],
+    *,
+    retryable: tuple[type[Exception], ...],
+) -> ResultT:
+    policy = runtime.context.execution_policy
+    for attempt in range(policy.max_retries + 1):
+        try:
+            return await asyncio.wait_for(
+                operation(),
+                timeout=policy.timeout_seconds,
+            )
+        except TimeoutError as error:
+            if attempt == policy.max_retries:
+                raise WorkflowNodeTimeoutError from error
+        except retryable:
+            if attempt == policy.max_retries:
+                raise
+    raise AssertionError("bounded workflow operation exhausted without an outcome")
 
 
 def _audit_event(
@@ -167,8 +196,10 @@ async def _classify_intent(
 ) -> WorkflowGraphUpdate:
     workflow = state["workflow"]
     try:
-        raw_result = await runtime.context.intent_classifier.classify(
-            workflow.user_query
+        raw_result = await _run_bounded(
+            lambda: runtime.context.intent_classifier.classify(workflow.user_query),
+            runtime,
+            retryable=(IntentClassificationError,),
         )
         raw_payload = (
             raw_result.model_dump()
@@ -177,7 +208,25 @@ async def _classify_intent(
         )
         classification = IntentClassification.model_validate(raw_payload)
         classified_workflow = set_workflow_intent(workflow, classification.intent)
+    except WorkflowNodeTimeoutError:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=CLASSIFY_INTENT_NODE,
+            failure_code=CLASSIFICATION_TIMEOUT_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
     except (IntentClassificationError, ValidationError):
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=CLASSIFY_INTENT_NODE,
+            failure_code=CLASSIFICATION_FAILURE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except Exception:
         failed_workflow, transition = _transition_with_audit(
             workflow,
             runtime,
@@ -237,8 +286,10 @@ async def _retrieve_patient(
 ) -> WorkflowGraphUpdate:
     workflow = state["workflow"]
     try:
-        raw_summary = await runtime.context.patient_summary_reader.get(
-            workflow.patient_id
+        raw_summary = await _run_bounded(
+            lambda: runtime.context.patient_summary_reader.get(workflow.patient_id),
+            runtime,
+            retryable=(FhirTimeoutError, FhirUnavailableError),
         )
         raw_payload = (
             raw_summary.model_dump()
@@ -249,6 +300,15 @@ async def _retrieve_patient(
         if summary.patient_id != workflow.patient_id:
             raise PatientSummaryError("patient summary ID does not match workflow")
         updated_workflow = set_workflow_patient_data(workflow, summary)
+    except WorkflowNodeTimeoutError:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=RETRIEVE_PATIENT_NODE,
+            failure_code="fhir_timeout",
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
     except FhirClientError as error:
         failed_workflow, transition = _transition_with_audit(
             workflow,
@@ -265,6 +325,15 @@ async def _retrieve_patient(
             WorkflowStatus.FAILED,
             step=RETRIEVE_PATIENT_NODE,
             failure_code=INVALID_PATIENT_SUMMARY_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except Exception:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=RETRIEVE_PATIENT_NODE,
+            failure_code="fhir_request_failed",
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
     audited_workflow = append_workflow_audit_events(
@@ -290,12 +359,17 @@ async def _safety_precheck(
     runtime: Runtime[WorkflowRuntime],
 ) -> WorkflowGraphUpdate:
     workflow = state["workflow"]
-    if workflow.patient_data is None:
+    patient = workflow.patient_data
+    if patient is None:
         raise AssertionError("safety pre-check requires patient data")
     try:
-        raw_result = await runtime.context.safety_policy.evaluate(
-            query=workflow.user_query,
-            patient=workflow.patient_data,
+        raw_result = await _run_bounded(
+            lambda: runtime.context.safety_policy.evaluate(
+                query=workflow.user_query,
+                patient=patient,
+            ),
+            runtime,
+            retryable=(SafetyPolicyError,),
         )
         raw_payload = (
             raw_result.model_dump()
@@ -307,7 +381,25 @@ async def _safety_precheck(
             workflow,
             safety_result,
         )
+    except WorkflowNodeTimeoutError:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=SAFETY_PRECHECK_NODE,
+            failure_code="safety_evaluation_timeout",
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
     except (SafetyPolicyError, ValidationError):
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=SAFETY_PRECHECK_NODE,
+            failure_code=SAFETY_FAILURE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except Exception:
         failed_workflow, transition = _transition_with_audit(
             workflow,
             runtime,
@@ -356,7 +448,8 @@ async def _generate_response(
     runtime: Runtime[WorkflowRuntime],
 ) -> WorkflowGraphUpdate:
     workflow = state["workflow"]
-    if workflow.patient_data is None or workflow.safety_result is None:
+    patient = workflow.patient_data
+    if patient is None or workflow.safety_result is None:
         raise AssertionError("response generation requires patient and safety results")
     if workflow.retrieved_guidelines:
         failed_workflow, transition = _transition_with_audit(
@@ -368,10 +461,14 @@ async def _generate_response(
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
     try:
-        raw_draft = await runtime.context.response_generator.generate(
-            query=workflow.user_query,
-            patient=workflow.patient_data,
-            guidelines=[],
+        raw_draft = await _run_bounded(
+            lambda: runtime.context.response_generator.generate(
+                query=workflow.user_query,
+                patient=patient,
+                guidelines=[],
+            ),
+            runtime,
+            retryable=(ResponseGenerationError,),
         )
         raw_payload = (
             raw_draft.model_dump()
@@ -384,7 +481,7 @@ async def _generate_response(
             citations=[],
             disclaimer=EDUCATIONAL_DISCLAIMER,
         )
-    except ResponseGenerationTimeoutError:
+    except (WorkflowNodeTimeoutError, ResponseGenerationTimeoutError):
         failed_workflow, transition = _transition_with_audit(
             workflow,
             runtime,
@@ -394,6 +491,15 @@ async def _generate_response(
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
     except (ResponseGenerationError, ValidationError):
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=GENERATE_RESPONSE_NODE,
+            failure_code=RESPONSE_FAILURE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except Exception:
         failed_workflow, transition = _transition_with_audit(
             workflow,
             runtime,

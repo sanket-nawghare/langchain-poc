@@ -14,6 +14,8 @@ def test_safe_local_defaults_require_no_secret() -> None:
     assert settings.fhir_request_timeout_seconds == 5
     assert settings.fhir_max_retries == 2
     assert settings.fhir_retry_backoff_seconds == 0.1
+    assert settings.workflow_node_timeout_seconds == 10
+    assert settings.workflow_node_max_retries == 1
     assert settings.llm_provider == "fake"
     assert settings.llm_api_key is None
 
@@ -30,6 +32,23 @@ def test_unbounded_fhir_retry_configuration_is_rejected() -> None:
         Settings(_env_file=None, fhir_max_retries=4)
 
     assert error.value.errors()[0]["loc"] == ("fhir_max_retries",)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("workflow_node_timeout_seconds", 31),
+        ("workflow_node_max_retries", 4),
+    ],
+)
+def test_unbounded_workflow_execution_configuration_is_rejected(
+    field: str,
+    value: int,
+) -> None:
+    with pytest.raises(ValidationError) as error:
+        Settings.model_validate({field: value})
+
+    assert error.value.errors()[0]["loc"] == (field,)
 
 
 def test_secret_values_are_redacted() -> None:

@@ -26,6 +26,7 @@ WorkflowQuery = Annotated[
 WorkflowId = UUID
 CorrelationId = UUID
 AuditEventId = UUID
+TraceId = UUID
 UtcTimestamp = Annotated[datetime, AwareDatetime()]
 
 

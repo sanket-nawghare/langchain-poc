@@ -2,12 +2,13 @@
 
 ## Current System
 
-Phase 2.4 extends the application foundation and Phase 1 synthetic FHIR path
+Phase 2.5 extends the application foundation and Phase 1 synthetic FHIR path
 with a typed LangGraph workflow. The graph validates input, classifies intent,
 retrieves only normalized patient context, and applies a deterministic safety
 pre-check before producing a qualified deterministic response and minimal
-in-memory audit events. Guideline ingestion, real model-provider calls, and
-workflow API/persistence remain unimplemented.
+audit events. Synchronous run creation/status APIs persist redacted queued and
+final checkpoints in SQLite. Guideline ingestion and real model-provider calls
+remain unimplemented.
 
 ```mermaid
 flowchart LR
@@ -15,6 +16,8 @@ flowchart LR
     UI["React / Vite frontend"]
     API["FastAPI backend"]
     Summary["Patient summary service"]
+    Workflow["LangGraph workflow"]
+    Runs["Workflow run service"]
     FHIRClient["Read-only FHIR interface"]
     Domain["Provider-neutral domain contracts"]
     SQLite[("SQLite application data")]
@@ -26,6 +29,9 @@ flowchart LR
     UI -->|"GET /health/live"| API
     API --> Domain
     API -->|"GET /api/v1/patients/{id}/summary"| Summary
+    API -->|"POST/GET /api/v1/workflows"| Runs --> Workflow
+    Runs -->|"redacted checkpoints"| SQLite
+    Workflow --> Summary
     Summary --> FHIRClient --> HAPI
     Summary --> Domain
     API -->|"readiness probe"| SQLite
@@ -52,7 +58,7 @@ flowchart TD
     Domain["app/domain<br/>durable provider-neutral contracts"]
 
     API --> Domain
-    API -. "Phase 2.5" .-> Workflow
+    API --> Workflow
     Workflow --> Tools
     Workflow -. "Phase 3" .-> RAG
     Workflow --> Domain
@@ -69,13 +75,14 @@ extension paths and do not imply implemented behavior. The patient API creates
 a request-scoped HAPI adapter, injects it into the summary service through the
 read-only FHIR interface, and closes the transport after the request. The
 workflow graph receives its clock, classifier, normalized patient reader,
-safety policy, response generator, and audit-event ID source through immutable
-run-scoped context.
+safety policy, response generator, audit-event ID source, and bounded execution
+policy through immutable run-scoped context. The workflow-run service owns
+identity, redacted checkpoint persistence, inspection, and restart recovery.
 
 ## Current Workflow Graph
 
-Phase 2.4 adds application-qualified response generation and minimal audit
-events after normalized patient retrieval and deterministic safety routing:
+Phase 2.5 wraps the Phase 2.4 graph with bounded external capability execution,
+redacted checkpoint persistence, and safe interrupted-run recovery:
 
 ```mermaid
 flowchart LR
@@ -105,7 +112,7 @@ flowchart LR
     Safety -->|"policy / contract failure"| Failed --> End
 ```
 
-The graph wraps the durable `WorkflowState` with an append-only transition
+The graph wraps the in-memory `WorkflowState` with an append-only transition
 list. An immutable run-scoped context supplies the application-owned clock.
 It also supplies application-owned classifier, normalized patient-summary,
 safety-policy, response-generator, and audit-ID capabilities. The response
@@ -114,6 +121,11 @@ and trusted citations. Phase 3 evidence is not available, so citations remain
 empty and the deterministic answer states that limitation. Review and block
 outcomes terminate without approval/resume behavior, which remains deferred to
 Phase 4.
+
+Classifier, patient-summary, safety, and response capability calls have a
+configurable timeout and bounded retry count. Retryable operations are
+side-effect-free. Unexpected capability errors become stable failed results
+rather than escaping into API responses.
 
 Boundary rules:
 
@@ -130,7 +142,8 @@ Boundary rules:
 
 ## Local Data Flow
 
-Health reporting and normalized synthetic patient lookup are implemented:
+Health reporting, normalized synthetic patient lookup, and synchronous workflow
+runs are implemented:
 
 ```mermaid
 sequenceDiagram
@@ -166,6 +179,18 @@ sequenceDiagram
         FHIR-->>Summary: confined parsed pages
         Summary-->>API: minimum-necessary PatientSummary
         API-->>Browser: 200 ApiSuccess or safe typed error
+    end
+
+    opt Workflow run
+        Browser->>API: POST /api/v1/workflows
+        API->>DB: Store redacted queued checkpoint
+        API->>FHIR: Read bounded normalized patient context
+        API->>API: Classify, safety-check, generate qualified response
+        API->>DB: Store redacted final checkpoint
+        API-->>Browser: 201 redacted WorkflowRunSnapshot
+        Browser->>API: GET /api/v1/workflows/{workflow_id}
+        API->>DB: Read and revalidate checkpoint
+        API-->>Browser: 200 redacted WorkflowRunSnapshot
     end
 ```
 
@@ -208,7 +233,7 @@ types cross into workflow state.
 
 | Store | Owner | Current use | Reset behavior |
 |---|---|---|---|
-| SQLite | Application backend | Readiness probe and future application state | `make app-data-reset CONFIRM=1` |
+| SQLite | Application backend | Readiness plus redacted workflow queued/final checkpoints | `make app-data-reset CONFIRM=1` |
 | PostgreSQL | HAPI FHIR | HAPI schema and synthetic FHIR cohort | Removed with `make infra-reset CONFIRM=1` |
 | Weaviate | Retrieval adapter | Readiness only; no corpus is loaded | Removed with `make infra-reset CONFIRM=1` |
 

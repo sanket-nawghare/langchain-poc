@@ -21,6 +21,7 @@ from app.tools.response import (
     ResponseGenerator,
 )
 from app.tools.safety import SafetyPolicy, SafetyPolicyError
+from app.tools.workflow_runs import WorkflowRunStore, WorkflowRunStoreError
 
 __all__ = [
     "FhirClient",
@@ -43,4 +44,6 @@ __all__ = [
     "ResponseGenerator",
     "SafetyPolicy",
     "SafetyPolicyError",
+    "WorkflowRunStore",
+    "WorkflowRunStoreError",
 ]

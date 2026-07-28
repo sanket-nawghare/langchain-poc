@@ -16,6 +16,7 @@ from app.domain.workflow import (
     ResponseDraft,
     WorkflowExecutionResult,
     WorkflowRunRequest,
+    WorkflowRunSnapshot,
     WorkflowState,
     WorkflowStatus,
     WorkflowTransition,
@@ -43,5 +44,6 @@ __all__ = [
     "WorkflowStatus",
     "WorkflowExecutionResult",
     "WorkflowRunRequest",
+    "WorkflowRunSnapshot",
     "WorkflowTransition",
 ]

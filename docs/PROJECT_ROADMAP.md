@@ -158,10 +158,10 @@ Request
 - `[x]` Implement the basic safety pre-check.
 - `[x]` Implement response nodes.
 - `[x]` Add conditional graph routing and explicit terminal states.
-- `[ ]` Expose a workflow-run endpoint in FastAPI.
-- `[ ]` Assign correlation, workflow-run, and trace IDs.
-- `[ ]` Persist workflow status and checkpoint state.
-- `[ ]` Add timeout, retry, and graceful failure behavior per node.
+- `[x]` Expose a workflow-run endpoint in FastAPI.
+- `[x]` Assign correlation, workflow-run, and trace IDs.
+- `[x]` Persist workflow status and checkpoint state.
+- `[x]` Add timeout, retry, and graceful failure behavior per node.
 - `[x]` Test happy path, unsupported intent, invalid patient, and tool failure.
 
 ### Exit Criteria
@@ -361,6 +361,7 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
+| 2026-07-28 | Persist redacted queued/final workflow snapshots in application-owned SQLite and fail interrupted work on startup | Provides inspectable recovery without storing query/patient context or automatically replaying clinical work | Accepted |
 | 2026-07-28 | Let response generators draft bounded answer text only; application code owns disclaimers and citations | Prevents a model/provider from removing educational qualifications or fabricating evidence | Accepted |
 | 2026-07-27 | Use FastAPI as the initial backend | Aligns with the Python LangChain/LangGraph ecosystem | Accepted |
 | 2026-07-27 | Use Weaviate as the initial vector store | Reuses the existing local Docker image; the RAG layer will retain a replaceable vector-store interface | Accepted |
@@ -392,6 +393,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-07-28 | Phase 2.5 | Completed redacted SQLite checkpoints, synchronous run/status APIs, workflow/correlation/trace identity, bounded capability timeout/retry, interrupted-run recovery, and safe error mappings; 128 backend tests pass | Stop for review before sub-phase 2.6 |
+| 2026-07-28 | Phase 2.5 | Started redacted workflow-run persistence, synchronous run/status APIs, bounded capability execution, and interrupted-run recovery | Complete the three Phase 2.5 reviewable steps |
 | 2026-07-28 | Phase 2.4 | Completed bounded response generation, application-owned qualification, empty Phase 3 citation enforcement, minimal redacted audit events, safe model failure routing, and deterministic replay; 112 backend tests pass | Stop for review before sub-phase 2.5 |
 | 2026-07-28 | Phase 2.4 | Started bounded response-draft and audit boundaries, qualified response generation, and completion routing | Complete the three Phase 2.4 reviewable steps |
 | 2026-07-28 | Phase 2.3 | Completed normalized patient retrieval, typed FHIR failure mapping, `initial-safety-v1`, explicit pass/review/block/failure routing, and deterministic boundary coverage; 102 backend tests pass | Stop for review before sub-phase 2.4 |

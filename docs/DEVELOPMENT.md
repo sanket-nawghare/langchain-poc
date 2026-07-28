@@ -71,6 +71,8 @@ Default endpoints:
 | Backend liveness | `http://localhost:8000/health/live` |
 | Backend readiness | `http://localhost:8000/health/ready` |
 | Synthetic patient summary | `http://localhost:8000/api/v1/patients/{patient_id}/summary` |
+| Create workflow run | `POST http://localhost:8000/api/v1/workflows` |
+| Inspect workflow run | `GET http://localhost:8000/api/v1/workflows/{workflow_id}` |
 | Backend OpenAPI | `http://localhost:8000/docs` |
 | HAPI FHIR | `http://localhost:8080/fhir` |
 | HAPI PostgreSQL | `127.0.0.1:5434` |
@@ -107,6 +109,30 @@ payloads or exception details. This unauthenticated endpoint is for the
 loopback-only synthetic development environment, not real patient data or
 production deployment.
 
+Create a synchronous workflow run for the same seeded patient:
+
+```bash
+curl --fail-with-body \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data "{\"patient_id\":\"${PATIENT_ID}\",\"query\":\"What precautions relate to this patient's conditions?\"}" \
+  http://localhost:8000/api/v1/workflows
+```
+
+The response includes distinct request, workflow, correlation, and trace IDs
+plus the final redacted status snapshot. It does not return or persist the
+query, patient ID/context, prompts, or provider payloads. Copy
+`data.workflow_id` from that response to inspect the persisted checkpoint:
+
+```bash
+curl --fail \
+  "http://localhost:8000/api/v1/workflows/${WORKFLOW_ID}"
+```
+
+Run creation is synchronous in Phase 2.5. If the process stops after storing an
+incomplete checkpoint, the next application startup marks it failed with
+`workflow_interrupted`; it does not automatically replay clinical work.
+
 ## Configuration
 
 Backend variables use the `CLINICAL_` prefix and are documented in
@@ -121,6 +147,8 @@ The read-only FHIR adapter supports these validated backend settings:
 | `CLINICAL_FHIR_RETRY_BACKOFF_SECONDS` | `0.1` | 0–5 |
 | `CLINICAL_FHIR_MAX_PAGES_PER_SEARCH` | `5` | 1–20 |
 | `CLINICAL_FHIR_MAX_RECORDS_PER_TYPE` | `100` | 1–500 |
+| `CLINICAL_WORKFLOW_NODE_TIMEOUT_SECONDS` | `10` | Greater than 0, at most 30 |
+| `CLINICAL_WORKFLOW_NODE_MAX_RETRIES` | `1` | 0–3 |
 
 Compose supports these shell or root `.env` overrides:
 

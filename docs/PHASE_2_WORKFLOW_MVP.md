@@ -32,7 +32,7 @@ safety check, returns a qualified response, and records minimum audit metadata.
 | 2.2 Input validation and intent routing | Valid clinical-QA requests route deterministically and unsupported input fails safely | `[x]` |
 | 2.3 Patient retrieval and safety pre-check | The graph retrieves Phase 1 context and applies initial deterministic safety rules | `[x]` |
 | 2.4 Qualified response and audit | A provider-neutral model boundary returns structured output with disclaimers and minimal audit events | `[x]` |
-| 2.5 Run API, persistence, and recovery | Workflow runs have IDs, inspectable status, checkpoints, timeouts, and safe failures | `[ ]` |
+| 2.5 Run API, persistence, and recovery | Workflow runs have IDs, inspectable status, checkpoints, timeouts, and safe failures | `[x]` |
 | 2.6 Integration and Phase 2 gate | The complete thin path passes deterministic end-to-end and reproducibility checks | `[ ]` |
 
 Every sub-phase must be marked in progress before implementation, split into
@@ -370,20 +370,83 @@ Verified on 2026-07-28:
 **Purpose:** Make workflow execution identifiable, inspectable, durable, and
 safe across dependency failures.
 
-### Planned Deliverables
+**Status:** `[x]` Complete — ready for review
 
-- Add workflow-run and status API contracts and routes.
-- Assign request, correlation, workflow-run, and trace identifiers.
-- Persist workflow metadata and checkpoints in application-owned SQLite.
-- Add per-node timeout, bounded retry, and graceful failure policies.
-- Support safe status inspection and deterministic replay of test cases.
-- Test concurrent IDs, persistence, restart recovery, timeout, retry
+### Reviewable Implementation Steps
+
+1. **2.5.1 Run and persistence contracts** — define redacted run views,
+   trace/correlation identity, repository capabilities, SQLite schema ownership,
+   checkpoint serialization, and safe persistence failures.
+2. **2.5.2 API and execution wiring** — add synchronous run creation and status
+   inspection routes, construct the production runtime from application-owned
+   adapters, persist queued/final checkpoints, and map errors safely.
+3. **2.5.3 Bounded recovery verification** — apply configurable per-capability
+   timeout/retry limits, recover interrupted queued/running records to a stable
+   failed state, and test concurrency, restart, exhaustion, redaction, and
+   deterministic replay.
+
+Stored/API run views exclude the query, normalized patient context, prompts,
+and provider payloads. Interrupted work is failed explicitly and may be
+replayed as a new run; automatic clinical re-execution is not introduced.
+
+### Deliverables
+
+- `[x]` Add workflow-run and status API contracts and routes.
+- `[x]` Assign request, correlation, workflow-run, and trace identifiers.
+- `[x]` Persist workflow metadata and checkpoints in application-owned SQLite.
+- `[x]` Add per-capability timeout, bounded retry, and graceful failure
+  policies.
+- `[x]` Support safe status inspection and deterministic replay of test cases.
+- `[x]` Test concurrent IDs, persistence, restart recovery, timeout, retry
   exhaustion, and error-envelope redaction.
+
+### Acceptance Criteria
+
+- `[x]` `POST /api/v1/workflows` validates input without echoing rejected query
+  or patient-ID values, executes synchronously, and returns a redacted run
+  snapshot.
+- `[x]` `GET /api/v1/workflows/{workflow_id}` returns the same persisted snapshot
+  or stable safe errors for invalid, missing, and unavailable storage cases.
+- `[x]` Every run receives distinct request, workflow, correlation, trace, and
+  audit-event identifiers.
+- `[x]` SQLite stores queued and final checkpoints containing lifecycle,
+  response, transition, and audit metadata but no query or patient context.
+- `[x]` External capability calls use configurable 1–30 second timeouts and
+  zero to three retries; transient typed failures can recover and exhaustion
+  terminates with a stable failure code.
+- `[x]` Unexpected capability exceptions terminate safely without provider or
+  exception details entering workflow results.
+- `[x]` Startup recovery marks queued/running checkpoints as
+  `workflow_interrupted` without automatically replaying clinical work.
+- `[x]` Persisted snapshots validate status/final-response/failure consistency,
+  transition history, audit identifiers, and correlation ownership.
 
 ### Review Checkpoint
 
 Review API shape, storage schema, checkpoint boundaries, retry safety, and
 recovery behavior before the end-to-end gate.
+
+### Verification Record
+
+Verified on 2026-07-28:
+
+- Added the redacted `WorkflowRunSnapshot` and application-owned
+  `WorkflowRunStore` contracts plus a small SQLite adapter with an indexed
+  `workflow_runs` table and validated JSON checkpoints.
+- Added workflow-run lifecycle services that persist before and after execution,
+  assign workflow/correlation/trace IDs, inspect runs, and fail interrupted
+  queued/running records safely during application startup.
+- Added synchronous create and status routes with standard API envelopes,
+  request IDs, safe 400/404/503 mappings, and no query or patient context in
+  their responses.
+- Added a production runtime wired to the read-only HAPI summary service and
+  deterministic classifier, safety, and response capabilities.
+- Added configurable bounded execution around classifier, patient-summary,
+  safety, and response capabilities. Retry remains limited to side-effect-free
+  operations and reviewed transient failures.
+- Added 16 focused contract, configuration, SQLite, concurrency, persistence,
+  recovery, API, redaction, retry-success, and timeout-exhaustion cases.
+- `make backend-check` passed with 128 backend tests.
 
 ---
 

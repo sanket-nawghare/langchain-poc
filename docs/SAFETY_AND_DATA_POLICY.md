@@ -38,6 +38,9 @@ If the origin of data is uncertain, treat it as real and do not use it.
 - Prefer synthetic patient IDs and minimal structured summaries.
 - Audit records must distinguish user input, retrieved evidence, automated
   decisions, human decisions, and final output.
+- Workflow status storage must exclude user queries, patient identifiers,
+  normalized patient context, prompts, and provider payloads. Store only the
+  minimum redacted lifecycle, response, transition, and audit metadata.
 - Debug logging that increases data exposure must be explicit and documented.
 
 ## Clinical Safety Boundary
@@ -72,4 +75,3 @@ If real patient data or a real secret is discovered:
 3. Rotate exposed credentials when applicable.
 4. Notify the repository owner through the agreed private channel.
 5. Record remediation without reproducing sensitive content.
-

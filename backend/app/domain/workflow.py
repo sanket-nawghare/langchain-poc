@@ -10,6 +10,7 @@ from app.domain.base import (
     CorrelationId,
     NonEmptyString,
     PatientId,
+    TraceId,
     UtcTimestamp,
     WorkflowId,
     WorkflowQuery,
@@ -150,3 +151,101 @@ class WorkflowExecutionResult(ContractModel):
         if previous_time != self.workflow.updated_at:
             raise ValueError("final transition must match workflow updated_at")
         return self
+
+
+class WorkflowRunSnapshot(ContractModel):
+    """Redacted persistable and inspectable workflow-run checkpoint."""
+
+    workflow_id: WorkflowId
+    correlation_id: CorrelationId
+    trace_id: TraceId
+    status: WorkflowStatus
+    created_at: UtcTimestamp
+    updated_at: UtcTimestamp
+    requires_human_review: bool | None = None
+    final_response: GeneratedResponse | None = None
+    failure_code: NonEmptyString | None = None
+    transitions: list[WorkflowTransition] = Field(default_factory=list)
+    audit_log: list[AuditEvent] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def terminal_fields_match_status(self) -> "WorkflowRunSnapshot":
+        """Keep redacted status fields internally consistent."""
+
+        if self.updated_at < self.created_at:
+            raise ValueError("updated_at must not precede created_at")
+        if (self.status == WorkflowStatus.FAILED) != (self.failure_code is not None):
+            raise ValueError("failure_code must be set only for a failed run")
+        if (self.status == WorkflowStatus.COMPLETED) != (
+            self.final_response is not None
+        ):
+            raise ValueError("final_response must be set only for a completed run")
+        if any(
+            event.workflow_id != self.workflow_id
+            or event.correlation_id != self.correlation_id
+            for event in self.audit_log
+        ):
+            raise ValueError("audit events must match run identifiers")
+        event_ids = [event.event_id for event in self.audit_log]
+        if len(event_ids) != len(set(event_ids)):
+            raise ValueError("audit event IDs must be unique within a run")
+        if not self.transitions:
+            if self.status != WorkflowStatus.QUEUED:
+                raise ValueError("only a queued checkpoint may omit transitions")
+            return self
+        previous_status = self.transitions[0].from_status
+        previous_time = self.created_at
+        for transition in self.transitions:
+            if transition.from_status != previous_status:
+                raise ValueError("run transitions must form a status chain")
+            if transition.occurred_at < previous_time:
+                raise ValueError("run transition timestamps must be monotonic")
+            previous_status = transition.to_status
+            previous_time = transition.occurred_at
+        if previous_status != self.status or previous_time != self.updated_at:
+            raise ValueError("final run transition must match snapshot status and time")
+        return self
+
+    @classmethod
+    def queued(
+        cls,
+        *,
+        workflow_id: WorkflowId,
+        correlation_id: CorrelationId,
+        trace_id: TraceId,
+        created_at: UtcTimestamp,
+    ) -> "WorkflowRunSnapshot":
+        """Build the initial redacted checkpoint before graph execution."""
+
+        return cls(
+            workflow_id=workflow_id,
+            correlation_id=correlation_id,
+            trace_id=trace_id,
+            status=WorkflowStatus.QUEUED,
+            created_at=created_at,
+            updated_at=created_at,
+        )
+
+    @classmethod
+    def from_execution(
+        cls,
+        execution: WorkflowExecutionResult,
+        *,
+        trace_id: TraceId,
+    ) -> "WorkflowRunSnapshot":
+        """Project a full in-memory execution into a redacted checkpoint."""
+
+        workflow = execution.workflow
+        return cls(
+            workflow_id=workflow.workflow_id,
+            correlation_id=workflow.correlation_id,
+            trace_id=trace_id,
+            status=workflow.status,
+            created_at=workflow.created_at,
+            updated_at=workflow.updated_at,
+            requires_human_review=workflow.requires_human_review,
+            final_response=workflow.final_response,
+            failure_code=workflow.failure_code,
+            transitions=execution.transitions,
+            audit_log=workflow.audit_log,
+        )

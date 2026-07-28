@@ -1,5 +1,6 @@
 """Phase 2.1 workflow transition and LangGraph skeleton tests."""
 
+import asyncio
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -56,6 +57,7 @@ from app.tools.safety import SafetyPolicy, SafetyPolicyError
 from app.workflow.graph import (
     BEGIN_EXECUTION_NODE,
     CLASSIFICATION_FAILURE_CODE,
+    CLASSIFICATION_TIMEOUT_CODE,
     CLASSIFY_INTENT_NODE,
     EDUCATIONAL_DISCLAIMER,
     GENERATE_RESPONSE_NODE,
@@ -71,7 +73,7 @@ from app.workflow.graph import (
     execute_workflow,
     execute_workflow_skeleton,
 )
-from app.workflow.runtime import WorkflowRuntime
+from app.workflow.runtime import WorkflowExecutionPolicy, WorkflowRuntime
 from app.workflow.state import (
     InvalidWorkflowTransition,
     append_transitions,
@@ -113,6 +115,16 @@ class MalformedClassifier:
             IntentClassification,
             {"intent": "not-a-supported-intent"},
         )
+
+
+class HangingClassifier:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def classify(self, query: str) -> IntentClassification:
+        self.calls += 1
+        await asyncio.sleep(0.05)
+        return IntentClassification(intent=Intent.CLINICAL_QA)
 
 
 class StaticPatientSummaryReader:
@@ -215,6 +227,34 @@ class MalformedResponseGenerator:
         )
 
 
+class UnexpectedResponseGenerator:
+    async def generate(
+        self,
+        *,
+        query: str,
+        patient: PatientSummary,
+        guidelines: list[Citation],
+    ) -> ResponseDraft:
+        raise RuntimeError("sensitive unexpected provider failure")
+
+
+class FlakyResponseGenerator:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def generate(
+        self,
+        *,
+        query: str,
+        patient: PatientSummary,
+        guidelines: list[Citation],
+    ) -> ResponseDraft:
+        self.calls += 1
+        if self.calls == 1:
+            raise ResponseGenerationError("transient sensitive failure")
+        return ResponseDraft(answer="Recovered bounded educational draft.")
+
+
 def complete_patient_summary(
     *,
     patient_id: str = "synthetic-patient-1",
@@ -239,6 +279,7 @@ def workflow_runtime(
     patient_reader: PatientSummaryReader | None = None,
     safety_policy: SafetyPolicy | None = None,
     response_generator: ResponseGenerator | None = None,
+    execution_policy: WorkflowExecutionPolicy | None = None,
 ) -> WorkflowRuntime:
     return WorkflowRuntime(
         clock=FixedClock(EXECUTED_AT),
@@ -249,6 +290,7 @@ def workflow_runtime(
         safety_policy=safety_policy or DeterministicSafetyPolicy(),
         response_generator=response_generator or DeterministicResponseGenerator(),
         audit_event_ids=SequentialAuditEventIdFactory(),
+        execution_policy=execution_policy or WorkflowExecutionPolicy(),
     )
 
 
@@ -719,6 +761,7 @@ async def test_classifier_failure_or_malformed_output_fails_safely(
             RESPONSE_FAILURE_CODE,
         ),
         (MalformedResponseGenerator(), RESPONSE_FAILURE_CODE),
+        (UnexpectedResponseGenerator(), RESPONSE_FAILURE_CODE),
     ],
 )
 async def test_response_failure_timeout_or_untrusted_output_fails_safely(
@@ -766,6 +809,50 @@ async def test_phase_3_guideline_context_is_not_accepted_early() -> None:
     assert result.workflow.failure_code == GUIDELINE_EVIDENCE_UNAVAILABLE_CODE
     assert result.workflow.final_response is None
     assert response_generator.calls == 0
+
+
+@pytest.mark.anyio
+async def test_retryable_response_failure_recovers_within_bound() -> None:
+    response_generator = FlakyResponseGenerator()
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(
+            response_generator=response_generator,
+            execution_policy=WorkflowExecutionPolicy(
+                timeout_seconds=1,
+                max_retries=1,
+            ),
+        ),
+    )
+
+    assert result.workflow.status == WorkflowStatus.COMPLETED
+    assert response_generator.calls == 2
+    assert result.workflow.final_response is not None
+    assert result.workflow.final_response.answer == (
+        "Recovered bounded educational draft."
+    )
+
+
+@pytest.mark.anyio
+async def test_node_timeout_retries_then_fails_with_stable_code() -> None:
+    classifier = HangingClassifier()
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(
+            classifier,
+            execution_policy=WorkflowExecutionPolicy(
+                timeout_seconds=0.001,
+                max_retries=1,
+            ),
+        ),
+    )
+
+    assert classifier.calls == 2
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.failure_code == CLASSIFICATION_TIMEOUT_CODE
+    assert result.workflow.patient_data is None
 
 
 @pytest.mark.anyio

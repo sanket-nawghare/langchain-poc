@@ -1,6 +1,6 @@
 """Run-scoped dependencies for deterministic workflow execution."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID, uuid4
@@ -44,6 +44,22 @@ class RandomAuditEventIdFactory:
 
 
 @dataclass(frozen=True)
+class WorkflowExecutionPolicy:
+    """Bounded execution policy for external workflow capabilities."""
+
+    timeout_seconds: float = 10.0
+    max_retries: int = 1
+
+    def __post_init__(self) -> None:
+        if not 0 < self.timeout_seconds <= 30:
+            raise ValueError(
+                "workflow timeout must be greater than zero and at most 30"
+            )
+        if not 0 <= self.max_retries <= 3:
+            raise ValueError("workflow retries must be between zero and three")
+
+
+@dataclass(frozen=True)
 class WorkflowRuntime:
     """Immutable dependencies injected into one LangGraph run."""
 
@@ -53,3 +69,6 @@ class WorkflowRuntime:
     safety_policy: SafetyPolicy
     response_generator: ResponseGenerator
     audit_event_ids: AuditEventIdFactory
+    execution_policy: WorkflowExecutionPolicy = field(
+        default_factory=WorkflowExecutionPolicy
+    )

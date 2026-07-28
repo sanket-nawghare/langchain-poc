@@ -10,6 +10,7 @@ from app.workflow.runtime import (
     RandomAuditEventIdFactory,
     SystemWorkflowClock,
     WorkflowClock,
+    WorkflowExecutionPolicy,
     WorkflowRuntime,
 )
 from app.workflow.state import (
@@ -25,6 +26,7 @@ __all__ = [
     "RandomAuditEventIdFactory",
     "SystemWorkflowClock",
     "WorkflowClock",
+    "WorkflowExecutionPolicy",
     "WorkflowGraphState",
     "WorkflowRuntime",
     "append_transitions",

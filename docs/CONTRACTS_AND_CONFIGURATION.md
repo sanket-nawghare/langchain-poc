@@ -18,6 +18,8 @@ Rules:
 - Secret fields use redacted secret types and must never be interpolated into
   logs or errors.
 - Basic health tests and application startup require no LLM credentials.
+- Workflow capability timeouts are bounded to 1–30 seconds and retries to
+  zero through three. Local defaults are 10 seconds and one retry.
 
 ## Identifier Conventions
 
@@ -51,6 +53,8 @@ Rules:
 | Workflow request and intent classification | `domain/workflow.py` | Bounded untrusted input and strict structured routing output |
 | Response draft and qualified response | `domain/workflow.py` | Bounded provider draft plus application-owned citations and disclaimer |
 | Response-generator capability | `tools/response.py` | Provider-neutral structured answer drafting and safe failures |
+| Workflow run snapshot | `domain/workflow.py` | Redacted durable lifecycle, response, transition, and audit checkpoint |
+| Workflow-run store | `tools/workflow_runs.py` | Provider-neutral checkpoint save, lookup, and recovery reads |
 
 All durable models reject unknown fields. This prevents misspelled or
 provider-specific data from silently entering persisted workflow state.
@@ -116,5 +120,11 @@ narratives, and raw FHIR payloads are excluded.
 - In-memory audit events contain application IDs, timestamps, stable event
   types, and small scalar outcome metadata. Queries, patient summaries, prompts,
   response text, provider payloads, and upstream errors are excluded.
+- `WorkflowRunSnapshot` persists and exposes workflow, correlation, and trace
+  identity plus status, qualified response, transitions, and redacted audit
+  metadata. It excludes query, patient ID/context, prompts, and provider
+  payloads.
+- SQLite checkpoints are strict JSON domain snapshots. Status, terminal fields,
+  transition chains, and audit ownership are revalidated after every read.
 - Audit details accept scalar metadata only; raw patient context and prompt
   bodies do not belong there.
