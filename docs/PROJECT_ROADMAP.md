@@ -56,8 +56,8 @@ This baseline can change through a recorded decision before implementation.
 | 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[x]` |
 | 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[x]` |
 | 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[x]` |
-| 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[~]` |
-| 4. Safety and Human Review | Risk rules can pause, approve, reject, and resume work | `[ ]` |
+| 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[x]` |
+| 4. Grounded Generation, Safety, and Human Review | A real grounded model plus risk rules can safely draft, pause, review, and resume work | `[~]` |
 | 5. Product UI | Users can submit requests and inspect workflow progress | `[ ]` |
 | 6. Quality and Observability | The system is measurable, auditable, and resilient | `[ ]` |
 | 7. Packaging and Release | A new contributor can run and understand the project | `[ ]` |
@@ -209,11 +209,22 @@ Implementation will proceed through the review checkpoints in the
 
 ## Phase 4 — Safety and Human-in-the-Loop Review
 
-**Goal:** Make high-risk or ambiguous cases pause for explicit review and resume
-without losing state.
+**Goal:** Generate grounded drafts through a configured LLM, then make high-risk
+or ambiguous cases pause for explicit review and resume without losing state.
+
+Implementation proceeds through the review checkpoints in the
+[Phase 4 execution plan](PHASE_4_SAFETY_AND_HUMAN_REVIEW.md).
 
 ### Scope
 
+- `[~]` Add provider-backed grounded response generation using bounded patient
+  context and retrieved guideline excerpts.
+- `[ ]` Keep structured answer parsing, citations, disclaimers, and routing
+  application-owned.
+- `[ ]` Add provider timeout, retry, authentication, rate-limit, unavailable,
+  malformed-output, and context-limit failure handling.
+- `[ ]` Add an opt-in real-provider live gate while keeping tests and startup
+  credential-free.
 - `[ ]` Define versioned, deterministic review rules and severity levels.
 - `[ ]` Detect examples such as medication/allergy conflicts, urgent symptom
   language, missing critical context, and unsupported recommendations.
@@ -229,6 +240,8 @@ without losing state.
 
 ### Exit Criteria
 
+- `[ ]` A configured real LLM produces a strictly parsed, grounded answer draft.
+- `[ ]` No provider can fabricate or replace citations or the disclaimer.
 - `[ ]` High-risk test cases never bypass review.
 - `[ ]` Low-risk test cases proceed with recorded safety results.
 - `[ ]` A pending run survives a backend restart.
@@ -401,6 +414,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 4 | Started Phase 4 with grounded real-LLM generation as sub-phase 4.1, followed by deterministic/post-generation safety, persisted review actions, concurrency-safe resume, and final gates | Select the first real model provider, then complete checkpoint 4.1.1 contracts and failure policy |
 | 2026-08-03 | Phase 3 | Completed reviewed guideline RAG end to end: 2 documents/135 chunks, idempotent Weaviate sync, 9-case retrieval evaluation, seeded five-citation workflow, safe weak/failure routing, persisted redaction, restart recovery, 232 backend/6 frontend tests, and clean source-only verification | Stop for final review before creating the Phase 4 branch |
 | 2026-08-03 | Phase 3.6.3 | Made guideline retrieval mandatory for clinical workflows, lazily bound the reviewed local Weaviate retriever, qualified generation with exact application-owned citations, and persisted only the content-free evidence summary plus citation metadata | Stop for review before checkpoint 3.6.4 live and reproducibility gates |
 | 2026-08-03 | Phase 3.6.2 | Added the optional LangGraph guideline-retrieval node after patient context, bounded request/result validation, sufficient/review/failure routing, typed retry/timeout behavior, and content-free evidence audit metadata | Stop for review before checkpoint 3.6.3 cited generation and persistence |
