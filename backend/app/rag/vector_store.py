@@ -6,7 +6,9 @@ from typing import Protocol
 from app.domain.guideline_index import (
     GuidelineIndexSnapshot,
     GuidelineIngestionResult,
+    GuidelineVectorCandidate,
     GuidelineVectorRecord,
+    GuidelineVectorSearchRequest,
 )
 
 
@@ -50,3 +52,16 @@ class GuidelineVectorStore(Protocol):
 
     def close(self) -> None:
         """Release transport resources."""
+
+
+class GuidelineCandidateStore(Protocol):
+    """Provider-neutral asynchronous search over normalized vector candidates."""
+
+    async def search(
+        self,
+        request: GuidelineVectorSearchRequest,
+    ) -> tuple[GuidelineVectorCandidate, ...]:
+        """Return bounded candidates or raise a typed vector-store failure."""
+
+    async def close(self) -> None:
+        """Release asynchronous transport resources."""

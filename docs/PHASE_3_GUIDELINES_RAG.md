@@ -208,6 +208,15 @@ Verified on 2026-08-03:
 
 ## Sub-phase 3.5 — Retrieval and Citation Qualification
 
+### Tracking
+
+| Checkpoint | Deliverable | Status |
+|---|---|---|
+| 3.5.1 Retrieval trust policy and candidate contracts | Candidate bounds, source-of-truth rules, deterministic ordering inputs, and provider-neutral search contracts are explicit | `[x]` |
+| 3.5.2 Trusted catalog and Weaviate candidate adapter | Eligible sources come from the committed lock and filtered vector candidates normalize safely | `[ ]` |
+| 3.5.3 Evidence qualification and citations | Calibrated deterministic scores produce trusted citations or explicit insufficient/conflicting results | `[ ]` |
+| 3.5.4 Retrieval gate and documentation | Fixture relevance, live queries, failures, redaction, and complete quality gates pass | `[ ]` |
+
 - Retrieve a small bounded top-k set with deterministic tie-breaking and
   approved metadata filters.
 - Normalize results into application-owned chunks and `Citation` values.
@@ -219,6 +228,35 @@ Verified on 2026-08-03:
 
 **Review checkpoint:** approve retrieval quality and no-evidence behavior before
 the graph can use guideline results.
+
+Detailed trust, filtering, scoring, and failure rules are recorded in the
+[guideline retrieval policy](GUIDELINE_RETRIEVAL_POLICY.md).
+
+### Checkpoint 3.5.1 Verification Record
+
+Verified on 2026-08-03:
+
+- Established the committed corpus lock—not Weaviate—as the authority for
+  provenance, permission, lifecycle, source identity, and citation fields.
+- Defined a two-stage boundary: application code derives eligible trusted
+  document IDs, then the vector store returns only bounded normalized chunk
+  candidates for later source hydration and qualification.
+- Added strict application-owned vector-search request and candidate contracts
+  with exact model/dimension identity, finite nonzero query vectors, at most
+  eight eligible documents, at most 32 candidates, bounded cosine distance,
+  stable object/chunk lineage, and no patient or provider fields.
+- Froze eligibility, metadata-drift rejection, deterministic tie-breaking
+  inputs, query-fingerprint handling, evidence outcomes, and safe failure rules.
+  Exact relevance scoring and thresholds remain intentionally deferred until
+  fixture calibration in checkpoint 3.5.3.
+- Added a provider-neutral asynchronous candidate-store protocol. No Weaviate
+  query implementation, ranking, citation construction, workflow state, or
+  LangGraph behavior changed in this checkpoint.
+- `make check` passed with 179 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+
+**Status:** `[x]` Complete — stop for review before checkpoint 3.5.2.
 
 ## Sub-phase 3.6 — Workflow Integration and Phase 3 Gate
 

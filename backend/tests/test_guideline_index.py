@@ -21,7 +21,9 @@ from app.domain import (
     GuidelinePublisher,
     GuidelineSource,
     GuidelineUsePermission,
+    GuidelineVectorCandidate,
     GuidelineVectorRecord,
+    GuidelineVectorSearchRequest,
     ParsedGuidelineDocument,
 )
 from app.rag import (
@@ -260,3 +262,89 @@ def test_reset_targets_only_fixed_application_collection() -> None:
     client.collections.exists.assert_called_once_with(GUIDELINE_COLLECTION)
     client.collections.delete.assert_called_once_with(GUIDELINE_COLLECTION)
     client.collections.create.assert_not_called()
+
+
+def test_vector_search_request_is_bounded_finite_and_deidentified() -> None:
+    model = DeterministicGuidelineEmbeddingModel()
+    vector = list(model.embed(["adult blood pressure guidance"])[0])
+    request = GuidelineVectorSearchRequest(
+        schema_version=GUIDELINE_SCHEMA_VERSION,
+        embedding_model=model.model_id,
+        embedding_dimensions=model.dimensions,
+        vector=vector,
+        eligible_document_ids=["who-hypertension-2021"],
+        candidate_limit=32,
+    )
+
+    assert request.candidate_limit == 32
+    with pytest.raises(ValidationError, match="eligible_document_ids must be unique"):
+        GuidelineVectorSearchRequest.model_validate(
+            {
+                **request.model_dump(mode="json"),
+                "eligible_document_ids": [
+                    "who-hypertension-2021",
+                    "who-hypertension-2021",
+                ],
+            }
+        )
+    with pytest.raises(ValidationError, match="patient_id"):
+        GuidelineVectorSearchRequest.model_validate(
+            {**request.model_dump(mode="json"), "patient_id": "synthetic-001"}
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("vector", [0.0] * DETERMINISTIC_EMBEDDING_DIMENSIONS, "all zero"),
+        ("vector", [1.0] * 8, "vector length"),
+        ("candidate_limit", 33, "less than or equal to 32"),
+    ],
+)
+def test_vector_search_request_rejects_malformed_bounds(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    model = DeterministicGuidelineEmbeddingModel()
+    values: dict[str, object] = {
+        "schema_version": GUIDELINE_SCHEMA_VERSION,
+        "embedding_model": model.model_id,
+        "embedding_dimensions": model.dimensions,
+        "vector": list(model.embed(["diabetes guidance"])[0]),
+        "eligible_document_ids": ["who-hearts-d-2020"],
+        "candidate_limit": 8,
+    }
+    values[field] = value
+
+    with pytest.raises(ValidationError, match=message):
+        GuidelineVectorSearchRequest.model_validate(values)
+
+
+def test_vector_candidate_keeps_provider_data_outside_trusted_source() -> None:
+    record = vector_record()
+    candidate = GuidelineVectorCandidate(
+        object_id=record.object_id,
+        schema_version=record.schema_version,
+        parser_version=record.parser_version,
+        embedding_model=record.embedding_model,
+        embedding_dimensions=record.embedding_dimensions,
+        source_sha256=record.source.content_sha256,
+        document_version=record.source.version,
+        publisher=record.source.publisher,
+        publication_date=record.source.publication_date,
+        lifecycle_status=record.source.lifecycle_status,
+        chunk=record.chunk,
+        distance=0.25,
+    )
+
+    assert candidate.chunk.document_id == record.source.document_id
+    assert "source" not in candidate.model_fields_set
+    with pytest.raises(ValidationError, match="less than or equal to 2"):
+        GuidelineVectorCandidate.model_validate(
+            {**candidate.model_dump(mode="json"), "distance": 2.1}
+        )
+    with pytest.raises(ValidationError, match="_additional"):
+        GuidelineVectorCandidate.model_validate(
+            {**candidate.model_dump(mode="json"), "_additional": {"score": 0.9}}
+        )

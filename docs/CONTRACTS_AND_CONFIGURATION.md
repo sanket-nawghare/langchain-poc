@@ -93,6 +93,13 @@ The complete `ClinicalGuidelineChunkV1` snapshot must contain unique object and
 chunk IDs, one source checksum per document, and exact metadata equality after
 each sync. No Weaviate provider payload enters these contracts.
 
+Phase 3.5 vector-search requests carry only exact schema/embedding identity, a
+finite nonzero vector, one through eight trusted eligible document IDs, and a
+candidate limit of at most 32. Normalized candidates contain chunk lineage,
+stored source identity values, and bounded cosine distance but deliberately do
+not contain a trusted `GuidelineSource` or `Citation`. Those values must be
+hydrated from the committed corpus lock after all stored metadata agrees.
+
 The Phase 1 patient route returns `ApiSuccess[PatientSummary]`. Typed FHIR
 failures are translated at the HTTP boundary into `ApiError` with a generated
 request ID, stable machine code, safe message, and optional field. HTTP and

@@ -1,13 +1,22 @@
 """Provider-neutral contracts for the local clinical-guideline index."""
 
 import math
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
 from pydantic import Field, StringConstraints, model_validator
 
 from app.domain.base import ContractModel
-from app.domain.guidelines import GuidelineChunk, GuidelineSource, Sha256Digest
+from app.domain.guidelines import (
+    GuidelineChunk,
+    GuidelineIdentifier,
+    GuidelineLifecycleStatus,
+    GuidelinePublisher,
+    GuidelineSource,
+    Sha256Digest,
+    ShortMetadata,
+)
 
 EmbeddingModelId = Annotated[
     str,
@@ -89,4 +98,53 @@ class GuidelineIngestionResult(ContractModel):
     def validate_ingested_count(self) -> "GuidelineIngestionResult":
         if self.inserted + self.replaced + self.skipped != self.snapshot.chunk_count:
             raise ValueError("ingestion actions must account for every expected chunk")
+        return self
+
+
+class GuidelineVectorSearchRequest(ContractModel):
+    """Bounded provider-neutral candidate query over an eligible source set."""
+
+    schema_version: int = Field(ge=1, le=100)
+    embedding_model: EmbeddingModelId
+    embedding_dimensions: int = Field(ge=8, le=4096)
+    vector: list[float] = Field(min_length=8, max_length=4096)
+    eligible_document_ids: list[GuidelineIdentifier] = Field(
+        min_length=1,
+        max_length=8,
+    )
+    candidate_limit: int = Field(ge=1, le=32)
+
+    @model_validator(mode="after")
+    def validate_query(self) -> "GuidelineVectorSearchRequest":
+        if len(self.vector) != self.embedding_dimensions:
+            raise ValueError("vector length must match embedding_dimensions")
+        if not all(math.isfinite(value) for value in self.vector):
+            raise ValueError("vector values must be finite")
+        if not any(value != 0 for value in self.vector):
+            raise ValueError("vector must not be all zero")
+        if len(set(self.eligible_document_ids)) != len(self.eligible_document_ids):
+            raise ValueError("eligible_document_ids must be unique")
+        return self
+
+
+class GuidelineVectorCandidate(ContractModel):
+    """Normalized untrusted vector candidate awaiting trusted-source hydration."""
+
+    object_id: UUID
+    schema_version: int = Field(ge=1, le=100)
+    parser_version: ShortMetadata
+    embedding_model: EmbeddingModelId
+    embedding_dimensions: int = Field(ge=8, le=4096)
+    source_sha256: Sha256Digest
+    document_version: ShortMetadata
+    publisher: GuidelinePublisher
+    publication_date: date
+    lifecycle_status: GuidelineLifecycleStatus
+    chunk: GuidelineChunk
+    distance: float = Field(ge=0, le=2)
+
+    @model_validator(mode="after")
+    def validate_candidate(self) -> "GuidelineVectorCandidate":
+        if not math.isfinite(self.distance):
+            raise ValueError("distance must be finite")
         return self

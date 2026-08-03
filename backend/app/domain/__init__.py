@@ -6,7 +6,9 @@ from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
 from app.domain.guideline_index import (
     GuidelineIndexSnapshot,
     GuidelineIngestionResult,
+    GuidelineVectorCandidate,
     GuidelineVectorRecord,
+    GuidelineVectorSearchRequest,
 )
 from app.domain.guidelines import (
     EvidenceAssessment,
@@ -62,7 +64,9 @@ __all__ = [
     "GuidelineRetrievalResult",
     "GuidelineSource",
     "GuidelineUsePermission",
+    "GuidelineVectorCandidate",
     "GuidelineVectorRecord",
+    "GuidelineVectorSearchRequest",
     "Intent",
     "IntentClassification",
     "PatientSummary",

@@ -21,6 +21,7 @@ from app.rag.retrieval import (
     GuidelineRetriever,
 )
 from app.rag.vector_store import (
+    GuidelineCandidateStore,
     GuidelineVectorStore,
     GuidelineVectorStoreError,
     GuidelineVectorStoreSchemaError,
@@ -30,6 +31,7 @@ from app.rag.vector_store import (
 )
 
 __all__ = [
+    "GuidelineCandidateStore",
     "GuidelineDocumentParser",
     "GuidelineEmbeddingError",
     "GuidelineEmbeddingModel",
