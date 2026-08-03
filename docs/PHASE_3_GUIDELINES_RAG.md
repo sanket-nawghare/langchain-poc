@@ -26,7 +26,7 @@ and explicit failure when evidence is missing or unsafe.
 | 3.1 Source policy and retrieval contracts | Allowed sources, licenses, document metadata, retrieval requests/results, and safe failures are explicit | `[x]` |
 | 3.2 Reviewed starter corpus | A small checksum-locked corpus has provenance, license notes, and no patient data | `[x]` |
 | 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[x]` |
-| 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[ ]` |
+| 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[x]` |
 | 3.5 Retrieval and citation qualification | Clinical queries return bounded relevant chunks and application-owned citations or fail safely | `[ ]` |
 | 3.6 Workflow integration and Phase 3 gate | The graph retrieves evidence before generation and completes a cited seeded scenario reproducibly | `[ ]` |
 
@@ -162,15 +162,49 @@ Verified on 2026-08-03:
 
 ## Sub-phase 3.4 — Weaviate Schema and Idempotent Ingestion
 
-- Define a vector-store protocol before implementing the Weaviate adapter.
-- Use an application-owned collection name, schema version, stable object IDs,
+- `[x]` Define a vector-store protocol before implementing the Weaviate adapter.
+- `[x]` Use an application-owned collection name, schema version, stable object IDs,
   and metadata filters.
-- Make ingestion idempotent and verify exact document/chunk/checksum counts.
-- Add a guarded reset that affects only the application guideline collection.
-- Keep anonymous access documented as loopback-only development behavior.
+- `[x]` Make ingestion idempotent and verify exact document/chunk/checksum counts.
+- `[x]` Add a guarded reset that affects only the application guideline collection.
+- `[x]` Keep anonymous access documented as loopback-only development behavior.
 
 **Review checkpoint:** inspect schema, embedding boundary, idempotency, and
 reset targeting before retrieval is connected.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- Pinned `weaviate-client` 4.22.x and defined provider-neutral embedding,
+  vector-record, index-snapshot, ingestion-result, and vector-store contracts
+  with typed unavailable, schema, write, and verification failures.
+- Added `ClinicalGuidelineChunkV1` with explicit self-provided cosine vectors,
+  schema version 1, searchable title/section/text, and filterable source,
+  lifecycle, topic, page, sequence, version, and checksum metadata.
+- Stable UUIDv5 identity includes schema, parser, embedding model, chunk ID,
+  and content checksum. The local `deterministic-token-hash-v1` implementation
+  produces bounded repeatable 128-dimensional unit vectors and can be replaced
+  without changing domain or store interfaces.
+- Added exact insert/replace/skip/stale-delete planning. Expected writes happen
+  before stale deletes; every sync finishes by comparing all application
+  object IDs and metadata and deriving exact document/chunk/source-checksum
+  counts.
+- Added `make guidelines-index`, `make guidelines-index-verify`, and a reset
+  requiring `CONFIRM=1` plus the exact compiled collection name. The command
+  accepts only loopback HTTP Weaviate configuration and never targets another
+  collection.
+- Live ingestion inserted 135 chunks from two checksum-locked documents. A
+  second run skipped all 135, one controlled drift was replaced, reset refused
+  without confirmation, and confirmed collection-only reset rebuilt and
+  verified the exact 2-document/135-chunk snapshot.
+- `make check` passed with 174 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+- Retrieval queries, ranking, evidence thresholds, citations, and workflow
+  integration remain unchanged and deferred to sub-phases 3.5 and 3.6.
+
+**Status:** `[x]` Complete — stop for review before sub-phase 3.5.
 
 ## Sub-phase 3.5 — Retrieval and Citation Qualification
 

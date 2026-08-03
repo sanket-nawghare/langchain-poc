@@ -246,11 +246,19 @@ types cross into workflow state.
 |---|---|---|---|
 | SQLite | Application backend | Readiness plus redacted workflow queued/final checkpoints | `make app-data-reset CONFIRM=1` |
 | PostgreSQL | HAPI FHIR | HAPI schema and synthetic FHIR cohort | Removed with `make infra-reset CONFIRM=1` |
-| Weaviate | Retrieval adapter | Readiness only; no corpus is loaded | Removed with `make infra-reset CONFIRM=1` |
+| Weaviate | Guideline vector-store adapter | `ClinicalGuidelineChunkV1` holds 135 verified chunks from two reviewed sources with self-provided vectors | `make guidelines-index-reset CONFIRM=1` deletes only the app collection; infrastructure reset deletes the volume |
 | Local guideline directory | Developer acquisition tooling | Two ignored PDF artifacts verified against committed provenance/checksums | Manually remove ignored files; `make guidelines-fetch` restores them |
 
 Docker volumes survive `make infra-down`. Reset commands are intentionally
 guarded because they delete local development data.
+
+The guideline collection schema is application-owned and versioned in its
+name. Stable UUIDv5 object identity includes schema, parser, embedding model,
+chunk ID, and chunk checksum. Filterable metadata includes source and chunk
+identity, publisher, lifecycle, publication date, topic, page, sequence, and
+checksums. Patient identifiers, patient summaries, prompts, and workflow data
+are not accepted by the index contract. Weaviate SDK objects remain inside the
+adapter.
 
 ## Safety and Trust Boundaries
 

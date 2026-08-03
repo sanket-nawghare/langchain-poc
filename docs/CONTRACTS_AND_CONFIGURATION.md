@@ -48,8 +48,12 @@ Rules:
 | Patient summary and citations | `domain/clinical.py` | Normalized data outside FHIR and retrieval adapters |
 | Guideline source, chunk, and retrieval result | `domain/guidelines.py` | Reviewed provenance, permissions, bounded evidence, and citation lineage |
 | Parsed guideline document | `domain/guidelines.py` | One reviewed source plus ordered, contiguous, source-owned chunks |
+| Guideline vector record and index snapshot | `domain/guideline_index.py` | Fixed-size finite vectors, stable index identity, exact counts, and source checksums |
 | Guideline-parser capability | `rag/parsing.py` | Provider-neutral local parsing and typed input, encryption, malformed, and bounds failures |
+| Guideline-embedding capability | `rag/embeddings.py` | Replaceable fixed-dimension embedding interface and safe malformed-output failure |
+| Guideline vector-store capability | `rag/vector_store.py` | Provider-neutral exact sync, verification, reset, and typed safe failures |
 | Strict PDF parser adapter | `services/pypdf_guidelines.py` | Pinned pypdf normalization with file/page/text/chunk limits and structural checks |
+| Weaviate guideline adapter | `services/weaviate_guideline_index.py` | Versioned self-vectorized schema, stable UUIDs, idempotent mutation, and collection-only reset |
 | Guideline-retrieval capability | `rag/retrieval.py` | Provider-neutral async retrieval and typed safe failures |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
 | Safety-policy capability | `tools/safety.py` | Versioned deterministic evaluation over normalized context |
@@ -80,6 +84,14 @@ chunk IDs, and matching document ownership. The Phase 3.3 parser additionally
 limits files to 4 MiB, documents to 500 pages and 1,000,000 extracted
 characters, pages to 50,000 extracted characters, and individual chunks to
 2,400 characters. Chunks never cross page boundaries.
+
+`GuidelineVectorRecord` requires current reviewed source ownership, schema,
+parser and embedding versions, 8–4,096 finite nonzero vector values, and an
+exact declared dimension match. Phase 3.4 uses 128-dimensional deterministic
+token-hash vectors solely to establish a reproducible replaceable boundary.
+The complete `ClinicalGuidelineChunkV1` snapshot must contain unique object and
+chunk IDs, one source checksum per document, and exact metadata equality after
+each sync. No Weaviate provider payload enters these contracts.
 
 The Phase 1 patient route returns `ApiSuccess[PatientSummary]`. Typed FHIR
 failures are translated at the HTTP boundary into `ApiError` with a generated

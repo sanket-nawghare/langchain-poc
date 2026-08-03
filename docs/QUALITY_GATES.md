@@ -22,6 +22,7 @@ Use the smaller targets while developing:
 | Tests only | `make test` |
 | Compose | `make infra-config` |
 | Seeded Phase 2 API | `make phase2-live-gate` |
+| Guideline index | `make guidelines-index`, `make guidelines-index-verify` |
 | Everything | `make check` |
 
 `backend-check` runs Ruff formatting and linting, mypy strict type checking,
@@ -31,6 +32,11 @@ and pytest. `frontend-check` runs Prettier, ESLint, TypeScript, and Vitest.
 infrastructure, the checksum-locked synthetic cohort loaded in HAPI, and a
 running backend. It verifies the cohort before exercising completed, review,
 rejected, missing-patient, invalid-input, persistence, and redaction paths.
+
+The guideline index targets are also opt-in because they require the ignored
+reviewed PDFs and a healthy loopback-only Weaviate instance. Ingestion verifies
+the committed corpus and chunk locks before embedding or mutation. A repeated
+run must report every unchanged object as skipped.
 
 ## Pre-commit
 

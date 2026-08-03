@@ -180,6 +180,31 @@ writes only `data/guidelines/processed/chunks.json`, which is ignored. Git
 stores the content-free `chunk-lock.json` so parser or source drift fails
 explicitly.
 
+Index the verified chunks into the application-owned local collection:
+
+```bash
+make guidelines-index
+make guidelines-index-verify
+```
+
+`guidelines-index` uses the local deterministic
+`deterministic-token-hash-v1` embedding implementation and self-provided
+128-dimensional vectors. It is a repeatable development embedding boundary,
+not an approved clinical retrieval model; retrieval relevance and citation
+qualification remain in Phase 3.5. Re-running the command skips exact records,
+replaces metadata drift, removes stale objects from this collection, and then
+verifies exact IDs, metadata, source checksums, and counts.
+
+Delete only the application guideline collection, then recreate it if needed:
+
+```bash
+make guidelines-index-reset CONFIRM=1
+make guidelines-index
+```
+
+The reset command requires both the Make confirmation and the exact compiled
+collection name. It never enumerates or deletes other collections.
+
 ## Configuration
 
 Backend variables use the `CLINICAL_` prefix and are documented in
@@ -194,6 +219,8 @@ The read-only FHIR adapter supports these validated backend settings:
 | `CLINICAL_FHIR_RETRY_BACKOFF_SECONDS` | `0.1` | 0–5 |
 | `CLINICAL_FHIR_MAX_PAGES_PER_SEARCH` | `5` | 1–20 |
 | `CLINICAL_FHIR_MAX_RECORDS_PER_TYPE` | `500` | 1–500 |
+| `CLINICAL_WEAVIATE_GRPC_PORT` | `50051` | 1–65535 |
+| `CLINICAL_WEAVIATE_REQUEST_TIMEOUT_SECONDS` | `10` | Greater than 0, at most 30 |
 | `CLINICAL_WORKFLOW_NODE_TIMEOUT_SECONDS` | `10` | Greater than 0, at most 30 |
 | `CLINICAL_WORKFLOW_NODE_MAX_RETRIES` | `1` | 0–3 |
 

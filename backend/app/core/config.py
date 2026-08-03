@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     fhir_max_pages_per_search: int = Field(default=5, ge=1, le=20)
     fhir_max_records_per_type: int = Field(default=500, ge=1, le=500)
     weaviate_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8081")
+    weaviate_grpc_port: int = Field(default=50051, ge=1, le=65535)
+    weaviate_request_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
     workflow_node_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
     workflow_node_max_retries: int = Field(default=1, ge=0, le=3)
 

@@ -15,6 +15,8 @@ def test_safe_local_defaults_require_no_secret() -> None:
     assert settings.fhir_max_retries == 2
     assert settings.fhir_retry_backoff_seconds == 0.1
     assert settings.fhir_max_records_per_type == 500
+    assert settings.weaviate_grpc_port == 50051
+    assert settings.weaviate_request_timeout_seconds == 10
     assert settings.workflow_node_timeout_seconds == 10
     assert settings.workflow_node_max_retries == 1
     assert settings.llm_provider == "fake"
@@ -40,6 +42,8 @@ def test_unbounded_fhir_retry_configuration_is_rejected() -> None:
     [
         ("workflow_node_timeout_seconds", 31),
         ("workflow_node_max_retries", 4),
+        ("weaviate_grpc_port", 0),
+        ("weaviate_request_timeout_seconds", 31),
     ],
 )
 def test_unbounded_workflow_execution_configuration_is_rejected(

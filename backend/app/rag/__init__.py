@@ -1,5 +1,10 @@
-"""Provider-neutral guideline parsing and retrieval capabilities."""
+"""Provider-neutral guideline indexing, parsing, and retrieval capabilities."""
 
+from app.rag.embeddings import (
+    GuidelineEmbeddingError,
+    GuidelineEmbeddingModel,
+    GuidelineEmbeddingResponseError,
+)
 from app.rag.parsing import (
     GuidelineDocumentParser,
     GuidelineParsingBoundsError,
@@ -15,9 +20,20 @@ from app.rag.retrieval import (
     GuidelineRetrievalUnavailableError,
     GuidelineRetriever,
 )
+from app.rag.vector_store import (
+    GuidelineVectorStore,
+    GuidelineVectorStoreError,
+    GuidelineVectorStoreSchemaError,
+    GuidelineVectorStoreUnavailableError,
+    GuidelineVectorStoreVerificationError,
+    GuidelineVectorStoreWriteError,
+)
 
 __all__ = [
     "GuidelineDocumentParser",
+    "GuidelineEmbeddingError",
+    "GuidelineEmbeddingModel",
+    "GuidelineEmbeddingResponseError",
     "GuidelineParsingBoundsError",
     "GuidelineParsingEncryptedError",
     "GuidelineParsingError",
@@ -28,4 +44,10 @@ __all__ = [
     "GuidelineRetrievalTimeoutError",
     "GuidelineRetrievalUnavailableError",
     "GuidelineRetriever",
+    "GuidelineVectorStore",
+    "GuidelineVectorStoreError",
+    "GuidelineVectorStoreSchemaError",
+    "GuidelineVectorStoreUnavailableError",
+    "GuidelineVectorStoreVerificationError",
+    "GuidelineVectorStoreWriteError",
 ]

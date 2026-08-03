@@ -26,7 +26,8 @@ BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 	synthea-generate synthea-select synthea-verify synthea-cohort \
 	synthea-ensure synthea-generated-reset synthea-fixtures-reset \
 	fhir-seed fhir-verify fhir-reset phase2-live-gate \
-	guidelines-fetch guidelines-verify guidelines-chunk
+	guidelines-fetch guidelines-verify guidelines-chunk guidelines-index \
+	guidelines-index-verify guidelines-index-reset
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -189,6 +190,22 @@ guidelines-chunk: $(UV_BIN) ## Build and verify ignored deterministic guideline 
 		--document-dir data/guidelines/documents \
 		--chunk-lock data/guidelines/chunk-lock.json \
 		--output data/guidelines/processed/chunks.json
+
+guidelines-index: guidelines-chunk ## Idempotently index verified guideline chunks in local Weaviate
+	$(UV_ENV) $(UV) run --project backend python -m scripts.guideline_index sync \
+		--chunk-lock data/guidelines/chunk-lock.json \
+		--input data/guidelines/processed/chunks.json
+
+guidelines-index-verify: guidelines-chunk ## Verify exact local guideline index IDs and metadata
+	$(UV_ENV) $(UV) run --project backend python -m scripts.guideline_index verify \
+		--chunk-lock data/guidelines/chunk-lock.json \
+		--input data/guidelines/processed/chunks.json
+
+guidelines-index-reset: $(UV_BIN) ## Delete only the guideline collection (requires CONFIRM=1)
+	@test "$(CONFIRM)" = "1" || \
+		{ echo "Refusing to delete guideline index. Re-run with CONFIRM=1."; exit 1; }
+	$(UV_ENV) $(UV) run --project backend python -m scripts.guideline_index reset \
+		--confirm-collection ClinicalGuidelineChunkV1
 
 fhir-seed: synthea-ensure ## Idempotently seed the locked cohort into local HAPI
 	$(UV_ENV) $(UV) run --project backend python -m scripts.fhir_seed seed \

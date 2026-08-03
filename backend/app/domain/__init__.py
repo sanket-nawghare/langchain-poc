@@ -3,6 +3,11 @@
 from app.domain.api import ApiError, ApiSuccess, ErrorDetail
 from app.domain.audit import ActorType, AuditEvent, AuditEventType
 from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
+from app.domain.guideline_index import (
+    GuidelineIndexSnapshot,
+    GuidelineIngestionResult,
+    GuidelineVectorRecord,
+)
 from app.domain.guidelines import (
     EvidenceAssessment,
     GuidelineChunk,
@@ -48,6 +53,8 @@ __all__ = [
     "GeneratedResponse",
     "GuidelineChunk",
     "GuidelineDocumentFormat",
+    "GuidelineIndexSnapshot",
+    "GuidelineIngestionResult",
     "GuidelineLifecycleStatus",
     "GuidelinePublisher",
     "GuidelineRetrievalMatch",
@@ -55,6 +62,7 @@ __all__ = [
     "GuidelineRetrievalResult",
     "GuidelineSource",
     "GuidelineUsePermission",
+    "GuidelineVectorRecord",
     "Intent",
     "IntentClassification",
     "PatientSummary",
