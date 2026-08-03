@@ -12,6 +12,11 @@ from pydantic import ValidationError
 
 from app.domain.audit import ActorType, AuditEvent, AuditEventType, AuditValue
 from app.domain.clinical import PatientSummary
+from app.domain.guidelines import (
+    EvidenceAssessment,
+    GuidelineRetrievalRequest,
+    GuidelineRetrievalResult,
+)
 from app.domain.safety import SafetyDecision, SafetyResult
 from app.domain.workflow import (
     GeneratedResponse,
@@ -22,6 +27,11 @@ from app.domain.workflow import (
     WorkflowState,
     WorkflowStatus,
     WorkflowTransition,
+)
+from app.rag.retrieval import (
+    GuidelineRetrievalError,
+    GuidelineRetrievalTimeoutError,
+    GuidelineRetrievalUnavailableError,
 )
 from app.tools.fhir import (
     FhirClientError,
@@ -43,6 +53,7 @@ from app.workflow.state import (
     WorkflowGraphState,
     WorkflowGraphUpdate,
     append_workflow_audit_events,
+    set_workflow_guideline_evidence,
     set_workflow_intent,
     set_workflow_patient_data,
     set_workflow_safety_result,
@@ -53,6 +64,7 @@ BEGIN_EXECUTION_NODE = "begin_execution"
 CLASSIFY_INTENT_NODE = "classify_intent"
 REJECT_UNSUPPORTED_NODE = "reject_unsupported"
 RETRIEVE_PATIENT_NODE = "retrieve_patient"
+RETRIEVE_GUIDELINES_NODE = "retrieve_guidelines"
 SAFETY_PRECHECK_NODE = "safety_precheck"
 GENERATE_RESPONSE_NODE = "generate_response"
 CLASSIFICATION_FAILURE_CODE = "intent_classification_failed"
@@ -62,6 +74,9 @@ SAFETY_FAILURE_CODE = "safety_evaluation_failed"
 RESPONSE_FAILURE_CODE = "response_generation_failed"
 RESPONSE_TIMEOUT_CODE = "response_generation_timeout"
 GUIDELINE_EVIDENCE_UNAVAILABLE_CODE = "guideline_evidence_not_available"
+GUIDELINE_RETRIEVAL_TIMEOUT_CODE = "guideline_retrieval_timeout"
+GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE = "guideline_retrieval_unavailable"
+INVALID_GUIDELINE_EVIDENCE_CODE = "invalid_guideline_evidence"
 EDUCATIONAL_DISCLAIMER = (
     "Educational demonstration using synthetic data only. This response is not "
     "medical advice and must not replace evaluation by a qualified healthcare "
@@ -70,6 +85,7 @@ EDUCATIONAL_DISCLAIMER = (
 
 type ClassificationRoute = Literal["supported", "unsupported", "failed"]
 type RetrievalRoute = Literal["retrieved", "failed"]
+type GuidelineRetrievalRoute = Literal["continue", "review", "failed"]
 type SafetyRoute = Literal["pass", "review", "block", "failed"]
 
 type WorkflowCompiledGraph = CompiledStateGraph[
@@ -354,6 +370,123 @@ async def _retrieve_patient(
     return {"workflow": audited_workflow}
 
 
+def _guideline_failure_code(error: GuidelineRetrievalError) -> str:
+    if isinstance(error, GuidelineRetrievalTimeoutError):
+        return GUIDELINE_RETRIEVAL_TIMEOUT_CODE
+    if isinstance(error, GuidelineRetrievalUnavailableError):
+        return GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE
+    return INVALID_GUIDELINE_EVIDENCE_CODE
+
+
+async def _retrieve_guidelines(
+    state: WorkflowGraphState,
+    runtime: Runtime[WorkflowRuntime],
+) -> WorkflowGraphUpdate:
+    workflow = state["workflow"]
+    retriever = runtime.context.guideline_retriever
+    # Checkpoint 3.6.2 keeps the Phase 2 runtime compatible. Checkpoint 3.6.3
+    # makes retrieval mandatory when cited generation is connected.
+    if retriever is None:
+        return {}
+
+    try:
+        request = GuidelineRetrievalRequest(
+            clinical_query=workflow.user_query,
+            as_of=runtime.context.clock.now().date(),
+        )
+        raw_result = await _run_bounded(
+            lambda: retriever.retrieve(request),
+            runtime,
+            retryable=(
+                GuidelineRetrievalTimeoutError,
+                GuidelineRetrievalUnavailableError,
+            ),
+        )
+        raw_payload = (
+            raw_result.model_dump()
+            if isinstance(raw_result, GuidelineRetrievalResult)
+            else raw_result
+        )
+        result = GuidelineRetrievalResult.model_validate(raw_payload)
+        updated_workflow = set_workflow_guideline_evidence(workflow, result)
+    except WorkflowNodeTimeoutError:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=RETRIEVE_GUIDELINES_NODE,
+            failure_code=GUIDELINE_RETRIEVAL_TIMEOUT_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except GuidelineRetrievalError as error:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=RETRIEVE_GUIDELINES_NODE,
+            failure_code=_guideline_failure_code(error),
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except ValidationError:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=RETRIEVE_GUIDELINES_NODE,
+            failure_code=INVALID_GUIDELINE_EVIDENCE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except Exception:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=RETRIEVE_GUIDELINES_NODE,
+            failure_code=INVALID_GUIDELINE_EVIDENCE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+
+    evidence = updated_workflow.guideline_evidence
+    if evidence is None:
+        raise AssertionError("retrieval projection requires evidence metadata")
+    details: dict[str, AuditValue] = {
+        "tool": "guideline_retriever",
+        "outcome": "success",
+        "assessment": evidence.assessment.value,
+        "policy_version": evidence.policy_version,
+        "match_count": evidence.match_count,
+    }
+    if evidence.document_ids:
+        details["document_ids"] = ",".join(evidence.document_ids)
+        details["chunk_ids"] = ",".join(evidence.chunk_ids)
+    audited_workflow = append_workflow_audit_events(
+        updated_workflow,
+        [
+            _audit_event(
+                updated_workflow,
+                runtime,
+                AuditEventType.TOOL_CALLED,
+                details=details,
+            )
+        ],
+    )
+    if evidence.assessment in {
+        EvidenceAssessment.INSUFFICIENT,
+        EvidenceAssessment.CONFLICTING,
+    }:
+        reviewed_values = audited_workflow.model_dump()
+        reviewed_values["requires_human_review"] = True
+        reviewed_workflow = WorkflowState.model_validate(reviewed_values)
+        reviewed_workflow, transition = _transition_with_audit(
+            reviewed_workflow,
+            runtime,
+            WorkflowStatus.PENDING_REVIEW,
+            step=RETRIEVE_GUIDELINES_NODE,
+        )
+        return {"workflow": reviewed_workflow, "transitions": [transition]}
+    return {"workflow": audited_workflow}
+
+
 async def _safety_precheck(
     state: WorkflowGraphState,
     runtime: Runtime[WorkflowRuntime],
@@ -557,6 +690,17 @@ async def _route_retrieval(state: WorkflowGraphState) -> RetrievalRoute:
     )
 
 
+async def _route_guideline_retrieval(
+    state: WorkflowGraphState,
+) -> GuidelineRetrievalRoute:
+    workflow = state["workflow"]
+    if workflow.status == WorkflowStatus.FAILED:
+        return "failed"
+    if workflow.status == WorkflowStatus.PENDING_REVIEW:
+        return "review"
+    return "continue"
+
+
 async def _route_safety(state: WorkflowGraphState) -> SafetyRoute:
     workflow = state["workflow"]
     if workflow.status == WorkflowStatus.FAILED:
@@ -579,6 +723,7 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
     builder.add_node(CLASSIFY_INTENT_NODE, _classify_intent)
     builder.add_node(REJECT_UNSUPPORTED_NODE, _reject_unsupported)
     builder.add_node(RETRIEVE_PATIENT_NODE, _retrieve_patient)
+    builder.add_node(RETRIEVE_GUIDELINES_NODE, _retrieve_guidelines)
     builder.add_node(SAFETY_PRECHECK_NODE, _safety_precheck)
     builder.add_node(GENERATE_RESPONSE_NODE, _generate_response)
     builder.add_edge(START, BEGIN_EXECUTION_NODE)
@@ -596,7 +741,16 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
         RETRIEVE_PATIENT_NODE,
         _route_retrieval,
         {
-            "retrieved": SAFETY_PRECHECK_NODE,
+            "retrieved": RETRIEVE_GUIDELINES_NODE,
+            "failed": END,
+        },
+    )
+    builder.add_conditional_edges(
+        RETRIEVE_GUIDELINES_NODE,
+        _route_guideline_retrieval,
+        {
+            "continue": SAFETY_PRECHECK_NODE,
+            "review": END,
             "failed": END,
         },
     )

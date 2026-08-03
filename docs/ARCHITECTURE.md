@@ -69,7 +69,7 @@ flowchart TD
     API --> Domain
     API --> Workflow
     Workflow --> Tools
-    Workflow -. "Phase 3.6" .-> RAG
+    Workflow --> RAG
     Workflow --> Domain
     API --> Services
     Services --> Tools
@@ -81,8 +81,8 @@ flowchart TD
 
 Solid arrows represent current runtime dependencies. Dotted arrows are planned
 extension paths and do not imply connected runtime behavior. The `rag` package
-currently exposes only the application-owned retrieval protocol and typed safe
-failures. The patient API creates
+exposes the application-owned retrieval protocol and typed safe failures. The
+patient API creates
 a request-scoped HAPI adapter, injects it into the summary service through the
 read-only FHIR interface, and closes the transport after the request. The
 workflow graph receives its clock, classifier, normalized patient reader,
@@ -101,6 +101,7 @@ flowchart LR
     Begin["begin_execution<br/>queued → running"]
     Classify["classify_intent"]
     Retrieve["retrieve_patient"]
+    Guidelines["retrieve_guidelines"]
     Safety["safety_precheck"]
     Reject["reject_unsupported<br/>running → rejected"]
     Generate["generate_response"]
@@ -114,8 +115,11 @@ flowchart LR
     Classify -->|"clinical_qa"| Retrieve
     Classify -->|"unknown"| Reject --> End
     Classify -->|"invalid result / typed failure"| Failed
-    Retrieve -->|"normalized summary"| Safety
+    Retrieve -->|"normalized summary"| Guidelines
     Retrieve -->|"FHIR / contract failure"| Failed
+    Guidelines -->|"sufficient / no configured retriever"| Safety
+    Guidelines -->|"insufficient / conflicting"| Review
+    Guidelines -->|"timeout / unavailable / invalid"| Failed
     Safety -->|"pass"| Generate --> Complete --> End
     Generate -->|"timeout / invalid draft / premature evidence"| Failed
     Safety -->|"review"| Review --> End
@@ -126,14 +130,15 @@ flowchart LR
 The graph wraps the in-memory `WorkflowState` with an append-only transition
 list. An immutable run-scoped context supplies the application-owned clock.
 It also supplies application-owned classifier, normalized patient-summary,
-safety-policy, response-generator, and audit-ID capabilities. The response
-generator drafts answer text only; application code owns the exact disclaimer
-and trusted citations. Phase 3 evidence is not available, so citations remain
-empty and the deterministic answer states that limitation. Review and block
-outcomes terminate without approval/resume behavior, which remains deferred to
-Phase 4.
+guideline-retrieval, safety-policy, response-generator, and audit-ID
+capabilities. When a retriever is injected, the retrieval node validates and
+projects evidence before safety evaluation. Insufficient or conflicting
+evidence pauses for review; typed and malformed failures terminate safely. The
+Phase 2 generator remains guarded against populated evidence until checkpoint
+3.6.3 connects cited generation. Review and block outcomes terminate without
+approval/resume behavior, which remains deferred to Phase 4.
 
-Classifier, patient-summary, safety, and response capability calls have a
+Classifier, patient-summary, guideline-retrieval, safety, and response calls have a
 configurable timeout and bounded retry count. Retryable operations are
 side-effect-free. Unexpected capability errors become stable failed results
 rather than escaping into API responses.

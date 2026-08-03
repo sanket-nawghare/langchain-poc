@@ -7,6 +7,10 @@ from pydantic import ValidationError
 
 from app.domain.audit import AuditEvent
 from app.domain.clinical import PatientSummary
+from app.domain.guidelines import (
+    GuidelineEvidenceSummary,
+    GuidelineRetrievalResult,
+)
 from app.domain.safety import SafetyResult
 from app.domain.workflow import (
     GeneratedResponse,
@@ -100,6 +104,24 @@ def set_workflow_patient_data(
 
     values = workflow.model_dump()
     values["patient_data"] = patient
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_guideline_evidence(
+    workflow: WorkflowState,
+    result: GuidelineRetrievalResult,
+) -> WorkflowState:
+    """Project validated retrieval evidence into content-bounded workflow state."""
+
+    values = workflow.model_dump()
+    values.update(
+        {
+            "guideline_evidence": GuidelineEvidenceSummary.from_retrieval_result(
+                result
+            ),
+            "retrieved_guidelines": [match.citation for match in result.matches],
+        }
+    )
     return WorkflowState.model_validate(values)
 
 

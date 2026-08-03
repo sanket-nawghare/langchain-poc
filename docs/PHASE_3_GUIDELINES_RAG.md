@@ -389,11 +389,12 @@ Routing policy fixed for the next checkpoint:
 
 ### 3.6.2 — Retrieval Graph Node and Safe Routing
 
-- `[ ]` Insert guideline retrieval after patient context and before safety and
+- `[x]` Insert guideline retrieval after patient context and before safety and
   response generation.
-- `[ ]` Build the deidentified bounded retrieval request inside the application
+- `[x]` Build the bounded retrieval request inside the application without
+  adding patient identifiers or summaries,
   and implement the routing policy above with bounded retry/timeout behavior.
-- `[ ]` Emit minimal retrieval audit metadata without bodies, queries, prompts,
+- `[x]` Emit minimal retrieval audit metadata without bodies, queries, prompts,
   excerpts, or provider payloads.
 
 ### 3.6.3 — Cited Generation, Audit, and Persistence
@@ -414,8 +415,10 @@ Routing policy fixed for the next checkpoint:
 - `[ ]` Update architecture, development, contracts, safety policy, and roadmap
   status, then stop for final Phase 3 review.
 
-**Status:** `[~]` In progress — checkpoint 3.6.1 complete; stop for review
-before LangGraph retrieval-node integration in checkpoint 3.6.2.
+**Status:** `[~]` In progress — checkpoint 3.6.2 complete; stop for review
+before cited generation and durable projection in checkpoint 3.6.3. The node
+is active when a retriever is injected; the default production binding remains
+deferred so the Phase 2 generator cannot silently discard retrieved evidence.
 
 ## Phase Exit Criteria
 

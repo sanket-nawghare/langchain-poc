@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import cast
 from uuid import UUID
 
@@ -19,7 +19,19 @@ from app.domain.clinical import (
     ClinicalSummaryCategory,
     PatientSummary,
 )
-from app.domain.guidelines import EvidenceAssessment, GuidelineEvidenceSummary
+from app.domain.guidelines import (
+    EvidenceAssessment,
+    GuidelineChunk,
+    GuidelineDocumentFormat,
+    GuidelineEvidenceSummary,
+    GuidelineLifecycleStatus,
+    GuidelinePublisher,
+    GuidelineRetrievalMatch,
+    GuidelineRetrievalRequest,
+    GuidelineRetrievalResult,
+    GuidelineSource,
+    GuidelineUsePermission,
+)
 from app.domain.safety import (
     SafetyDecision,
     SafetyReason,
@@ -35,6 +47,12 @@ from app.domain.workflow import (
     WorkflowState,
     WorkflowStatus,
     WorkflowTransition,
+)
+from app.rag.retrieval import (
+    GuidelineRetrievalResponseError,
+    GuidelineRetrievalTimeoutError,
+    GuidelineRetrievalUnavailableError,
+    GuidelineRetriever,
 )
 from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
@@ -63,10 +81,14 @@ from app.workflow.graph import (
     EDUCATIONAL_DISCLAIMER,
     GENERATE_RESPONSE_NODE,
     GUIDELINE_EVIDENCE_UNAVAILABLE_CODE,
+    GUIDELINE_RETRIEVAL_TIMEOUT_CODE,
+    GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE,
+    INVALID_GUIDELINE_EVIDENCE_CODE,
     INVALID_PATIENT_SUMMARY_CODE,
     REJECT_UNSUPPORTED_NODE,
     RESPONSE_FAILURE_CODE,
     RESPONSE_TIMEOUT_CODE,
+    RETRIEVE_GUIDELINES_NODE,
     RETRIEVE_PATIENT_NODE,
     SAFETY_FAILURE_CODE,
     SAFETY_PRECHECK_NODE,
@@ -256,6 +278,100 @@ class FlakyResponseGenerator:
         return ResponseDraft(answer="Recovered bounded educational draft.")
 
 
+class StubGuidelineRetriever:
+    def __init__(self, *results: object) -> None:
+        self.results = list(results)
+        self.requests: list[GuidelineRetrievalRequest] = []
+
+    async def retrieve(
+        self,
+        request: GuidelineRetrievalRequest,
+    ) -> GuidelineRetrievalResult:
+        self.requests.append(request)
+        result = self.results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return cast(GuidelineRetrievalResult, result)
+
+    async def close(self) -> None:
+        return None
+
+
+class HangingGuidelineRetriever:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def retrieve(
+        self,
+        request: GuidelineRetrievalRequest,
+    ) -> GuidelineRetrievalResult:
+        self.calls += 1
+        await asyncio.sleep(0.05)
+        return guideline_result(EvidenceAssessment.SUFFICIENT)
+
+    async def close(self) -> None:
+        return None
+
+
+def guideline_match(rank: int) -> GuidelineRetrievalMatch:
+    source = GuidelineSource(
+        document_id="who-synthetic-guideline",
+        title="Reviewed synthetic guideline",
+        publisher=GuidelinePublisher.WHO,
+        canonical_url="https://example.test/reviewed-guideline",
+        document_format=GuidelineDocumentFormat.PDF,
+        publication_date=date(2026, 1, 1),
+        version="2026-v1",
+        accessed_at=date(2026, 7, 1),
+        license_name="Reviewed test permission",
+        use_permission=GuidelineUsePermission.LOCAL_INDEX_ONLY,
+        license_reviewed_at=date(2026, 7, 1),
+        license_review_note="Test-only reviewed source metadata.",
+        lifecycle_status=GuidelineLifecycleStatus.CURRENT,
+        content_sha256="1" * 64,
+        supported_topics=["synthetic condition"],
+    )
+    chunk = GuidelineChunk(
+        chunk_id=f"who-synthetic-guideline.{rank - 1}",
+        document_id=source.document_id,
+        text=f"Reviewed bounded evidence chunk {rank}.",
+        content_sha256=f"{rank + 1}" * 64,
+        sequence=rank - 1,
+        page=rank,
+    )
+    return GuidelineRetrievalMatch(
+        source=source,
+        chunk=chunk,
+        citation=Citation(
+            document_id=source.document_id,
+            chunk_id=chunk.chunk_id,
+            title=source.title,
+            publisher=source.publisher.value,
+            source_url=source.canonical_url,
+            page=chunk.page,
+            excerpt=f"Bounded evidence excerpt {rank}.",
+        ),
+        relevance_score=0.9,
+        rank=rank,
+    )
+
+
+def guideline_result(
+    assessment: EvidenceAssessment,
+) -> GuidelineRetrievalResult:
+    match_count = {
+        EvidenceAssessment.INSUFFICIENT: 0,
+        EvidenceAssessment.SUFFICIENT: 1,
+        EvidenceAssessment.CONFLICTING: 2,
+    }[assessment]
+    return GuidelineRetrievalResult(
+        assessment=assessment,
+        policy_version="retrieval-v1",
+        query_fingerprint="0" * 64,
+        matches=[guideline_match(rank) for rank in range(1, match_count + 1)],
+    )
+
+
 def complete_patient_summary(
     *,
     patient_id: str = "synthetic-patient-1",
@@ -280,6 +396,7 @@ def workflow_runtime(
     patient_reader: PatientSummaryReader | None = None,
     safety_policy: SafetyPolicy | None = None,
     response_generator: ResponseGenerator | None = None,
+    guideline_retriever: GuidelineRetriever | None = None,
     execution_policy: WorkflowExecutionPolicy | None = None,
 ) -> WorkflowRuntime:
     return WorkflowRuntime(
@@ -291,6 +408,7 @@ def workflow_runtime(
         safety_policy=safety_policy or DeterministicSafetyPolicy(),
         response_generator=response_generator or DeterministicResponseGenerator(),
         audit_event_ids=SequentialAuditEventIdFactory(),
+        guideline_retriever=guideline_retriever,
         execution_policy=execution_policy or WorkflowExecutionPolicy(),
     )
 
@@ -474,6 +592,7 @@ def test_graph_has_only_the_reviewed_response_and_audit_topology() -> None:
         CLASSIFY_INTENT_NODE,
         REJECT_UNSUPPORTED_NODE,
         RETRIEVE_PATIENT_NODE,
+        RETRIEVE_GUIDELINES_NODE,
         SAFETY_PRECHECK_NODE,
         GENERATE_RESPONSE_NODE,
         "__end__",
@@ -484,13 +603,168 @@ def test_graph_has_only_the_reviewed_response_and_audit_topology() -> None:
         (CLASSIFY_INTENT_NODE, RETRIEVE_PATIENT_NODE),
         (CLASSIFY_INTENT_NODE, REJECT_UNSUPPORTED_NODE),
         (CLASSIFY_INTENT_NODE, "__end__"),
-        (RETRIEVE_PATIENT_NODE, SAFETY_PRECHECK_NODE),
+        (RETRIEVE_PATIENT_NODE, RETRIEVE_GUIDELINES_NODE),
         (RETRIEVE_PATIENT_NODE, "__end__"),
+        (RETRIEVE_GUIDELINES_NODE, SAFETY_PRECHECK_NODE),
+        (RETRIEVE_GUIDELINES_NODE, "__end__"),
         (SAFETY_PRECHECK_NODE, GENERATE_RESPONSE_NODE),
         (SAFETY_PRECHECK_NODE, "__end__"),
         (REJECT_UNSUPPORTED_NODE, "__end__"),
         (GENERATE_RESPONSE_NODE, "__end__"),
     }
+
+
+@pytest.mark.anyio
+async def test_sufficient_guideline_evidence_is_projected_and_audited_safely() -> None:
+    retriever = StubGuidelineRetriever(guideline_result(EvidenceAssessment.SUFFICIENT))
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(guideline_retriever=retriever),
+    )
+
+    assert len(retriever.requests) == 1
+    request = retriever.requests[0]
+    assert request.clinical_query == queued_workflow().user_query
+    assert request.as_of == EXECUTED_AT.date()
+    assert "patient" not in request.model_dump()
+    assert result.workflow.guideline_evidence is not None
+    assert (
+        result.workflow.guideline_evidence.assessment is EvidenceAssessment.SUFFICIENT
+    )
+    assert result.workflow.guideline_evidence.match_count == 1
+    assert len(result.workflow.retrieved_guidelines) == 1
+    # Cited generation is deliberately still guarded until checkpoint 3.6.3.
+    assert result.workflow.status is WorkflowStatus.FAILED
+    assert result.workflow.failure_code == GUIDELINE_EVIDENCE_UNAVAILABLE_CODE
+    retrieval_audit = next(
+        event
+        for event in result.workflow.audit_log
+        if event.details.get("tool") == "guideline_retriever"
+    )
+    assert retrieval_audit.details == {
+        "tool": "guideline_retriever",
+        "outcome": "success",
+        "assessment": "sufficient",
+        "policy_version": "retrieval-v1",
+        "match_count": 1,
+        "document_ids": "who-synthetic-guideline",
+        "chunk_ids": "who-synthetic-guideline.0",
+    }
+    serialized_audit = str(retrieval_audit.model_dump(mode="json"))
+    assert queued_workflow().user_query not in serialized_audit
+    assert "Reviewed bounded evidence" not in serialized_audit
+    assert "Bounded evidence excerpt" not in serialized_audit
+    assert "example.test" not in serialized_audit
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "assessment",
+    [EvidenceAssessment.INSUFFICIENT, EvidenceAssessment.CONFLICTING],
+)
+async def test_unsafe_evidence_outcomes_pause_before_safety_and_generation(
+    assessment: EvidenceAssessment,
+) -> None:
+    response_generator = StaticResponseGenerator(ResponseDraft(answer="must not run"))
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(
+            guideline_retriever=StubGuidelineRetriever(guideline_result(assessment)),
+            response_generator=response_generator,
+        ),
+    )
+
+    assert result.workflow.status is WorkflowStatus.PENDING_REVIEW
+    assert result.workflow.requires_human_review is True
+    assert result.workflow.guideline_evidence is not None
+    assert result.workflow.guideline_evidence.assessment is assessment
+    assert result.workflow.safety_result is None
+    assert result.workflow.final_response is None
+    assert response_generator.calls == 0
+    assert result.transitions[-1].step == RETRIEVE_GUIDELINES_NODE
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("provider_result", "expected_code"),
+    [
+        (
+            GuidelineRetrievalTimeoutError("sensitive timeout"),
+            GUIDELINE_RETRIEVAL_TIMEOUT_CODE,
+        ),
+        (
+            GuidelineRetrievalUnavailableError("sensitive unavailable"),
+            GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE,
+        ),
+        (
+            GuidelineRetrievalResponseError("sensitive malformed"),
+            INVALID_GUIDELINE_EVIDENCE_CODE,
+        ),
+        (
+            {"assessment": "sufficient", "provider_payload": "sensitive"},
+            INVALID_GUIDELINE_EVIDENCE_CODE,
+        ),
+        (RuntimeError("sensitive unexpected failure"), INVALID_GUIDELINE_EVIDENCE_CODE),
+    ],
+)
+async def test_guideline_retrieval_failures_map_to_safe_codes(
+    provider_result: object,
+    expected_code: str,
+) -> None:
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(
+            guideline_retriever=StubGuidelineRetriever(provider_result),
+            execution_policy=WorkflowExecutionPolicy(max_retries=0),
+        ),
+    )
+
+    assert result.workflow.status is WorkflowStatus.FAILED
+    assert result.workflow.failure_code == expected_code
+    assert result.workflow.guideline_evidence is None
+    assert result.transitions[-1].step == RETRIEVE_GUIDELINES_NODE
+    serialized = str(result.model_dump(mode="json"))
+    assert "sensitive" not in serialized
+    assert "provider_payload" not in serialized
+
+
+@pytest.mark.anyio
+async def test_guideline_retrieval_retries_typed_unavailability() -> None:
+    retriever = StubGuidelineRetriever(
+        GuidelineRetrievalUnavailableError("transient sensitive failure"),
+        guideline_result(EvidenceAssessment.INSUFFICIENT),
+    )
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(guideline_retriever=retriever),
+    )
+
+    assert len(retriever.requests) == 2
+    assert result.workflow.status is WorkflowStatus.PENDING_REVIEW
+    assert result.workflow.failure_code is None
+
+
+@pytest.mark.anyio
+async def test_guideline_retrieval_enforces_node_timeout() -> None:
+    retriever = HangingGuidelineRetriever()
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(
+            guideline_retriever=retriever,
+            execution_policy=WorkflowExecutionPolicy(
+                timeout_seconds=0.001,
+                max_retries=1,
+            ),
+        ),
+    )
+
+    assert retriever.calls == 2
+    assert result.workflow.status is WorkflowStatus.FAILED
+    assert result.workflow.failure_code == GUIDELINE_RETRIEVAL_TIMEOUT_CODE
 
 
 @pytest.mark.anyio

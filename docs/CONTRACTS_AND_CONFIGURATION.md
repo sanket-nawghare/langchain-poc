@@ -157,8 +157,15 @@ narratives, and raw FHIR payloads are excluded.
 - Immutable run-scoped context carries application-owned dependencies. It
   includes the clock, intent classifier, patient-summary reader, safety policy,
   response generator, audit-event ID source, and the optional Phase 3.6
-  guideline-retrieval capability. The retriever remains disconnected from the
-  graph until checkpoint 3.6.2.
+  guideline-retrieval capability. Checkpoint 3.6.2 connects that capability to
+  a graph node between patient retrieval and safety evaluation; production
+  binding remains deferred until cited generation is connected in 3.6.3.
+- Guideline retrieval receives the bounded workflow query, current application
+  date, optional publisher filters, and top-k only. Patient IDs and normalized
+  patient summaries are not included. Sufficient evidence continues to safety;
+  insufficient or conflicting evidence pauses for review; timeout,
+  unavailability, malformed output, and unexpected failures become stable safe
+  workflow failure codes.
 - Graph execution explicitly disables inherited LangSmith tracing. This keeps
   queries and workflow state local until a later phase defines reviewed,
   redacted observability.
@@ -175,8 +182,9 @@ narratives, and raw FHIR payloads are excluded.
 - Response generators return only `ResponseDraft.answer`, bounded to 4,000
   characters. Unknown fields are rejected; application code attaches the
   educational disclaimer and trusted citations.
-- Until Phase 3 populates reviewed guideline evidence, response citations must
-  remain empty and unexpected preloaded citations fail safely.
+- Until checkpoint 3.6.3 qualifies cited generation, the Phase 2 response path
+  still rejects populated guideline evidence rather than silently discarding
+  citations.
 - A final response exists exactly when workflow status is `completed`.
 - In-memory audit events contain application IDs, timestamps, stable event
   types, and small scalar outcome metadata. Queries, patient summaries, prompts,
