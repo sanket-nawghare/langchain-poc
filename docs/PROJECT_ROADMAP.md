@@ -378,6 +378,7 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
+| 2026-08-03 | Build a bounded grounded request only after retrieval and deterministic safety pass, then keep citations and qualifications application-owned | Prevents identifiers, raw FHIR data, full documents, provider objects, model-created citation identity, and unreviewed model output from controlling the durable workflow result | Accepted |
 | 2026-08-03 | Use OpenAI Responses with `gpt-5.6-sol` as the first real grounded-generation provider while retaining strict provider-neutral request, response, and failure contracts | Current official guidance identifies the model as the flagship and supports Responses structured outputs; keeping tools, citations, disclaimers, safety, and routing application-owned prevents the provider from controlling durable clinical behavior | Accepted |
 | 2026-08-03 | Use pinned strict pypdf parsing with page-confined 2,400-character chunks and a content-free deterministic chunk lock | Preserves exact page/source lineage, keeps outputs bounded and reproducible, and detects parser or source drift before vector indexing | Accepted |
 | 2026-08-03 | Use two checksum-locked WHO PDFs as a local-index-only starter corpus and commit metadata rather than document content | Directly supports the seeded diabetes and hypertension scenarios while preserving exact provenance and a conservative repository-redistribution boundary | Accepted |
@@ -415,6 +416,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 4.1.3 | Wired configured deterministic/OpenAI generation into LangGraph only after sufficient evidence and safety pass; added bounded relevance-selected facts and excerpts, exact application-owned citations, stable provider failure codes, redacted model/latency/token audit counts, and 280 backend/6 frontend passing tests | Stop for review before checkpoint 4.1.4 opt-in real-provider gate |
 | 2026-08-03 | Phase 4.1.2 | Added the official async OpenAI Responses adapter, strict Pydantic answer parsing, stateless/no-tools invocation, bounded validated provider settings, safe SDK failure normalization, and credential-free deterministic tests | Stop for review before checkpoint 4.1.3 grounded prompt and workflow wiring |
 | 2026-08-03 | Phase 4.1.1 | Selected OpenAI Responses with `gpt-5.6-sol`, added bounded deidentified grounded-generation contracts, preserved answer-only strict output, defined provider-neutral safe failures, and recorded the prompt-injection boundary | Stop for review before checkpoint 4.1.2 provider adapter and configuration |
 | 2026-08-03 | Phase 4 | Started Phase 4 with grounded real-LLM generation as sub-phase 4.1, followed by deterministic/post-generation safety, persisted review actions, concurrency-safe resume, and final gates | Select the first real model provider, then complete checkpoint 4.1.1 contracts and failure policy |

@@ -19,6 +19,11 @@ from app.domain.clinical import (
     ClinicalSummaryCategory,
     PatientSummary,
 )
+from app.domain.generation import (
+    GroundedGenerationRequest,
+    ResponseGenerationMetadata,
+    ResponseGenerationResult,
+)
 from app.domain.guidelines import (
     EvidenceAssessment,
     GuidelineChunk,
@@ -68,8 +73,14 @@ from app.tools.fhir import (
 from app.tools.intent import IntentClassificationError, IntentClassifier
 from app.tools.patient import PatientSummaryReader
 from app.tools.response import (
+    ResponseGenerationAuthenticationError,
+    ResponseGenerationContextLimitError,
     ResponseGenerationError,
+    ResponseGenerationMalformedOutputError,
+    ResponseGenerationRateLimitError,
+    ResponseGenerationRefusalError,
     ResponseGenerationTimeoutError,
+    ResponseGenerationUnavailableError,
     ResponseGenerator,
 )
 from app.tools.safety import SafetyPolicy, SafetyPolicyError
@@ -85,8 +96,14 @@ from app.workflow.graph import (
     INVALID_GUIDELINE_EVIDENCE_CODE,
     INVALID_PATIENT_SUMMARY_CODE,
     REJECT_UNSUPPORTED_NODE,
+    RESPONSE_AUTHENTICATION_CODE,
+    RESPONSE_CONTEXT_LIMIT_CODE,
     RESPONSE_FAILURE_CODE,
+    RESPONSE_INVALID_OUTPUT_CODE,
+    RESPONSE_RATE_LIMIT_CODE,
+    RESPONSE_REFUSAL_CODE,
     RESPONSE_TIMEOUT_CODE,
+    RESPONSE_UNAVAILABLE_CODE,
     RETRIEVE_GUIDELINES_NODE,
     RETRIEVE_PATIENT_NODE,
     SAFETY_FAILURE_CODE,
@@ -214,37 +231,45 @@ class StaticResponseGenerator:
     def __init__(
         self,
         result: ResponseDraft | ResponseGenerationError,
+        metadata: ResponseGenerationMetadata | None = None,
     ) -> None:
         self.result = result
+        self.metadata = metadata or ResponseGenerationMetadata(
+            generator="deterministic"
+        )
         self.calls = 0
+        self.requests: list[GroundedGenerationRequest] = []
 
     async def generate(
         self,
         *,
-        query: str,
-        patient: PatientSummary,
-        guidelines: list[Citation],
-    ) -> ResponseDraft:
+        request: GroundedGenerationRequest,
+    ) -> ResponseGenerationResult:
         self.calls += 1
+        self.requests.append(request)
         if isinstance(self.result, ResponseGenerationError):
             raise self.result
-        return self.result
+        return ResponseGenerationResult(
+            draft=self.result,
+            metadata=self.metadata,
+        )
 
 
 class MalformedResponseGenerator:
     async def generate(
         self,
         *,
-        query: str,
-        patient: PatientSummary,
-        guidelines: list[Citation],
-    ) -> ResponseDraft:
+        request: GroundedGenerationRequest,
+    ) -> ResponseGenerationResult:
         return cast(
-            ResponseDraft,
+            ResponseGenerationResult,
             {
-                "answer": "Unqualified output",
-                "citations": ["fabricated-provider-citation"],
-                "disclaimer": "Provider-controlled disclaimer",
+                "draft": {
+                    "answer": "Unqualified output",
+                    "citations": ["fabricated-provider-citation"],
+                    "disclaimer": "Provider-controlled disclaimer",
+                },
+                "metadata": {"generator": "provider"},
             },
         )
 
@@ -253,10 +278,8 @@ class UnexpectedResponseGenerator:
     async def generate(
         self,
         *,
-        query: str,
-        patient: PatientSummary,
-        guidelines: list[Citation],
-    ) -> ResponseDraft:
+        request: GroundedGenerationRequest,
+    ) -> ResponseGenerationResult:
         raise RuntimeError("sensitive unexpected provider failure")
 
 
@@ -267,14 +290,15 @@ class FlakyResponseGenerator:
     async def generate(
         self,
         *,
-        query: str,
-        patient: PatientSummary,
-        guidelines: list[Citation],
-    ) -> ResponseDraft:
+        request: GroundedGenerationRequest,
+    ) -> ResponseGenerationResult:
         self.calls += 1
         if self.calls == 1:
-            raise ResponseGenerationError("transient sensitive failure")
-        return ResponseDraft(answer="Recovered bounded educational draft.")
+            raise ResponseGenerationUnavailableError("transient sensitive failure")
+        return ResponseGenerationResult(
+            draft=ResponseDraft(answer="Recovered bounded educational draft."),
+            metadata=ResponseGenerationMetadata(generator="deterministic"),
+        )
 
 
 class StubGuidelineRetriever:
@@ -671,6 +695,58 @@ async def test_sufficient_guideline_evidence_is_projected_and_audited_safely() -
     assert "Reviewed bounded evidence" not in serialized_audit
     assert "Bounded evidence excerpt" not in serialized_audit
     assert "example.test" not in serialized_audit
+
+
+@pytest.mark.anyio
+async def test_generation_receives_bounded_context_and_audits_safe_metadata() -> None:
+    response_generator = StaticResponseGenerator(
+        ResponseDraft(answer="Private provider response body."),
+        metadata=ResponseGenerationMetadata(
+            generator="provider",
+            model_alias="gpt-test-alias",
+            latency_ms=7,
+            input_tokens=123,
+            output_tokens=45,
+        ),
+    )
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(response_generator=response_generator),
+    )
+
+    assert response_generator.calls == 1
+    request = response_generator.requests[0]
+    assert [item.citation for item in request.evidence] == (
+        result.workflow.retrieved_guidelines
+    )
+    serialized_request = request.model_dump_json()
+    assert result.workflow.patient_id not in serialized_request
+    assert all(
+        "code" not in fact.model_dump() for fact in request.patient_context.facts
+    )
+    assert result.workflow.final_response is not None
+    assert result.workflow.final_response.citations == (
+        result.workflow.retrieved_guidelines
+    )
+    generation_audit = next(
+        event
+        for event in result.workflow.audit_log
+        if event.event_type is AuditEventType.RESPONSE_GENERATED
+    )
+    assert generation_audit.details == {
+        "generator": "provider",
+        "outcome": "success",
+        "citation_count": 1,
+        "model_alias": "gpt-test-alias",
+        "latency_ms": 7,
+        "input_tokens": 123,
+        "output_tokens": 45,
+    }
+    serialized_audit = str(generation_audit.model_dump(mode="json"))
+    assert queued_workflow().user_query not in serialized_audit
+    assert "Private provider response body" not in serialized_audit
+    assert "Bounded evidence excerpt" not in serialized_audit
 
 
 @pytest.mark.anyio
@@ -1072,7 +1148,41 @@ async def test_classifier_failure_or_malformed_output_fails_safely(
             StaticResponseGenerator(ResponseGenerationError("sensitive failure")),
             RESPONSE_FAILURE_CODE,
         ),
-        (MalformedResponseGenerator(), RESPONSE_FAILURE_CODE),
+        (
+            StaticResponseGenerator(
+                ResponseGenerationAuthenticationError("sensitive auth")
+            ),
+            RESPONSE_AUTHENTICATION_CODE,
+        ),
+        (
+            StaticResponseGenerator(ResponseGenerationRateLimitError("sensitive rate")),
+            RESPONSE_RATE_LIMIT_CODE,
+        ),
+        (
+            StaticResponseGenerator(
+                ResponseGenerationUnavailableError("sensitive unavailable")
+            ),
+            RESPONSE_UNAVAILABLE_CODE,
+        ),
+        (
+            StaticResponseGenerator(
+                ResponseGenerationContextLimitError("sensitive context")
+            ),
+            RESPONSE_CONTEXT_LIMIT_CODE,
+        ),
+        (
+            StaticResponseGenerator(
+                ResponseGenerationRefusalError("sensitive refusal")
+            ),
+            RESPONSE_REFUSAL_CODE,
+        ),
+        (
+            StaticResponseGenerator(
+                ResponseGenerationMalformedOutputError("sensitive malformed")
+            ),
+            RESPONSE_INVALID_OUTPUT_CODE,
+        ),
+        (MalformedResponseGenerator(), RESPONSE_INVALID_OUTPUT_CODE),
         (UnexpectedResponseGenerator(), RESPONSE_FAILURE_CODE),
     ],
 )

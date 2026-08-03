@@ -2,8 +2,7 @@
 
 from typing import Protocol
 
-from app.domain.clinical import Citation, PatientSummary
-from app.domain.workflow import ResponseDraft
+from app.domain.generation import GroundedGenerationRequest, ResponseGenerationResult
 
 
 class ResponseGenerationError(RuntimeError):
@@ -44,8 +43,6 @@ class ResponseGenerator(Protocol):
     async def generate(
         self,
         *,
-        query: str,
-        patient: PatientSummary,
-        guidelines: list[Citation],
-    ) -> ResponseDraft:
-        """Return answer text in the application-owned draft contract."""
+        request: GroundedGenerationRequest,
+    ) -> ResponseGenerationResult:
+        """Return a strict draft and bounded provider-neutral metadata."""

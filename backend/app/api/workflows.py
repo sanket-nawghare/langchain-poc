@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.domain.api import ApiError, ApiSuccess, ErrorDetail
 from app.domain.workflow import WorkflowRunRequest, WorkflowRunSnapshot
 from app.services.deterministic_intent import DeterministicIntentClassifier
@@ -18,12 +18,17 @@ from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
 from app.services.hapi_fhir import create_hapi_fhir_client
 from app.services.local_guideline_retrieval import LocalGuidelineRetriever
+from app.services.openai_response import (
+    OpenAIResponseGenerator,
+    create_openai_response_generator,
+)
 from app.services.patient_summary import create_patient_summary_service
 from app.services.sqlite_workflow_runs import SqliteWorkflowRunStore
 from app.services.workflow_runs import (
     RandomWorkflowIdentityFactory,
     WorkflowRunService,
 )
+from app.tools.response import ResponseGenerator
 from app.tools.workflow_runs import WorkflowRunStore, WorkflowRunStoreError
 from app.workflow.runtime import (
     RandomAuditEventIdFactory,
@@ -80,6 +85,14 @@ def create_workflow_run_service(store: WorkflowRunStore) -> WorkflowRunService:
     )
 
 
+def create_configured_response_generator(settings: Settings) -> ResponseGenerator:
+    """Select the configured generation implementation at runtime."""
+
+    if settings.llm_provider == "openai":
+        return create_openai_response_generator(settings)
+    return DeterministicResponseGenerator()
+
+
 async def workflow_run_service(
     store: Annotated[WorkflowRunStore, Depends(workflow_run_store)],
 ) -> WorkflowRunService:
@@ -104,6 +117,7 @@ async def workflow_execution_context(
 
     settings = get_settings()
     guideline_retriever = LocalGuidelineRetriever(settings)
+    response_generator = create_configured_response_generator(settings)
     try:
         async with create_hapi_fhir_client(settings) as client:
             audit_event_ids = RandomAuditEventIdFactory()
@@ -117,7 +131,7 @@ async def workflow_execution_context(
                         client,
                     ),
                     safety_policy=DeterministicSafetyPolicy(),
-                    response_generator=DeterministicResponseGenerator(),
+                    response_generator=response_generator,
                     audit_event_ids=audit_event_ids,
                     guideline_retriever=guideline_retriever,
                     execution_policy=WorkflowExecutionPolicy(
@@ -127,6 +141,8 @@ async def workflow_execution_context(
                 ),
             )
     finally:
+        if isinstance(response_generator, OpenAIResponseGenerator):
+            await response_generator.close()
         await guideline_retriever.close()
 
 

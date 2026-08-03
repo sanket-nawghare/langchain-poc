@@ -11,15 +11,18 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api.workflows import (
     WorkflowExecutionContext,
+    create_configured_response_generator,
     workflow_execution_context,
     workflow_run_service,
 )
+from app.core.config import Settings
 from app.domain.clinical import ClinicalRecordSummary, PatientSummary
 from app.domain.workflow import WorkflowRunSnapshot
 from app.main import app
 from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
+from app.services.openai_response import OpenAIResponseGenerator
 from app.services.sqlite_workflow_runs import SqliteWorkflowRunStore
 from app.services.workflow_runs import WorkflowRunService
 from app.tools.workflow_runs import WorkflowRunStore, WorkflowRunStoreError
@@ -27,6 +30,26 @@ from app.workflow.runtime import WorkflowRuntime
 from tests.guideline_fixtures import SufficientGuidelineRetriever
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
+
+
+def test_configured_response_generator_defaults_to_deterministic() -> None:
+    configured = create_configured_response_generator(Settings(_env_file=None))
+
+    assert isinstance(configured, DeterministicResponseGenerator)
+
+
+@pytest.mark.anyio
+async def test_configured_response_generator_selects_openai() -> None:
+    configured = create_configured_response_generator(
+        Settings(
+            _env_file=None,
+            llm_provider="openai",
+            llm_api_key="synthetic-test-secret",
+        )
+    )
+
+    assert isinstance(configured, OpenAIResponseGenerator)
+    await configured.close()
 
 
 @dataclass(frozen=True)

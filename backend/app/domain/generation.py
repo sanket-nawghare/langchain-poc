@@ -1,12 +1,13 @@
 """Provider-neutral contracts for grounded response generation."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints, model_validator
 
 from app.domain.base import ContractModel
 from app.domain.clinical import Citation, ClinicalSummaryCategory
 from app.domain.guidelines import GuidelineQuery
+from app.domain.workflow import ResponseDraft
 
 MAX_GROUNDED_FACTS = 32
 MAX_GROUNDED_EVIDENCE = 8
@@ -80,3 +81,42 @@ class GroundedGenerationRequest(ContractModel):
         if len(chunk_ids) != len(set(chunk_ids)):
             raise ValueError("grounded evidence chunk IDs must be unique")
         return self
+
+
+class ResponseGenerationMetadata(ContractModel):
+    """Bounded provider-neutral telemetry safe for audit metadata."""
+
+    generator: Literal["deterministic", "provider"]
+    model_alias: (
+        Annotated[
+            str,
+            StringConstraints(strip_whitespace=True, min_length=1, max_length=128),
+        ]
+        | None
+    ) = None
+    latency_ms: int | None = Field(default=None, ge=0, le=120_000)
+    input_tokens: int | None = Field(default=None, ge=0, le=10_000_000)
+    output_tokens: int | None = Field(default=None, ge=0, le=10_000_000)
+
+    @model_validator(mode="after")
+    def provider_requires_model_alias(self) -> "ResponseGenerationMetadata":
+        if self.generator == "provider" and self.model_alias is None:
+            raise ValueError("provider generation metadata requires a model alias")
+        if self.generator == "deterministic" and any(
+            value is not None
+            for value in (
+                self.model_alias,
+                self.latency_ms,
+                self.input_tokens,
+                self.output_tokens,
+            )
+        ):
+            raise ValueError("deterministic generation cannot report provider metrics")
+        return self
+
+
+class ResponseGenerationResult(ContractModel):
+    """Application-owned draft plus bounded audit-safe generation metadata."""
+
+    draft: ResponseDraft
+    metadata: ResponseGenerationMetadata

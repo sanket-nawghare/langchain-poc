@@ -8,6 +8,8 @@ from app.domain.generation import (
     GroundedEvidence,
     GroundedGenerationRequest,
     GroundedPatientContext,
+    ResponseGenerationMetadata,
+    ResponseGenerationResult,
 )
 from app.domain.guideline_index import (
     GuidelineIndexSnapshot,
@@ -84,6 +86,8 @@ __all__ = [
     "PatientSummary",
     "ParsedGuidelineDocument",
     "ResponseDraft",
+    "ResponseGenerationMetadata",
+    "ResponseGenerationResult",
     "SafetyDecision",
     "SafetyReason",
     "SafetyResult",

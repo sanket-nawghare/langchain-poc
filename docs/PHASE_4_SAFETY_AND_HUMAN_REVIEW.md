@@ -92,22 +92,30 @@ and [structured-output guide](https://developers.openai.com/api/docs/guides/stru
 - `[x]` Test success, authentication, rate-limit, timeout, unavailable,
   malformed, oversized, and unexpected provider behavior.
 
-The adapter is implemented and independently testable but is not selected by
-the application runtime yet. Checkpoint 4.1.3 owns the workflow/provider wiring,
-generation timing, citation preservation, and redacted audit metadata.
+The adapter is implemented and independently testable. Runtime selection,
+generation timing, citation preservation, and redacted audit metadata are
+completed in checkpoint 4.1.3.
 
 ### 4.1.3 — Grounded Prompt and Workflow Wiring
 
-- `[ ]` Build the prompt only after sufficient retrieval evidence and the
+- `[x]` Build the prompt only after sufficient retrieval evidence and the
   deterministic safety pre-check pass.
-- `[ ]` Send bounded citation excerpts rather than full source documents or
+- `[x]` Send bounded citation excerpts rather than full source documents or
   vector-store/provider objects.
-- `[ ]` Require the final response to reuse the exact application-owned
+- `[x]` Require the final response to reuse the exact application-owned
   citations supplied to the model.
-- `[ ]` Prevent model invocation for unsupported intent, missing/weak/
+- `[x]` Prevent model invocation for unsupported intent, missing/weak/
   conflicting evidence, safety review/block, or invalid patient context.
-- `[ ]` Audit only provider-neutral outcome, model alias, latency/token counts
+- `[x]` Audit only provider-neutral outcome, model alias, latency/token counts
   when available, and citation count; never prompt or response bodies.
+
+The workflow now selects the configured generator at request scope and builds a
+strict data-only request only on the sufficient-evidence, safety-pass path. A
+deterministic relevance selector sends at most 32 normalized facts without
+patient identifiers or clinical codes, plus at most eight exact ranked citation
+excerpts. The application—not the provider—attaches the original citations and
+educational disclaimer. Only temporary unavailable/rate-limit failures retry;
+all provider failures terminate with stable redacted workflow codes.
 
 ### 4.1.4 — Real-Provider Gate
 

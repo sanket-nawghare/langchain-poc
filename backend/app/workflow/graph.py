@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from app.domain.audit import ActorType, AuditEvent, AuditEventType, AuditValue
 from app.domain.clinical import PatientSummary
+from app.domain.generation import ResponseGenerationResult
 from app.domain.guidelines import (
     EvidenceAssessment,
     GuidelineRetrievalRequest,
@@ -22,7 +23,6 @@ from app.domain.workflow import (
     GeneratedResponse,
     Intent,
     IntentClassification,
-    ResponseDraft,
     WorkflowExecutionResult,
     WorkflowState,
     WorkflowStatus,
@@ -34,6 +34,7 @@ from app.rag.retrieval import (
     GuidelineRetrievalTimeoutError,
     GuidelineRetrievalUnavailableError,
 )
+from app.services.grounded_generation import build_grounded_generation_request
 from app.tools.fhir import (
     FhirClientError,
     FhirNotFoundError,
@@ -45,8 +46,14 @@ from app.tools.fhir import (
 from app.tools.intent import IntentClassificationError
 from app.tools.patient import PatientSummaryError
 from app.tools.response import (
+    ResponseGenerationAuthenticationError,
+    ResponseGenerationContextLimitError,
     ResponseGenerationError,
+    ResponseGenerationMalformedOutputError,
+    ResponseGenerationRateLimitError,
+    ResponseGenerationRefusalError,
     ResponseGenerationTimeoutError,
+    ResponseGenerationUnavailableError,
 )
 from app.tools.safety import SafetyPolicyError
 from app.workflow.runtime import WorkflowRuntime
@@ -74,6 +81,12 @@ INVALID_PATIENT_SUMMARY_CODE = "invalid_patient_summary"
 SAFETY_FAILURE_CODE = "safety_evaluation_failed"
 RESPONSE_FAILURE_CODE = "response_generation_failed"
 RESPONSE_TIMEOUT_CODE = "response_generation_timeout"
+RESPONSE_AUTHENTICATION_CODE = "response_generation_authentication_failed"
+RESPONSE_RATE_LIMIT_CODE = "response_generation_rate_limited"
+RESPONSE_UNAVAILABLE_CODE = "response_generation_unavailable"
+RESPONSE_CONTEXT_LIMIT_CODE = "response_generation_context_limit"
+RESPONSE_REFUSAL_CODE = "response_generation_refused"
+RESPONSE_INVALID_OUTPUT_CODE = "response_generation_invalid_output"
 GUIDELINE_EVIDENCE_UNAVAILABLE_CODE = "guideline_evidence_not_available"
 GUIDELINE_RETRIEVAL_TIMEOUT_CODE = "guideline_retrieval_timeout"
 GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE = "guideline_retrieval_unavailable"
@@ -597,6 +610,24 @@ async def _safety_precheck(
     return {"workflow": audited_workflow}
 
 
+def _response_failure_code(error: ResponseGenerationError) -> str:
+    if isinstance(error, ResponseGenerationTimeoutError):
+        return RESPONSE_TIMEOUT_CODE
+    if isinstance(error, ResponseGenerationAuthenticationError):
+        return RESPONSE_AUTHENTICATION_CODE
+    if isinstance(error, ResponseGenerationRateLimitError):
+        return RESPONSE_RATE_LIMIT_CODE
+    if isinstance(error, ResponseGenerationUnavailableError):
+        return RESPONSE_UNAVAILABLE_CODE
+    if isinstance(error, ResponseGenerationContextLimitError):
+        return RESPONSE_CONTEXT_LIMIT_CODE
+    if isinstance(error, ResponseGenerationRefusalError):
+        return RESPONSE_REFUSAL_CODE
+    if isinstance(error, ResponseGenerationMalformedOutputError):
+        return RESPONSE_INVALID_OUTPUT_CODE
+    return RESPONSE_FAILURE_CODE
+
+
 async def _generate_response(
     state: WorkflowGraphState,
     runtime: Runtime[WorkflowRuntime],
@@ -620,27 +651,33 @@ async def _generate_response(
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
     try:
-        raw_draft = await _run_bounded(
+        request = build_grounded_generation_request(
+            query=workflow.user_query,
+            patient=patient,
+            guidelines=workflow.retrieved_guidelines,
+        )
+        raw_result = await _run_bounded(
             lambda: runtime.context.response_generator.generate(
-                query=workflow.user_query,
-                patient=patient,
-                guidelines=workflow.retrieved_guidelines,
+                request=request,
             ),
             runtime,
-            retryable=(ResponseGenerationError,),
+            retryable=(
+                ResponseGenerationRateLimitError,
+                ResponseGenerationUnavailableError,
+            ),
         )
         raw_payload = (
-            raw_draft.model_dump()
-            if isinstance(raw_draft, ResponseDraft)
-            else raw_draft
+            raw_result.model_dump()
+            if isinstance(raw_result, ResponseGenerationResult)
+            else raw_result
         )
-        draft = ResponseDraft.model_validate(raw_payload)
+        generation = ResponseGenerationResult.model_validate(raw_payload)
         response = GeneratedResponse(
-            answer=draft.answer,
+            answer=generation.draft.answer,
             citations=workflow.retrieved_guidelines,
             disclaimer=EDUCATIONAL_DISCLAIMER,
         )
-    except (WorkflowNodeTimeoutError, ResponseGenerationTimeoutError):
+    except WorkflowNodeTimeoutError:
         failed_workflow, transition = _transition_with_audit(
             workflow,
             runtime,
@@ -649,13 +686,23 @@ async def _generate_response(
             failure_code=RESPONSE_TIMEOUT_CODE,
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
-    except (ResponseGenerationError, ValidationError):
+    except ResponseGenerationError as error:
+        failure_code = _response_failure_code(error)
         failed_workflow, transition = _transition_with_audit(
             workflow,
             runtime,
             WorkflowStatus.FAILED,
             step=GENERATE_RESPONSE_NODE,
-            failure_code=RESPONSE_FAILURE_CODE,
+            failure_code=failure_code,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except ValidationError:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=GENERATE_RESPONSE_NODE,
+            failure_code=RESPONSE_INVALID_OUTPUT_CODE,
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
     except Exception:
@@ -675,6 +722,19 @@ async def _generate_response(
         step=GENERATE_RESPONSE_NODE,
         final_response=response,
     )
+    generation_details: dict[str, AuditValue] = {
+        "generator": generation.metadata.generator,
+        "outcome": "success",
+        "citation_count": len(response.citations),
+    }
+    for key, value in (
+        ("model_alias", generation.metadata.model_alias),
+        ("latency_ms", generation.metadata.latency_ms),
+        ("input_tokens", generation.metadata.input_tokens),
+        ("output_tokens", generation.metadata.output_tokens),
+    ):
+        if value is not None:
+            generation_details[key] = value
     audited_workflow = append_workflow_audit_events(
         completed_workflow,
         [
@@ -682,11 +742,7 @@ async def _generate_response(
                 completed_workflow,
                 runtime,
                 AuditEventType.RESPONSE_GENERATED,
-                details={
-                    "generator": "response_generator",
-                    "outcome": "success",
-                    "citation_count": len(response.citations),
-                },
+                details=generation_details,
             ),
             _status_audit_event(
                 completed_workflow,

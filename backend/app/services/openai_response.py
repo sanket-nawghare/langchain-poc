@@ -1,6 +1,7 @@
 """OpenAI Responses adapter for bounded grounded answer drafts."""
 
 from collections.abc import Awaitable
+from time import perf_counter
 from typing import Protocol, cast
 
 import openai
@@ -8,14 +9,10 @@ from openai import AsyncOpenAI
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
 from app.domain.generation import (
-    MAX_GROUNDED_EVIDENCE,
-    MAX_GROUNDED_FACTS,
-    GroundedClinicalFact,
-    GroundedEvidence,
     GroundedGenerationRequest,
-    GroundedPatientContext,
+    ResponseGenerationMetadata,
+    ResponseGenerationResult,
 )
 from app.domain.workflow import ResponseDraft
 from app.tools.response import (
@@ -50,6 +47,7 @@ class ParsedResponse(Protocol):
 
     output_parsed: object
     output: list[object]
+    usage: object | None
 
 
 class ResponsesParser(Protocol):
@@ -73,67 +71,6 @@ class OpenAIClient(Protocol):
     responses: ResponsesParser
 
     def close(self) -> Awaitable[None]: ...
-
-
-def _clinical_fact(
-    category: str,
-    record: ClinicalRecordSummary,
-) -> GroundedClinicalFact:
-    return GroundedClinicalFact.model_validate(
-        {
-            "category": category,
-            "display": record.display,
-            "status": record.status,
-            "effective_at": record.effective_at,
-            "value": record.value,
-        }
-    )
-
-
-def build_grounded_generation_request(
-    *,
-    query: str,
-    patient: PatientSummary,
-    guidelines: list[Citation],
-) -> GroundedGenerationRequest:
-    """Project provider-facing input without patient identifiers or raw records."""
-
-    records_by_category = (
-        ("allergies", patient.allergies),
-        ("medications", patient.medications),
-        ("conditions", patient.conditions),
-        ("observations", patient.observations),
-        ("diagnostic_reports", patient.diagnostic_reports),
-        ("procedures", patient.procedures),
-        ("encounters", patient.encounters),
-    )
-    record_count = sum(len(records) for _, records in records_by_category)
-    if record_count > MAX_GROUNDED_FACTS or len(guidelines) > MAX_GROUNDED_EVIDENCE:
-        raise ResponseGenerationContextLimitError(
-            "grounded generation input exceeds the application limit"
-        )
-
-    try:
-        patient_context = GroundedPatientContext(
-            facts=[
-                _clinical_fact(category, record)
-                for category, records in records_by_category
-                for record in records
-            ]
-        )
-        evidence = [
-            GroundedEvidence(rank=index, citation=citation)
-            for index, citation in enumerate(guidelines, start=1)
-        ]
-        return GroundedGenerationRequest(
-            question=query,
-            patient_context=patient_context,
-            evidence=evidence,
-        )
-    except ValidationError:
-        raise ResponseGenerationMalformedOutputError(
-            "grounded generation input is invalid"
-        ) from None
 
 
 def _item_type(item: object) -> object:
@@ -212,6 +149,13 @@ def _safe_provider_error(error: Exception) -> ResponseGenerationError:
     return ResponseGenerationError("response provider failed")
 
 
+def _usage_count(usage: object | None, field: str) -> int | None:
+    if usage is None:
+        return None
+    value = usage.get(field) if isinstance(usage, dict) else getattr(usage, field, None)
+    return value if isinstance(value, int) and 0 <= value <= 10_000_000 else None
+
+
 class OpenAIResponseGenerator:
     """Generate a strict answer draft through the OpenAI Responses API."""
 
@@ -231,15 +175,8 @@ class OpenAIResponseGenerator:
     async def generate(
         self,
         *,
-        query: str,
-        patient: PatientSummary,
-        guidelines: list[Citation],
-    ) -> ResponseDraft:
-        request = build_grounded_generation_request(
-            query=query,
-            patient=patient,
-            guidelines=guidelines,
-        )
+        request: GroundedGenerationRequest,
+    ) -> ResponseGenerationResult:
         provider_input: ResponseInput = [
             {"role": "system", "content": SYSTEM_INSTRUCTIONS},
             {
@@ -250,6 +187,7 @@ class OpenAIResponseGenerator:
                 ),
             },
         ]
+        started_at = perf_counter()
         try:
             response = await self._client.responses.parse(
                 model=self._model,
@@ -266,7 +204,18 @@ class OpenAIResponseGenerator:
                 if isinstance(raw_draft, ResponseDraft)
                 else raw_draft
             )
-            return ResponseDraft.model_validate(payload)
+            draft = ResponseDraft.model_validate(payload)
+            latency_ms = round((perf_counter() - started_at) * 1000)
+            return ResponseGenerationResult(
+                draft=draft,
+                metadata=ResponseGenerationMetadata(
+                    generator="provider",
+                    model_alias=self._model,
+                    latency_ms=latency_ms,
+                    input_tokens=_usage_count(response.usage, "input_tokens"),
+                    output_tokens=_usage_count(response.usage, "output_tokens"),
+                ),
+            )
         except ResponseGenerationError:
             raise
         except Exception as error:
