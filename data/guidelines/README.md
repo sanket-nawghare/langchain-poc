@@ -39,9 +39,8 @@ directory. Verification rejects missing or extra files, unsafe filenames,
 unapproved download hosts or permissions, non-current sources, malformed PDF
 envelopes, files over 4 MiB, byte-size drift, and checksum drift.
 
-Acquisition alone is not parsing or ingestion. Sub-phase 3.3 provides the
-bounded local parser below. Sub-phase 3.4 must still define the Weaviate schema
-before indexing.
+Acquisition alone is not parsing or ingestion. The bounded parser, versioned
+Weaviate index, and retrieval evaluation remain separate explicit commands.
 
 ## Deterministic Local Chunks
 
@@ -66,3 +65,19 @@ hypertension chunks.
 PDFs do not contain a reliable semantic layer. `section` is therefore a
 deterministic heading hint for inspection; the exact source checksum and PDF
 page number remain the authoritative citation lineage.
+
+## Retrieval Evaluation
+
+The committed [`retrieval-evaluation.json`](retrieval-evaluation.json) contains
+nine deidentified questions and expected assessments, top source/chunk IDs,
+and minimum scores. It contains no patient data, guideline text, excerpts, or
+vectors. Run the read-only live evaluation after indexing:
+
+```bash
+make phase3-retrieval-live-gate
+```
+
+The gate first verifies the exact local chunks and Weaviate index. It then
+checks four in-scope sufficient cases, three unrelated insufficient cases, a
+publisher exclusion, a historical cutoff, citation identity, policy version,
+and result redaction. Output contains aggregate counts only.

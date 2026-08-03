@@ -27,7 +27,7 @@ BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 	synthea-ensure synthea-generated-reset synthea-fixtures-reset \
 	fhir-seed fhir-verify fhir-reset phase2-live-gate \
 	guidelines-fetch guidelines-verify guidelines-chunk guidelines-index \
-	guidelines-index-verify guidelines-index-reset
+	guidelines-index-verify guidelines-index-reset phase3-retrieval-live-gate
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -206,6 +206,11 @@ guidelines-index-reset: $(UV_BIN) ## Delete only the guideline collection (requi
 		{ echo "Refusing to delete guideline index. Re-run with CONFIRM=1."; exit 1; }
 	$(UV_ENV) $(UV) run --project backend python -m scripts.guideline_index reset \
 		--confirm-collection ClinicalGuidelineChunkV1
+
+phase3-retrieval-live-gate: guidelines-index-verify ## Run deidentified Phase 3.5 retrieval evaluation
+	$(UV_ENV) $(UV) run --project backend python -m scripts.phase3_retrieval_live_gate \
+		--evaluation data/guidelines/retrieval-evaluation.json \
+		--corpus-lock data/guidelines/corpus-lock.json
 
 fhir-seed: synthea-ensure ## Idempotently seed the locked cohort into local HAPI
 	$(UV_ENV) $(UV) run --project backend python -m scripts.fhir_seed seed \

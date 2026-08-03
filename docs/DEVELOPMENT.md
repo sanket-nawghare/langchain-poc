@@ -189,11 +189,10 @@ make guidelines-index-verify
 
 `guidelines-index` uses the local deterministic
 `deterministic-token-hash-v1` embedding implementation and self-provided
-128-dimensional vectors. It is a repeatable development embedding boundary,
-not an approved clinical retrieval model; retrieval relevance and citation
-qualification remain in Phase 3.5. Re-running the command skips exact records,
-replaces metadata drift, removes stale objects from this collection, and then
-verifies exact IDs, metadata, source checksums, and counts.
+128-dimensional vectors. It is a repeatable educational retrieval boundary,
+not a clinical recommendation model. Re-running the command skips exact
+records, replaces metadata drift, removes stale objects from this collection,
+and then verifies exact IDs, metadata, source checksums, and counts.
 
 Delete only the application guideline collection, then recreate it if needed:
 
@@ -204,6 +203,19 @@ make guidelines-index
 
 The reset command requires both the Make confirmation and the exact compiled
 collection name. It never enumerates or deletes other collections.
+
+Run the strict deidentified Phase 3.5 retrieval evaluation:
+
+```bash
+make phase3-retrieval-live-gate
+```
+
+This target verifies the exact ignored chunks and index before running the
+committed nine-case suite. It checks sufficient and insufficient outcomes,
+publisher and historical filtering, stable top source/chunk identity, minimum
+scores, citations, query fingerprints, and forbidden-field redaction. It is
+read-only and prints only aggregate counts; it does not print queries, excerpts,
+chunk bodies, or provider payloads.
 
 ## Configuration
 

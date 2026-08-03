@@ -23,6 +23,7 @@ Use the smaller targets while developing:
 | Compose | `make infra-config` |
 | Seeded Phase 2 API | `make phase2-live-gate` |
 | Guideline index | `make guidelines-index`, `make guidelines-index-verify` |
+| Guideline retrieval | `make phase3-retrieval-live-gate` |
 | Everything | `make check` |
 
 `backend-check` runs Ruff formatting and linting, mypy strict type checking,
@@ -37,6 +38,11 @@ The guideline index targets are also opt-in because they require the ignored
 reviewed PDFs and a healthy loopback-only Weaviate instance. Ingestion verifies
 the committed corpus and chunk locks before embedding or mutation. A repeated
 run must report every unchanged object as skipped.
+
+`phase3-retrieval-live-gate` additionally requires the verified index. It runs
+the committed deidentified sufficient, unrelated, publisher-filter, and
+historical-cutoff fixtures and verifies citation identity and result redaction.
+Its output contains only aggregate counts.
 
 ## Pre-commit
 

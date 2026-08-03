@@ -27,7 +27,7 @@ and explicit failure when evidence is missing or unsafe.
 | 3.2 Reviewed starter corpus | A small checksum-locked corpus has provenance, license notes, and no patient data | `[x]` |
 | 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[x]` |
 | 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[x]` |
-| 3.5 Retrieval and citation qualification | Clinical queries return bounded relevant chunks and application-owned citations or fail safely | `[ ]` |
+| 3.5 Retrieval and citation qualification | Clinical queries return bounded relevant chunks and application-owned citations or fail safely | `[x]` |
 | 3.6 Workflow integration and Phase 3 gate | The graph retrieves evidence before generation and completes a cited seeded scenario reproducibly | `[ ]` |
 
 ## Sub-phase 3.1 — Source Policy and Retrieval Contracts
@@ -215,15 +215,15 @@ Verified on 2026-08-03:
 | 3.5.1 Retrieval trust policy and candidate contracts | Candidate bounds, source-of-truth rules, deterministic ordering inputs, and provider-neutral search contracts are explicit | `[x]` |
 | 3.5.2 Trusted catalog and Weaviate candidate adapter | Eligible sources come from the committed lock and filtered vector candidates normalize safely | `[x]` |
 | 3.5.3 Evidence qualification and citations | Calibrated deterministic scores produce trusted citations or explicit insufficient/conflicting results | `[x]` |
-| 3.5.4 Retrieval gate and documentation | Fixture relevance, live queries, failures, redaction, and complete quality gates pass | `[ ]` |
+| 3.5.4 Retrieval gate and documentation | Fixture relevance, live queries, failures, redaction, and complete quality gates pass | `[x]` |
 
-- Retrieve a small bounded top-k set with deterministic tie-breaking and
+- `[x]` Retrieve a small bounded top-k set with deterministic tie-breaking and
   approved metadata filters.
-- Normalize results into application-owned chunks and `Citation` values.
-- Prevent the model from inventing or altering citation identity.
-- Define explicit no-evidence, weak-evidence, timeout, unavailable, and
+- `[x]` Normalize results into application-owned chunks and `Citation` values.
+- `[x]` Prevent the model from inventing or altering citation identity.
+- `[x]` Define explicit no-evidence, weak-evidence, timeout, unavailable, and
   malformed-result outcomes.
-- Test relevance fixtures, stable ordering, citation URLs/pages, redaction,
+- `[x]` Test relevance fixtures, stable ordering, citation URLs/pages, redaction,
   timeout, and provider isolation.
 
 **Review checkpoint:** approve retrieval quality and no-evidence behavior before
@@ -328,6 +328,39 @@ Verified on 2026-08-03:
   validation.
 
 **Status:** `[x]` Complete — stop for review before checkpoint 3.5.4.
+
+### Checkpoint 3.5.4 Verification Record
+
+Verified on 2026-08-03:
+
+- Committed a strict policy-versioned suite of nine deidentified retrieval
+  cases: four reviewed hypertension/diabetes questions, three unrelated-topic
+  questions, one publisher exclusion, and one historical cutoff. Fixtures
+  contain no patient data, guideline text, excerpts, vectors, or provider
+  payloads.
+- Added a loopback-only async Weaviate connection boundary with validated
+  HTTP/gRPC ports, bounded timeouts, explicit cleanup after partial connection,
+  and typed configuration, timeout, and unavailable failures.
+- Added `make phase3-retrieval-live-gate`. It first checksum-verifies the local
+  chunk output and exact 2-document/135-chunk collection, then evaluates every
+  fixture without changing Weaviate.
+- The live gate passed all nine cases: four `sufficient`, five `insufficient`,
+  12 citations verified, exact top source/chunk and minimum-score expectations,
+  the frozen policy version, query fingerprints, and forbidden-field
+  redaction. Gate output contains only aggregate metadata.
+- Focused tests reject unknown/provider fixture fields, duplicate cases,
+  expectation/fingerprint drift, non-loopback targets, partial-connection
+  timeout details, citation mismatches, unsafe result keys, and unclosed
+  clients.
+- `make check` passed with 207 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+- No workflow state, graph node, response generator, API, audit, or persistence
+  behavior changed. Retrieval remains disconnected from LangGraph until
+  sub-phase 3.6.
+
+**Status:** `[x]` Complete — Phase 3.5 accepted locally; stop for review before
+sub-phase 3.6.
 
 ## Sub-phase 3.6 — Workflow Integration and Phase 3 Gate
 
