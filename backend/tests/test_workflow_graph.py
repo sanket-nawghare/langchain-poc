@@ -19,6 +19,7 @@ from app.domain.clinical import (
     ClinicalSummaryCategory,
     PatientSummary,
 )
+from app.domain.guidelines import EvidenceAssessment, GuidelineEvidenceSummary
 from app.domain.safety import (
     SafetyDecision,
     SafetyReason,
@@ -789,6 +790,14 @@ async def test_response_failure_timeout_or_untrusted_output_fails_safely(
 @pytest.mark.anyio
 async def test_phase_3_guideline_context_is_not_accepted_early() -> None:
     values = queued_workflow().model_dump()
+    values["guideline_evidence"] = GuidelineEvidenceSummary(
+        assessment=EvidenceAssessment.SUFFICIENT,
+        policy_version="retrieval-v1",
+        query_fingerprint="0" * 64,
+        match_count=1,
+        document_ids=["future-guideline"],
+        chunk_ids=["future-chunk"],
+    )
     values["retrieved_guidelines"] = [
         Citation(
             document_id="future-guideline",

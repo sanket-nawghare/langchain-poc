@@ -11,6 +11,7 @@ from app.domain import (
     EvidenceAssessment,
     GuidelineChunk,
     GuidelineDocumentFormat,
+    GuidelineEvidenceSummary,
     GuidelineLifecycleStatus,
     GuidelinePublisher,
     GuidelineRetrievalMatch,
@@ -276,6 +277,49 @@ def test_retrieval_result_requires_deterministic_ranks_and_unique_chunks() -> No
             query_fingerprint=QUERY_FINGERPRINT,
             matches=[first, first.model_copy(update={"rank": 2})],
         )
+
+
+def test_evidence_summary_removes_content_and_preserves_ranked_identity() -> None:
+    result = GuidelineRetrievalResult(
+        assessment=EvidenceAssessment.SUFFICIENT,
+        policy_version="guideline-retrieval-v1",
+        query_fingerprint=QUERY_FINGERPRINT,
+        matches=[match()],
+    )
+
+    summary = GuidelineEvidenceSummary.from_retrieval_result(result)
+    serialized = summary.model_dump(mode="json")
+
+    assert serialized == {
+        "assessment": "sufficient",
+        "policy_version": "guideline-retrieval-v1",
+        "query_fingerprint": QUERY_FINGERPRINT,
+        "match_count": 1,
+        "document_ids": ["who-guideline-2026-v1"],
+        "chunk_ids": ["who-guideline-2026-v1.0"],
+    }
+    assert "Bounded synthetic text" not in str(serialized)
+    assert "canonical_url" not in serialized
+
+
+def test_evidence_summary_rejects_contradictory_counts_and_assessments() -> None:
+    values = {
+        "assessment": "sufficient",
+        "policy_version": "guideline-retrieval-v1",
+        "query_fingerprint": QUERY_FINGERPRINT,
+        "match_count": 1,
+        "document_ids": ["who-guideline-2026-v1"],
+        "chunk_ids": ["who-guideline-2026-v1.0"],
+    }
+
+    with pytest.raises(ValidationError, match="match_count"):
+        GuidelineEvidenceSummary.model_validate({**values, "match_count": 2})
+    with pytest.raises(ValidationError, match="insufficient"):
+        GuidelineEvidenceSummary.model_validate(
+            {**values, "assessment": "insufficient"}
+        )
+    with pytest.raises(ValidationError, match="Extra inputs"):
+        GuidelineEvidenceSummary.model_validate({**values, "provider": "weaviate"})
 
 
 def test_provider_specific_fields_and_objects_are_rejected() -> None:

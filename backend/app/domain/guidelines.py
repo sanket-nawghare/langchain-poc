@@ -240,3 +240,51 @@ class GuidelineRetrievalResult(ContractModel):
         if len(set(chunk_ids)) != len(chunk_ids):
             raise ValueError("retrieval matches must have unique chunk IDs")
         return self
+
+
+class GuidelineEvidenceSummary(ContractModel):
+    """Content-free workflow projection of one retrieval decision."""
+
+    assessment: EvidenceAssessment
+    policy_version: ShortMetadata
+    query_fingerprint: Sha256Digest
+    match_count: int = Field(ge=0, le=8)
+    document_ids: list[GuidelineIdentifier] = Field(default_factory=list, max_length=8)
+    chunk_ids: list[GuidelineIdentifier] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_summary(self) -> "GuidelineEvidenceSummary":
+        if self.match_count != len(self.chunk_ids):
+            raise ValueError("match_count must equal the number of chunk IDs")
+        if len(set(self.document_ids)) != len(self.document_ids):
+            raise ValueError("evidence document IDs must be unique")
+        if len(set(self.chunk_ids)) != len(self.chunk_ids):
+            raise ValueError("evidence chunk IDs must be unique")
+        if len(self.document_ids) > self.match_count:
+            raise ValueError("evidence documents cannot exceed evidence matches")
+        if self.assessment is EvidenceAssessment.INSUFFICIENT and self.match_count:
+            raise ValueError("insufficient evidence must not retain matches")
+        if self.assessment is EvidenceAssessment.SUFFICIENT and not self.match_count:
+            raise ValueError("sufficient evidence requires at least one match")
+        if self.assessment is EvidenceAssessment.CONFLICTING and self.match_count < 2:
+            raise ValueError("conflicting evidence requires at least two matches")
+        return self
+
+    @classmethod
+    def from_retrieval_result(
+        cls,
+        result: GuidelineRetrievalResult,
+    ) -> "GuidelineEvidenceSummary":
+        """Remove chunk bodies and source metadata at the workflow boundary."""
+
+        document_ids = list(
+            dict.fromkeys(match.source.document_id for match in result.matches)
+        )
+        return cls(
+            assessment=result.assessment,
+            policy_version=result.policy_version,
+            query_fingerprint=result.query_fingerprint,
+            match_count=len(result.matches),
+            document_ids=document_ids,
+            chunk_ids=[match.chunk.chunk_id for match in result.matches],
+        )

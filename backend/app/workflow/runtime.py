@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID, uuid4
 
+from app.rag.retrieval import GuidelineRetriever
 from app.tools.intent import IntentClassifier
 from app.tools.patient import PatientSummaryReader
 from app.tools.response import ResponseGenerator
@@ -69,6 +70,7 @@ class WorkflowRuntime:
     safety_policy: SafetyPolicy
     response_generator: ResponseGenerator
     audit_event_ids: AuditEventIdFactory
+    guideline_retriever: GuidelineRetriever | None = None
     execution_policy: WorkflowExecutionPolicy = field(
         default_factory=WorkflowExecutionPolicy
     )

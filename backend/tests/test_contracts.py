@@ -13,7 +13,9 @@ from app.domain import (
     AuditEventType,
     Citation,
     ErrorDetail,
+    EvidenceAssessment,
     GeneratedResponse,
+    GuidelineEvidenceSummary,
     Intent,
     ResponseDraft,
     SafetyDecision,
@@ -53,6 +55,14 @@ def test_workflow_state_serializes_to_provider_neutral_json() -> None:
         user_query="What guidance is relevant?",
         intent=Intent.CLINICAL_QA,
         patient_id="synthetic-patient-001",
+        guideline_evidence=GuidelineEvidenceSummary(
+            assessment=EvidenceAssessment.SUFFICIENT,
+            policy_version="retrieval-v1",
+            query_fingerprint="0" * 64,
+            match_count=1,
+            document_ids=["guideline-1"],
+            chunk_ids=["chunk-1"],
+        ),
         retrieved_guidelines=[citation()],
         safety_result=safety_result,
         requires_human_review=False,
@@ -66,6 +76,38 @@ def test_workflow_state_serializes_to_provider_neutral_json() -> None:
         serialized["retrieved_guidelines"][0]["source_url"]
         == "https://example.test/guideline"
     )
+
+
+def test_workflow_state_rejects_citations_without_matching_evidence() -> None:
+    now = datetime.now(UTC)
+    base_values = {
+        "workflow_id": uuid4(),
+        "correlation_id": uuid4(),
+        "created_at": now,
+        "updated_at": now,
+        "user_query": "Question",
+        "patient_id": "synthetic-patient-001",
+    }
+
+    with pytest.raises(ValidationError, match="evidence summary"):
+        WorkflowState.model_validate(
+            {**base_values, "retrieved_guidelines": [citation()]}
+        )
+    with pytest.raises(ValidationError, match="chunk IDs"):
+        WorkflowState.model_validate(
+            {
+                **base_values,
+                "guideline_evidence": {
+                    "assessment": "sufficient",
+                    "policy_version": "retrieval-v1",
+                    "query_fingerprint": "0" * 64,
+                    "match_count": 1,
+                    "document_ids": ["guideline-1"],
+                    "chunk_ids": ["different-chunk"],
+                },
+                "retrieved_guidelines": [citation()],
+            }
+        )
 
 
 def test_workflow_state_rejects_naive_timestamps() -> None:

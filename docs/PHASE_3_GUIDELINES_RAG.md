@@ -28,7 +28,7 @@ and explicit failure when evidence is missing or unsafe.
 | 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[x]` |
 | 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[x]` |
 | 3.5 Retrieval and citation qualification | Clinical queries return bounded relevant chunks and application-owned citations or fail safely | `[x]` |
-| 3.6 Workflow integration and Phase 3 gate | The graph retrieves evidence before generation and completes a cited seeded scenario reproducibly | `[ ]` |
+| 3.6 Workflow integration and Phase 3 gate | The graph retrieves evidence before generation and completes a cited seeded scenario reproducibly | `[~]` |
 
 ## Sub-phase 3.1 — Source Policy and Retrieval Contracts
 
@@ -364,15 +364,58 @@ sub-phase 3.6.
 
 ## Sub-phase 3.6 — Workflow Integration and Phase 3 Gate
 
-- Insert guideline retrieval after patient context and before response
-  generation at a reviewed safety boundary.
-- Permit guideline-backed claims only when application-owned citations exist.
-- Audit document/chunk identifiers and counts without storing full document
-  bodies, queries, prompts, or provider payloads.
-- Run deterministic, live Weaviate, failure-path, restart, and isolated-source
-  gates.
-- Update architecture, development, contracts, safety policy, and roadmap
-  status.
+### 3.6.1 — Workflow Evidence and Runtime Contracts
+
+- `[x]` Add a content-free evidence summary carrying only the assessment,
+  policy version, query fingerprint, match count, and ranked document/chunk
+  identifiers.
+- `[x]` Require in-memory citations to agree exactly with that summary; reject
+  missing, contradictory, duplicate, or provider-specific state.
+- `[x]` Add the provider-neutral guideline retriever to immutable workflow
+  runtime context without invoking it from LangGraph yet.
+- `[x]` Keep full retrieval matches, chunk bodies, patient context, and the raw
+  query outside the durable workflow snapshot.
+
+Routing policy fixed for the next checkpoint:
+
+| Retrieval outcome | Workflow route |
+|---|---|
+| Sufficient, valid evidence | Continue with application-owned citations |
+| Insufficient evidence | Pause for human review without a generated answer |
+| Conflicting evidence | Pause for human review with evidence identifiers only |
+| Timeout | Fail with a stable retrieval-timeout code |
+| Unavailable dependency | Fail with a stable retrieval-unavailable code |
+| Malformed/unsafe result | Fail with a stable invalid-evidence code |
+
+### 3.6.2 — Retrieval Graph Node and Safe Routing
+
+- `[ ]` Insert guideline retrieval after patient context and before safety and
+  response generation.
+- `[ ]` Build the deidentified bounded retrieval request inside the application
+  and implement the routing policy above with bounded retry/timeout behavior.
+- `[ ]` Emit minimal retrieval audit metadata without bodies, queries, prompts,
+  excerpts, or provider payloads.
+
+### 3.6.3 — Cited Generation, Audit, and Persistence
+
+- `[ ]` Permit guideline-backed generation only for sufficient evidence with
+  validated application-owned citations.
+- `[ ]` Project citations and content-free evidence metadata through the
+  redacted run snapshot without persisting retrieval chunk bodies.
+- `[ ]` Prove missing or contradictory evidence cannot produce a completed
+  answer or fabricated citation.
+
+### 3.6.4 — End-to-End Phase 3 Gate and Documentation
+
+- `[ ]` Run deterministic, live Weaviate, failure-path, restart, and
+  isolated-source gates.
+- `[ ]` Complete the seeded cited scenario and verify every citation resolves
+  to the exact indexed source location.
+- `[ ]` Update architecture, development, contracts, safety policy, and roadmap
+  status, then stop for final Phase 3 review.
+
+**Status:** `[~]` In progress — checkpoint 3.6.1 complete; stop for review
+before LangGraph retrieval-node integration in checkpoint 3.6.2.
 
 ## Phase Exit Criteria
 

@@ -16,6 +16,7 @@ from app.domain.base import (
     WorkflowQuery,
 )
 from app.domain.clinical import Citation, PatientSummary
+from app.domain.guidelines import EvidenceAssessment, GuidelineEvidenceSummary
 from app.domain.safety import SafetyResult
 
 MAX_RESPONSE_ANSWER_LENGTH = 4000
@@ -91,6 +92,7 @@ class WorkflowState(ContractModel):
     intent: Intent = Intent.UNKNOWN
     patient_id: PatientId
     patient_data: PatientSummary | None = None
+    guideline_evidence: GuidelineEvidenceSummary | None = None
     retrieved_guidelines: list[Citation] = Field(default_factory=list)
     safety_result: SafetyResult | None = None
     requires_human_review: bool | None = None
@@ -120,6 +122,24 @@ class WorkflowState(ContractModel):
             if event.event_id in event_ids:
                 raise ValueError("audit event IDs must be unique within a workflow")
             event_ids.add(event.event_id)
+        if self.guideline_evidence is None:
+            if self.retrieved_guidelines:
+                raise ValueError(
+                    "retrieved guidelines require a guideline evidence summary"
+                )
+        else:
+            evidence = self.guideline_evidence
+            citations = self.retrieved_guidelines
+            if evidence.match_count != len(citations):
+                raise ValueError("guideline evidence must match citation count")
+            if evidence.chunk_ids != [citation.chunk_id for citation in citations]:
+                raise ValueError("guideline evidence chunk IDs must match citations")
+            if set(evidence.document_ids) != {
+                citation.document_id for citation in citations
+            }:
+                raise ValueError("guideline evidence document IDs must match citations")
+            if evidence.assessment is EvidenceAssessment.INSUFFICIENT and citations:
+                raise ValueError("insufficient evidence must not include citations")
         if self.safety_result is None:
             return self
         if self.requires_human_review != self.safety_result.requires_human_review:

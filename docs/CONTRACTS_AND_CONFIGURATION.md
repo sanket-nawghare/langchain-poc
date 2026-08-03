@@ -46,7 +46,7 @@ Rules:
 | Read-only FHIR capability | `tools/fhir.py` | Supported reads/searches, parsed pages, and safe transport failures |
 | Patient-summary capability | `tools/patient.py` | Workflow-facing normalized patient retrieval without raw FHIR |
 | Patient summary and citations | `domain/clinical.py` | Normalized data outside FHIR and retrieval adapters |
-| Guideline source, chunk, and retrieval result | `domain/guidelines.py` | Reviewed provenance, permissions, bounded evidence, and citation lineage |
+| Guideline source, chunk, retrieval result, and evidence summary | `domain/guidelines.py` | Reviewed provenance, permissions, bounded evidence, citation lineage, and a content-free workflow projection |
 | Parsed guideline document | `domain/guidelines.py` | One reviewed source plus ordered, contiguous, source-owned chunks |
 | Guideline vector record and index snapshot | `domain/guideline_index.py` | Fixed-size finite vectors, stable index identity, exact counts, and source checksums |
 | Guideline-parser capability | `rag/parsing.py` | Provider-neutral local parsing and typed input, encryption, malformed, and bounds failures |
@@ -133,6 +133,10 @@ narratives, and raw FHIR payloads are excluded.
 - Evidence is explicitly `sufficient`, `insufficient`, or `conflicting`.
   Insufficient evidence may be an empty successful result; timeout,
   unavailable, and malformed responses use separate typed failures.
+- The Phase 3.6 workflow evidence summary retains only assessment, policy
+  version, a query fingerprint, counts, and document/chunk identifiers. It
+  cannot retain chunk text, citation excerpts, source URLs, raw queries, or
+  provider fields. In-memory citations must match its ranked identities.
 - The HAPI adapter returns application-owned JSON/resource and search-page
   types; HTTP requests, responses, exceptions, and upstream error bodies never
   leave the service boundary.
@@ -150,11 +154,11 @@ narratives, and raw FHIR payloads are excluded.
   `failure_code` is required exactly when the workflow status is `failed`.
 - Execution results require a non-empty, contiguous, monotonic transition
   history whose final status and timestamp match the returned workflow state.
-- Immutable run-scoped context carries application-owned dependencies. Phase
-  2.3 injects a clock, intent classifier, patient-summary reader, and safety
-  policy. Phase 2.4 also injects a response generator and audit-event ID source
-  so deterministic tests do not depend on wall time, random IDs, or external
-  providers.
+- Immutable run-scoped context carries application-owned dependencies. It
+  includes the clock, intent classifier, patient-summary reader, safety policy,
+  response generator, audit-event ID source, and the optional Phase 3.6
+  guideline-retrieval capability. The retriever remains disconnected from the
+  graph until checkpoint 3.6.2.
 - Graph execution explicitly disables inherited LangSmith tracing. This keeps
   queries and workflow state local until a later phase defines reviewed,
   redacted observability.
