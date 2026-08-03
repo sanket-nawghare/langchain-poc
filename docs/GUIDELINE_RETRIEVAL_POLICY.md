@@ -70,9 +70,23 @@ trusted catalog or the entire response is malformed.
   least two approved sources. Similarity or differing wording alone must not be
   labeled a conflict. The starter corpus has no approved conflict fixture, so
   it must not infer one.
-- Thresholds and the exact scoring formula are frozen only after the committed
-  relevance fixtures are evaluated in checkpoint 3.5.3. They are application
-  policy, never raw provider certainty.
+- Checkpoint 3.5.3 freezes a `0.45` sufficient-evidence threshold. The score is
+  `0.60 × chunk query-term coverage + 0.25 × trusted source-title/topic
+  coverage + 0.15 × normalized cosine affinity`. Scores are rounded to six
+  decimals. Trusted source coverage must be nonzero; otherwise the score is
+  zero regardless of vector similarity.
+- Query terms use deterministic case-folding, a frozen generic-term list, and
+  conservative suffix normalization. This is a bounded starter-corpus policy,
+  not a general clinical terminology system.
+- Normalized cosine affinity is clamped to `[0, 1]` as
+  `1 - cosine_distance / 2`. The raw vector-store distance is never presented
+  as application relevance.
+- The adapter retrieves 32 candidates; application code orders qualified
+  matches by descending policy score, ascending distance, chunk ID, then
+  object UUID and returns only the requested `top_k`.
+- These values are application policy, never provider certainty. Changing any
+  weight, threshold, generic term, normalization rule, or tie-break requires a
+  policy-version change and fixture review.
 
 ## Failures
 

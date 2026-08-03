@@ -1,10 +1,11 @@
 """Application-owned guideline retrieval capability and safe failures."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from app.domain.guideline_index import GuidelineVectorCandidate
 from app.domain.guidelines import (
+    GuidelineRetrievalMatch,
     GuidelineRetrievalRequest,
     GuidelineRetrievalResult,
     GuidelineSource,
@@ -32,6 +33,13 @@ class GuidelineSourceCatalog(Protocol):
 
     def sources(self) -> tuple[GuidelineSource, ...]:
         """Return the complete strictly validated source catalog."""
+
+
+class GuidelineConflictDetector(Protocol):
+    """Deterministic application policy for explicit evidence conflicts."""
+
+    def has_conflict(self, matches: Sequence[GuidelineRetrievalMatch]) -> bool:
+        """Return true only for a configured material conflict."""
 
 
 def eligible_guideline_sources(
@@ -87,3 +95,6 @@ class GuidelineRetriever(Protocol):
         request: GuidelineRetrievalRequest,
     ) -> GuidelineRetrievalResult:
         """Return a normalized evidence decision or raise a typed safe failure."""
+
+    async def close(self) -> None:
+        """Release retrieval dependency resources."""

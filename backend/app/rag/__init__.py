@@ -14,6 +14,7 @@ from app.rag.parsing import (
     GuidelineParsingMalformedError,
 )
 from app.rag.retrieval import (
+    GuidelineConflictDetector,
     GuidelineRetrievalError,
     GuidelineRetrievalResponseError,
     GuidelineRetrievalTimeoutError,
@@ -36,6 +37,7 @@ from app.rag.vector_store import (
 
 __all__ = [
     "GuidelineCandidateStore",
+    "GuidelineConflictDetector",
     "GuidelineDocumentParser",
     "GuidelineEmbeddingError",
     "GuidelineEmbeddingModel",

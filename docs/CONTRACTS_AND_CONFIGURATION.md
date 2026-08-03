@@ -56,6 +56,7 @@ Rules:
 | Weaviate guideline adapter | `services/weaviate_guideline_index.py` | Versioned self-vectorized schema, stable UUIDs, idempotent mutation, and collection-only reset |
 | Locked guideline source catalog | `services/guideline_source_catalog.py` | Strict trusted source identities from the committed metadata-only corpus lock |
 | Weaviate candidate adapter | `services/weaviate_guideline_candidates.py` | Filtered async vector query, strict normalization, checksum/UUID validation, and typed failures |
+| Deterministic guideline retriever | `services/deterministic_guideline_retrieval.py` | Trusted eligibility, calibrated qualification, stable ranking, citations, evidence outcomes, and safe failure mapping |
 | Guideline-retrieval capability | `rag/retrieval.py` | Provider-neutral async retrieval and typed safe failures |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
 | Safety-policy capability | `tools/safety.py` | Versioned deterministic evaluation over normalized context |

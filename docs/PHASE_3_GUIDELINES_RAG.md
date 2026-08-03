@@ -214,7 +214,7 @@ Verified on 2026-08-03:
 |---|---|---|
 | 3.5.1 Retrieval trust policy and candidate contracts | Candidate bounds, source-of-truth rules, deterministic ordering inputs, and provider-neutral search contracts are explicit | `[x]` |
 | 3.5.2 Trusted catalog and Weaviate candidate adapter | Eligible sources come from the committed lock and filtered vector candidates normalize safely | `[x]` |
-| 3.5.3 Evidence qualification and citations | Calibrated deterministic scores produce trusted citations or explicit insufficient/conflicting results | `[ ]` |
+| 3.5.3 Evidence qualification and citations | Calibrated deterministic scores produce trusted citations or explicit insufficient/conflicting results | `[x]` |
 | 3.5.4 Retrieval gate and documentation | Fixture relevance, live queries, failures, redaction, and complete quality gates pass | `[ ]` |
 
 - Retrieve a small bounded top-k set with deterministic tie-breaking and
@@ -292,6 +292,42 @@ Verified on 2026-08-03:
   validation.
 
 **Status:** `[x]` Complete — stop for review before checkpoint 3.5.3.
+
+### Checkpoint 3.5.3 Verification Record
+
+Verified on 2026-08-03:
+
+- Added `deterministic-guideline-retrieval-v1`, which orchestrates trusted
+  eligibility, versioned query embedding, a fixed 32-candidate search,
+  candidate/source identity validation, qualification, stable ranking, and
+  result construction without exposing provider objects.
+- Froze a conservative `0.45` threshold over 60% chunk-term coverage, 25%
+  trusted source-title/topic coverage, and 15% normalized cosine affinity.
+  Source coverage is mandatory, generic wording is excluded, scores are
+  rounded to six decimals, and stable ties use distance, chunk ID, then UUID.
+- Application code creates citation document/chunk identity, title, publisher,
+  canonical URL, page, and a query-anchored excerpt of at most 500 characters
+  from already validated candidates. No model input can supply or alter those
+  fields.
+- No eligible source, no candidates, generic questions, unrelated topics, and
+  all scores below threshold return a valid `insufficient` result with no
+  matches. Query audit identity is a SHA-256 fingerprint over NFKC-normalized,
+  case-folded, whitespace-normalized text.
+- Added an explicit deterministic conflict-detector boundary. The starter
+  corpus configures no known conflict and never infers conflict from similarity
+  or wording; a conflict signal requires at least two qualified matches.
+- Vector timeout/unavailability and malformed schema/candidate/embedding
+  failures map to distinct safe retrieval errors without provider details.
+  Retrieval owns explicit async candidate-store cleanup.
+- Live read-only calibration returned `sufficient` for four reviewed adult
+  hypertension/diabetes queries with qualified scores from 0.820 to 0.940.
+  Vaccination, ankle-fracture, and astronomy queries returned `insufficient`
+  with no qualified matches. No collection data was changed.
+- `make check` passed with 201 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+
+**Status:** `[x]` Complete — stop for review before checkpoint 3.5.4.
 
 ## Sub-phase 3.6 — Workflow Integration and Phase 3 Gate
 
