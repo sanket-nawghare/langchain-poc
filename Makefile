@@ -27,7 +27,8 @@ BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 	synthea-ensure synthea-generated-reset synthea-fixtures-reset \
 	fhir-seed fhir-verify fhir-reset phase2-live-gate \
 	guidelines-fetch guidelines-verify guidelines-chunk guidelines-index \
-	guidelines-index-verify guidelines-index-reset phase3-retrieval-live-gate
+	guidelines-index-verify guidelines-index-reset phase3-retrieval-live-gate \
+	phase3-live-gate
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -211,6 +212,12 @@ phase3-retrieval-live-gate: guidelines-index-verify ## Run deidentified Phase 3.
 	$(UV_ENV) $(UV) run --project backend python -m scripts.phase3_retrieval_live_gate \
 		--evaluation data/guidelines/retrieval-evaluation.json \
 		--corpus-lock data/guidelines/corpus-lock.json
+
+phase3-live-gate: fhir-verify phase3-retrieval-live-gate ## Run the cited Phase 3 workflow gate
+	$(UV_ENV) $(UV) run --project backend python -m scripts.phase3_workflow_live_gate \
+		--base-url "$(BACKEND_BASE_URL)" \
+		--manifest data/synthetic/cohort-manifest.json \
+		--evaluation data/guidelines/retrieval-evaluation.json
 
 fhir-seed: synthea-ensure ## Idempotently seed the locked cohort into local HAPI
 	$(UV_ENV) $(UV) run --project backend python -m scripts.fhir_seed seed \

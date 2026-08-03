@@ -186,26 +186,24 @@ Implementation will proceed through the review checkpoints in the
 - `[x]` Define a source policy for allowed publishers and document licenses.
 - `[x]` Add a small, reviewed starter corpus from sources such as WHO, CDC,
   NICE, or ADA.
-- `[~]` Record document title, publisher, URL, publication date, version, page,
-  and ingestion timestamp. Source and artifact metadata are complete;
-  ingestion timestamp is deferred until indexing in sub-phase 3.4.
-- `[~]` Implement parsing, cleaning, chunking, embedding, and indexing.
-  Deterministic parsing/cleaning/chunking are complete; embedding and indexing
-  remain in sub-phase 3.4.
-- `[ ]` Make ingestion idempotent and support document replacement.
-- `[ ]` Implement filtered retrieval and a minimum relevance threshold.
-- `[ ]` Add the guideline retrieval tool and graph node.
-- `[ ]` Require the response schema to include source citations.
-- `[ ]` Refuse or qualify answers when evidence is missing or weak.
-- `[ ]` Build a small retrieval evaluation dataset with expected sources.
-- `[ ]` Measure recall, citation correctness, and unsupported-claim rate.
+- `[x]` Record document title, publisher, URL, publication date, version, page,
+  and ingestion timestamp.
+- `[x]` Implement parsing, cleaning, chunking, embedding, and indexing.
+- `[x]` Make ingestion idempotent and support document replacement.
+- `[x]` Implement filtered retrieval and a minimum relevance threshold.
+- `[x]` Add the guideline retrieval tool and graph node.
+- `[x]` Require the response schema to include source citations.
+- `[x]` Refuse or qualify answers when evidence is missing or weak.
+- `[x]` Build a small retrieval evaluation dataset with expected sources.
+- `[x]` Measure retrieval expectations, citation correctness, safe qualification,
+  and unsupported-claim prevention through deterministic gates.
 
 ### Exit Criteria
 
-- `[ ]` Seed questions retrieve expected guideline passages.
-- `[ ]` Every guideline-backed statement exposes usable source metadata.
-- `[ ]` Low-confidence retrieval triggers a safe fallback.
-- `[ ]` Corpus ingestion and retrieval tests pass repeatably.
+- `[x]` Seed questions retrieve expected guideline passages.
+- `[x]` Every guideline-backed response exposes usable source metadata.
+- `[x]` Low-confidence retrieval triggers a safe review fallback.
+- `[x]` Corpus ingestion and retrieval tests pass repeatably.
 
 ---
 
@@ -403,6 +401,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 3 | Completed reviewed guideline RAG end to end: 2 documents/135 chunks, idempotent Weaviate sync, 9-case retrieval evaluation, seeded five-citation workflow, safe weak/failure routing, persisted redaction, restart recovery, 232 backend/6 frontend tests, and clean source-only verification | Stop for final review before creating the Phase 4 branch |
 | 2026-08-03 | Phase 3.6.3 | Made guideline retrieval mandatory for clinical workflows, lazily bound the reviewed local Weaviate retriever, qualified generation with exact application-owned citations, and persisted only the content-free evidence summary plus citation metadata | Stop for review before checkpoint 3.6.4 live and reproducibility gates |
 | 2026-08-03 | Phase 3.6.2 | Added the optional LangGraph guideline-retrieval node after patient context, bounded request/result validation, sufficient/review/failure routing, typed retry/timeout behavior, and content-free evidence audit metadata | Stop for review before checkpoint 3.6.3 cited generation and persistence |
 | 2026-08-03 | Phase 3.6.1 | Added the content-free workflow evidence summary, strict evidence/citation identity invariants, provider-neutral runtime retrieval capability, and reviewed safe-routing policy without connecting retrieval to LangGraph | Stop for review before checkpoint 3.6.2 graph-node integration |

@@ -28,7 +28,7 @@ and explicit failure when evidence is missing or unsafe.
 | 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[x]` |
 | 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[x]` |
 | 3.5 Retrieval and citation qualification | Clinical queries return bounded relevant chunks and application-owned citations or fail safely | `[x]` |
-| 3.6 Workflow integration and Phase 3 gate | The graph retrieves evidence before generation and completes a cited seeded scenario reproducibly | `[~]` |
+| 3.6 Workflow integration and Phase 3 gate | The graph retrieves evidence before generation and completes a cited seeded scenario reproducibly | `[x]` |
 
 ## Sub-phase 3.1 — Source Policy and Retrieval Contracts
 
@@ -408,25 +408,48 @@ Routing policy fixed for the next checkpoint:
 
 ### 3.6.4 — End-to-End Phase 3 Gate and Documentation
 
-- `[ ]` Run deterministic, live Weaviate, failure-path, restart, and
+- `[x]` Run deterministic, live Weaviate, failure-path, restart, and
   isolated-source gates.
-- `[ ]` Complete the seeded cited scenario and verify every citation resolves
+- `[x]` Complete the seeded cited scenario and verify every citation resolves
   to the exact indexed source location.
-- `[ ]` Update architecture, development, contracts, safety policy, and roadmap
+- `[x]` Update architecture, development, contracts, safety policy, and roadmap
   status, then stop for final Phase 3 review.
 
-**Status:** `[~]` In progress — checkpoint 3.6.3 complete; stop for review
-before the live, restart, isolated-source, and documentation closeout gate in
-checkpoint 3.6.4.
+### Verification Record
+
+Verified on 2026-08-03:
+
+- The locked HAPI cohort resolved four stable synthetic patients.
+- The exact `ClinicalGuidelineChunkV1` index contained two reviewed documents
+  and 135 chunks. Re-ingestion reported `inserted=0`, `replaced=0`,
+  `skipped=135`, and `deleted=0`.
+- All nine committed retrieval cases passed: four sufficient, five
+  insufficient, and 12 citations with expected source/chunk identities.
+- `make phase3-live-gate` completed a seeded workflow with five citations whose
+  first source/chunk matched the locked evaluation expectation. Persisted
+  inspection returned the identical redacted snapshot.
+- The same gate proved insufficient evidence pauses for review, unsupported
+  intent rejects, interrupted checkpoints fail without replay, and outputs do
+  not expose the query or patient ID/context.
+- Known patient IDs and display names are rejected before a guideline query is
+  issued; patient summaries and FHIR payloads are never query fields.
+- `make check` passed with 232 backend and 6 frontend tests, strict static
+  checks, the frontend production build, and Compose validation.
+- A source-only copy without Git history, ignored documents/chunks/FHIR
+  fixtures, environment files, databases, tooling, dependencies, caches, or
+  build output bootstrapped with `make setup` and passed `make check`.
+
+**Status:** `[x]` Complete — Phase 3 accepted locally; stop for final review
+before creating the Phase 4 branch.
 
 ## Phase Exit Criteria
 
-- A seeded synthetic clinical-QA run completes with at least one verified
+- `[x]` A seeded synthetic clinical-QA run completes with at least one verified
   citation from an approved guideline.
-- Citation metadata resolves to the exact indexed document location.
-- Missing, weak, unavailable, malformed, or conflicting evidence fails safely
-  or requires review without fabricated claims.
-- Re-ingestion and retrieval are deterministic and idempotent.
-- No patient data enters the corpus, vector metadata, embeddings, or committed
-  fixtures.
-- Repository, live retrieval, and isolated-source quality gates pass.
+- `[x]` Citation metadata resolves to the exact indexed document location.
+- `[x]` Missing, weak, unavailable, malformed, or conflicting evidence fails
+  safely or requires review without fabricated claims.
+- `[x]` Re-ingestion and retrieval are deterministic and idempotent.
+- `[x]` No patient data enters the corpus, vector metadata, embeddings, or
+  committed fixtures.
+- `[x]` Repository, live retrieval, and isolated-source quality gates pass.

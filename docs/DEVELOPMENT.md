@@ -217,6 +217,16 @@ scores, citations, query fingerprints, and forbidden-field redaction. It is
 read-only and prints only aggregate counts; it does not print queries, excerpts,
 chunk bodies, or provider payloads.
 
+With HAPI and Weaviate verified and the backend running, execute the complete
+Phase 3 workflow gate:
+
+```bash
+make phase3-live-gate
+```
+
+The gate adds seeded cited completion, weak-evidence review, persisted snapshot
+equality, restart recovery, and redaction checks to the retrieval evaluation.
+
 ## Configuration
 
 Backend variables use the `CLINICAL_` prefix and are documented in

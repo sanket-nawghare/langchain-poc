@@ -783,6 +783,24 @@ async def test_guideline_retrieval_enforces_node_timeout() -> None:
 
 
 @pytest.mark.anyio
+async def test_guideline_retrieval_rejects_known_patient_identifiers() -> None:
+    retriever = StubGuidelineRetriever(guideline_result(EvidenceAssessment.SUFFICIENT))
+
+    result = await execute_workflow(
+        queued_workflow("What medication precautions apply to synthetic-patient-1?"),
+        runtime=workflow_runtime(guideline_retriever=retriever),
+    )
+
+    assert retriever.requests == []
+    assert result.workflow.status is WorkflowStatus.FAILED
+    assert result.workflow.failure_code == INVALID_GUIDELINE_EVIDENCE_CODE
+    assert all(
+        "synthetic-patient-1" not in str(event.model_dump(mode="json"))
+        for event in result.workflow.audit_log
+    )
+
+
+@pytest.mark.anyio
 async def test_supported_intent_completes_with_qualified_response_and_audit() -> None:
     result = await execute_workflow(
         queued_workflow(),

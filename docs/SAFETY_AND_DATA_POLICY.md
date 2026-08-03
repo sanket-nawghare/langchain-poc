@@ -71,6 +71,9 @@ visible.
   workflow.
 - Retrieval queries must be deidentified. Do not send patient IDs, patient
   summaries, raw FHIR, or complete prompts to the guideline index.
+- The workflow rejects a query containing the known patient ID or normalized
+  display name before retrieval. It never appends patient-summary fields to a
+  guideline query.
 - Missing, weak, stale, conflicting, unavailable, or malformed evidence must
   not be replaced with an uncited guideline claim.
 

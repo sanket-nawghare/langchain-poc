@@ -164,8 +164,10 @@ narratives, and raw FHIR payloads are excluded.
   request-scoped client after execution.
 - Guideline retrieval receives the bounded workflow query, current application
   date, optional publisher filters, and top-k only. Patient IDs and normalized
-  patient summaries are not included. Sufficient evidence continues to safety;
-  insufficient or conflicting evidence pauses for review; timeout,
+  patient summaries are not included; a question containing the known patient
+  ID or normalized display name is rejected before retrieval. Sufficient
+  evidence continues to safety; insufficient or conflicting evidence pauses
+  for review; timeout,
   unavailability, malformed output, and unexpected failures become stable safe
   workflow failure codes.
 - Graph execution explicitly disables inherited LangSmith tracing. This keeps

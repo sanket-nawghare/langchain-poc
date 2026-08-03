@@ -30,6 +30,7 @@ from app.domain.workflow import (
 )
 from app.rag.retrieval import (
     GuidelineRetrievalError,
+    GuidelineRetrievalResponseError,
     GuidelineRetrievalTimeoutError,
     GuidelineRetrievalUnavailableError,
 )
@@ -378,6 +379,21 @@ def _guideline_failure_code(error: GuidelineRetrievalError) -> str:
     return INVALID_GUIDELINE_EVIDENCE_CODE
 
 
+def _deidentified_guideline_query(workflow: WorkflowState) -> str:
+    """Reject known patient identifiers before querying the guideline index."""
+
+    normalized_query = workflow.user_query.casefold()
+    patient = workflow.patient_data
+    forbidden_values = [workflow.patient_id]
+    if patient is not None and patient.display_name is not None:
+        forbidden_values.append(patient.display_name)
+    if any(value.casefold() in normalized_query for value in forbidden_values):
+        raise GuidelineRetrievalResponseError(
+            "guideline query contains a known patient identifier"
+        )
+    return workflow.user_query
+
+
 async def _retrieve_guidelines(
     state: WorkflowGraphState,
     runtime: Runtime[WorkflowRuntime],
@@ -396,7 +412,7 @@ async def _retrieve_guidelines(
 
     try:
         request = GuidelineRetrievalRequest(
-            clinical_query=workflow.user_query,
+            clinical_query=_deidentified_guideline_query(workflow),
             as_of=runtime.context.clock.now().date(),
         )
         raw_result = await _run_bounded(

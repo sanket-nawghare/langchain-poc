@@ -53,6 +53,11 @@ def test_workflow_request_rejects_invalid_fhir_patient_id(
             "What precautions relate to this patient's conditions?",
             Intent.CLINICAL_QA,
         ),
+        (
+            "What blood pressure target is recommended for adults?",
+            Intent.CLINICAL_QA,
+        ),
+        ("How should an ankle fracture be treated?", Intent.CLINICAL_QA),
         ("Please schedule an appointment", Intent.UNKNOWN),
         ("Schedule an appointment about my medication", Intent.UNKNOWN),
         ("Can you help me with this?", Intent.UNKNOWN),

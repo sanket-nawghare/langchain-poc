@@ -24,6 +24,7 @@ Use the smaller targets while developing:
 | Seeded Phase 2 API | `make phase2-live-gate` |
 | Guideline index | `make guidelines-index`, `make guidelines-index-verify` |
 | Guideline retrieval | `make phase3-retrieval-live-gate` |
+| Cited Phase 3 workflow | `make phase3-live-gate` |
 | Everything | `make check` |
 
 `backend-check` runs Ruff formatting and linting, mypy strict type checking,
@@ -43,6 +44,13 @@ run must report every unchanged object as skipped.
 the committed deidentified sufficient, unrelated, publisher-filter, and
 historical-cutoff fixtures and verifies citation identity and result redaction.
 Its output contains only aggregate counts.
+
+`phase3-live-gate` first verifies HAPI, the ignored locked documents/chunks,
+the exact Weaviate index, and the retrieval evaluation. With the backend
+running, it then proves a seeded cited completion, weak-evidence review,
+unsupported-intent rejection, persisted snapshot equality, restart recovery,
+and response redaction. Its output is aggregate and contains no queries,
+patient identifiers, excerpts, or provider payloads.
 
 ## Pre-commit
 
