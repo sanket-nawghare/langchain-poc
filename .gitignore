@@ -31,6 +31,7 @@ frontend/.vite/
 *.db-shm
 *.db-wal
 data/generated/
+data/guidelines/documents/
 data/synthetic/cohort-manifest.json
 data/synthetic/fhir/
 

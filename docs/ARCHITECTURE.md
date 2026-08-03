@@ -5,7 +5,9 @@
 Completed Phase 2 extends the application foundation and Phase 1 synthetic FHIR
 path with a typed LangGraph workflow. Phase 3.1 adds provider-neutral guideline
 source, permission, chunk, retrieval, evidence, citation-lineage, and safe
-failure contracts, but does not yet acquire or retrieve documents. The graph validates input, classifies intent,
+failure contracts. Phase 3.2 adds two checksum-locked, ignored local WHO PDFs
+and guarded acquisition/verification tooling, but does not parse, index, or
+retrieve them. The graph validates input, classifies intent,
 retrieves only normalized patient context, and applies a deterministic safety
 pre-check before producing a qualified deterministic response and minimal
 audit events. Synchronous run creation/status APIs persist redacted queued and
@@ -244,6 +246,7 @@ types cross into workflow state.
 | SQLite | Application backend | Readiness plus redacted workflow queued/final checkpoints | `make app-data-reset CONFIRM=1` |
 | PostgreSQL | HAPI FHIR | HAPI schema and synthetic FHIR cohort | Removed with `make infra-reset CONFIRM=1` |
 | Weaviate | Retrieval adapter | Readiness only; no corpus is loaded | Removed with `make infra-reset CONFIRM=1` |
+| Local guideline directory | Developer acquisition tooling | Two ignored PDF artifacts verified against committed provenance/checksums | Manually remove ignored files; `make guidelines-fetch` restores them |
 
 Docker volumes survive `make infra-down`. Reset commands are intentionally
 guarded because they delete local development data.

@@ -25,7 +25,8 @@ BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 	infra-status infra-logs infra-down infra-reset app-data-reset \
 	synthea-generate synthea-select synthea-verify synthea-cohort \
 	synthea-ensure synthea-generated-reset synthea-fixtures-reset \
-	fhir-seed fhir-verify fhir-reset phase2-live-gate
+	fhir-seed fhir-verify fhir-reset phase2-live-gate \
+	guidelines-fetch guidelines-verify
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -171,6 +172,16 @@ synthea-fixtures-reset: ## Delete local selected cohort output (requires CONFIRM
 		{ echo "Refusing to delete selected fixtures. Re-run with CONFIRM=1."; exit 1; }
 	rm --recursive --force -- data/synthetic/fhir
 	rm --force -- data/synthetic/cohort-manifest.json
+
+guidelines-fetch: $(UV_BIN) ## Download and verify the reviewed local guideline corpus
+	$(UV_ENV) $(UV) run --project backend python -m scripts.guideline_corpus fetch \
+		--lock data/guidelines/corpus-lock.json \
+		--document-dir data/guidelines/documents
+
+guidelines-verify: $(UV_BIN) ## Verify local guidelines against reviewed checksums
+	$(UV_ENV) $(UV) run --project backend python -m scripts.guideline_corpus verify \
+		--lock data/guidelines/corpus-lock.json \
+		--document-dir data/guidelines/documents
 
 fhir-seed: synthea-ensure ## Idempotently seed the locked cohort into local HAPI
 	$(UV_ENV) $(UV) run --project backend python -m scripts.fhir_seed seed \

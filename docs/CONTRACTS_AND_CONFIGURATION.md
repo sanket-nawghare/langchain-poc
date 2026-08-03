@@ -67,6 +67,10 @@ indexable only when it is current and explicitly approved for redistribution
 and indexing or local-only indexing. Link-only, prohibited, superseded, and
 withdrawn sources cannot appear in retrieval matches. The complete review
 rules are in the [guideline source policy](GUIDELINE_SOURCE_POLICY.md).
+The Phase 3.2 `corpus-lock.json` wraps these source contracts with only local
+filename, approved WHO download URL, byte size, reviewed PDF page count, and
+supported synthetic scenarios. Strict tooling validates this metadata before
+reading or acquiring any local artifact.
 
 The Phase 1 patient route returns `ApiSuccess[PatientSummary]`. Typed FHIR
 failures are translated at the HTTP boundary into `ApiError` with a generated

@@ -184,10 +184,11 @@ Implementation will proceed through the review checkpoints in the
 ### Scope
 
 - `[x]` Define a source policy for allowed publishers and document licenses.
-- `[ ]` Add a small, reviewed starter corpus from sources such as WHO, CDC,
+- `[x]` Add a small, reviewed starter corpus from sources such as WHO, CDC,
   NICE, or ADA.
-- `[ ]` Record document title, publisher, URL, publication date, version, page,
-  and ingestion timestamp.
+- `[~]` Record document title, publisher, URL, publication date, version, page,
+  and ingestion timestamp. Source and artifact metadata are complete;
+  ingestion timestamp is deferred until indexing in sub-phase 3.4.
 - `[ ]` Implement parsing, cleaning, chunking, embedding, and indexing.
 - `[ ]` Make ingestion idempotent and support document replacement.
 - `[ ]` Implement filtered retrieval and a minimum relevance threshold.
@@ -364,6 +365,7 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
+| 2026-08-03 | Use two checksum-locked WHO PDFs as a local-index-only starter corpus and commit metadata rather than document content | Directly supports the seeded diabetes and hypertension scenarios while preserving exact provenance and a conservative repository-redistribution boundary | Accepted |
 | 2026-08-03 | Separate authoritative-publisher eligibility from per-document permission and allow only current, explicitly indexable guideline versions into retrieval | Publisher reputation does not grant redistribution or indexing rights; exact provenance, license review, lifecycle, and checksum records make corpus decisions reviewable | Accepted |
 | 2026-07-28 | Raise the default normalized FHIR record cap from 100 to 500 while retaining 100-resource pages and a five-page maximum | All four checksum-locked Synthea fixtures exceed 100 observations; verified maxima of 354 observations and 139 procedures fit within the existing reviewed hard cap and allow a real seeded Phase 2 happy path without hiding truncation | Accepted |
 | 2026-07-28 | Persist redacted queued/final workflow snapshots in application-owned SQLite and fail interrupted work on startup | Provides inspectable recovery without storing query/patient context or automatically replaying clinical work | Accepted |
@@ -398,6 +400,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 3.2 | Completed the two-document WHO starter corpus, local-only license decisions, metadata/checksum lock, guarded fetch and offline verification, and deterministic rejection tests; 154 backend and 6 frontend tests pass, with no parsing, embeddings, or Weaviate changes | Stop for review before sub-phase 3.3 |
+| 2026-08-03 | Phase 3.2 | Started scenario-driven document selection, exact license/version review, local-only acquisition, and provenance verification | Complete the Phase 3.2 gate without parsing or indexing documents |
 | 2026-08-03 | Phase 3.1 | Completed the per-document source and license policy, strict guideline/chunk/retrieval contracts, evidence decisions, citation-lineage validation, provider-neutral retrieval interface, and safe failure boundary; 147 backend and 6 frontend tests pass, with no corpus content acquired | Stop for review before sub-phase 3.2 |
 | 2026-08-03 | Phase 3.1 | Started source licensing review, application-owned retrieval contracts, bounded evidence behavior, and provider isolation | Complete the Phase 3.1 review gate without acquiring documents |
 | 2026-07-28 | Phase 2.6 | Completed the seeded live workflow/failure gate, persisted-status and redaction proof, bounded cohort-cap reconciliation, clean source-only bootstrap/check, Phase 2 documentation, and Phase 3 review plan; 128 backend and 6 frontend tests pass | Stop for final Phase 2 review before Phase 3 |

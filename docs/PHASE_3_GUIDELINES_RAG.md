@@ -1,9 +1,8 @@
 # Phase 3 — Clinical Guidelines RAG Plan
 
 This plan divides Phase 3 of the
-[project roadmap](PROJECT_ROADMAP.md) into reviewable checkpoints. It prepares
-the next phase only; no guideline corpus, Weaviate schema, ingestion, retrieval,
-or workflow integration is implemented by the Phase 2 gate.
+[project roadmap](PROJECT_ROADMAP.md) into reviewable checkpoints and records
+the accepted boundary after each sub-phase.
 
 ## Objective
 
@@ -25,7 +24,7 @@ and explicit failure when evidence is missing or unsafe.
 | Sub-phase | Deliverable | Status |
 |---|---|---|
 | 3.1 Source policy and retrieval contracts | Allowed sources, licenses, document metadata, retrieval requests/results, and safe failures are explicit | `[x]` |
-| 3.2 Reviewed starter corpus | A small checksum-locked corpus has provenance, license notes, and no patient data | `[ ]` |
+| 3.2 Reviewed starter corpus | A small checksum-locked corpus has provenance, license notes, and no patient data | `[x]` |
 | 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[ ]` |
 | 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[ ]` |
 | 3.5 Retrieval and citation qualification | Clinical queries return bounded relevant chunks and application-owned citations or fail safely | `[ ]` |
@@ -79,16 +78,43 @@ Verified on 2026-08-03:
 
 ## Sub-phase 3.2 — Reviewed Starter Corpus
 
-- Select a minimal scenario-driven corpus from approved authoritative sources.
-- Record canonical URL, publisher, title, version/date, access date, license or
+- `[x]` Select a minimal scenario-driven corpus from approved authoritative sources.
+- `[x]` Record canonical URL, publisher, title, version/date, access date, license or
   usage note, checksum, and supported scenario for every document.
-- Keep downloads/generated extraction output out of Git unless redistribution
+- `[x]` Keep downloads/generated extraction output out of Git unless redistribution
   is explicitly permitted; commit non-content provenance/checksum locks.
-- Add verification that rejects missing, changed, unapproved, or oversized
+- `[x]` Add verification that rejects missing, changed, unapproved, or oversized
   inputs.
 
 **Review checkpoint:** inspect every source and its redistribution decision
 before parsing or indexing.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- Selected WHO HEARTS-D (2020) for `metabolic-01` and the WHO adult
+  hypertension guideline (2021) for `cardiovascular-01`.
+- Reviewed each PDF copyright page and official publication record. Both state
+  CC BY-NC-SA 3.0 IGO; the repository adopts a conservative
+  `local_index_only` decision with required attribution, no implied WHO
+  endorsement/logo use, and exclusion of separately owned third-party
+  material.
+- Committed only strict provenance, license, scenario, size, page-count, and
+  SHA-256 metadata. Both downloaded PDFs are ignored.
+- Added `make guidelines-fetch` for guarded acquisition from exact approved
+  WHO endpoints and `make guidelines-verify` for offline integrity checks.
+- Verified two exact PDF artifacts totaling 2,091,637 bytes. Acquisition
+  refuses unapproved sources or permissions, unsafe names, unexpected files,
+  malformed PDF envelopes, files over 4 MiB, and size/checksum drift.
+- Added deterministic failure tests for missing, unexpected, changed,
+  malformed, oversized, unapproved, and provider-specific inputs.
+- `make check` passed with 154 backend and 6 frontend tests, the frontend
+  production build, and Compose validation.
+- No text was extracted, chunked, embedded, committed, or indexed, and
+  Weaviate remains unchanged.
+
+**Status:** `[x]` Complete — stop for review before sub-phase 3.3.
 
 ## Sub-phase 3.3 — Deterministic Parsing and Chunking
 

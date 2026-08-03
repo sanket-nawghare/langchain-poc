@@ -145,6 +145,29 @@ The target verifies the locked HAPI cohort, then exercises the reviewed
 patient, invalid request, persistence, and redaction. It uses no model API key
 or network model call.
 
+## Reviewed Guideline Corpus
+
+Phase 3.2 selects two local-only WHO PDF artifacts for the synthetic metabolic
+and cardiovascular scenarios. Their contents remain ignored; Git stores only
+the reviewed provenance and checksum lock.
+
+Acquire missing files from the exact approved WHO download URLs:
+
+```bash
+make guidelines-fetch
+```
+
+Verify existing files without downloading anything:
+
+```bash
+make guidelines-verify
+```
+
+See the [guideline input record](../data/guidelines/README.md) and
+[source policy](GUIDELINE_SOURCE_POLICY.md) for the exact sources and use
+restrictions. These commands do not parse, embed, or index the PDFs, and they
+do not modify Weaviate.
+
 ## Configuration
 
 Backend variables use the `CLINICAL_` prefix and are documented in
