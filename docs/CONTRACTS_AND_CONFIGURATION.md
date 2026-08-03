@@ -47,6 +47,9 @@ Rules:
 | Patient-summary capability | `tools/patient.py` | Workflow-facing normalized patient retrieval without raw FHIR |
 | Patient summary and citations | `domain/clinical.py` | Normalized data outside FHIR and retrieval adapters |
 | Guideline source, chunk, and retrieval result | `domain/guidelines.py` | Reviewed provenance, permissions, bounded evidence, and citation lineage |
+| Parsed guideline document | `domain/guidelines.py` | One reviewed source plus ordered, contiguous, source-owned chunks |
+| Guideline-parser capability | `rag/parsing.py` | Provider-neutral local parsing and typed input, encryption, malformed, and bounds failures |
+| Strict PDF parser adapter | `services/pypdf_guidelines.py` | Pinned pypdf normalization with file/page/text/chunk limits and structural checks |
 | Guideline-retrieval capability | `rag/retrieval.py` | Provider-neutral async retrieval and typed safe failures |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
 | Safety-policy capability | `tools/safety.py` | Versioned deterministic evaluation over normalized context |
@@ -71,6 +74,12 @@ The Phase 3.2 `corpus-lock.json` wraps these source contracts with only local
 filename, approved WHO download URL, byte size, reviewed PDF page count, and
 supported synthetic scenarios. Strict tooling validates this metadata before
 reading or acquiring any local artifact.
+`ParsedGuidelineDocument` requires one current indexable source, at least one
+and at most 1,000 chunks, contiguous zero-based sequence numbers, unique stable
+chunk IDs, and matching document ownership. The Phase 3.3 parser additionally
+limits files to 4 MiB, documents to 500 pages and 1,000,000 extracted
+characters, pages to 50,000 extracted characters, and individual chunks to
+2,400 characters. Chunks never cross page boundaries.
 
 The Phase 1 patient route returns `ApiSuccess[PatientSummary]`. Typed FHIR
 failures are translated at the HTTP boundary into `ApiError` with a generated

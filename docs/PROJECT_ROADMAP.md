@@ -189,7 +189,9 @@ Implementation will proceed through the review checkpoints in the
 - `[~]` Record document title, publisher, URL, publication date, version, page,
   and ingestion timestamp. Source and artifact metadata are complete;
   ingestion timestamp is deferred until indexing in sub-phase 3.4.
-- `[ ]` Implement parsing, cleaning, chunking, embedding, and indexing.
+- `[~]` Implement parsing, cleaning, chunking, embedding, and indexing.
+  Deterministic parsing/cleaning/chunking are complete; embedding and indexing
+  remain in sub-phase 3.4.
 - `[ ]` Make ingestion idempotent and support document replacement.
 - `[ ]` Implement filtered retrieval and a minimum relevance threshold.
 - `[ ]` Add the guideline retrieval tool and graph node.
@@ -365,6 +367,7 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
+| 2026-08-03 | Use pinned strict pypdf parsing with page-confined 2,400-character chunks and a content-free deterministic chunk lock | Preserves exact page/source lineage, keeps outputs bounded and reproducible, and detects parser or source drift before vector indexing | Accepted |
 | 2026-08-03 | Use two checksum-locked WHO PDFs as a local-index-only starter corpus and commit metadata rather than document content | Directly supports the seeded diabetes and hypertension scenarios while preserving exact provenance and a conservative repository-redistribution boundary | Accepted |
 | 2026-08-03 | Separate authoritative-publisher eligibility from per-document permission and allow only current, explicitly indexable guideline versions into retrieval | Publisher reputation does not grant redistribution or indexing rights; exact provenance, license review, lifecycle, and checksum records make corpus decisions reviewable | Accepted |
 | 2026-07-28 | Raise the default normalized FHIR record cap from 100 to 500 while retaining 100-resource pages and a five-page maximum | All four checksum-locked Synthea fixtures exceed 100 observations; verified maxima of 354 observations and 139 procedures fit within the existing reviewed hard cap and allow a real seeded Phase 2 happy path without hiding truncation | Accepted |
@@ -400,6 +403,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 3.3 | Completed strict bounded PDF parsing, deterministic normalization and page-confined chunks, content-free output locking, local build tooling, structural rejection paths, and patient/provider isolation; 164 backend and 6 frontend tests pass, with no embedding or Weaviate changes | Stop for review before sub-phase 3.4 |
+| 2026-08-03 | Phase 3.3 | Started parser selection, bounded normalization, stable chunk lineage, deterministic output locking, and malformed/encrypted input handling | Complete the Phase 3.3 gate without embedding or indexing |
 | 2026-08-03 | Phase 3.2 | Completed the two-document WHO starter corpus, local-only license decisions, metadata/checksum lock, guarded fetch and offline verification, and deterministic rejection tests; 154 backend and 6 frontend tests pass, with no parsing, embeddings, or Weaviate changes | Stop for review before sub-phase 3.3 |
 | 2026-08-03 | Phase 3.2 | Started scenario-driven document selection, exact license/version review, local-only acquisition, and provenance verification | Complete the Phase 3.2 gate without parsing or indexing documents |
 | 2026-08-03 | Phase 3.1 | Completed the per-document source and license policy, strict guideline/chunk/retrieval contracts, evidence decisions, citation-lineage validation, provider-neutral retrieval interface, and safe failure boundary; 147 backend and 6 frontend tests pass, with no corpus content acquired | Stop for review before sub-phase 3.2 |

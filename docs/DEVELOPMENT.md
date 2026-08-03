@@ -168,6 +168,18 @@ See the [guideline input record](../data/guidelines/README.md) and
 restrictions. These commands do not parse, embed, or index the PDFs, and they
 do not modify Weaviate.
 
+After corpus verification, build and checksum-verify the ignored deterministic
+chunk output:
+
+```bash
+make guidelines-chunk
+```
+
+This command performs no embedding or network/vector-store operation. It
+writes only `data/guidelines/processed/chunks.json`, which is ignored. Git
+stores the content-free `chunk-lock.json` so parser or source drift fails
+explicitly.
+
 ## Configuration
 
 Backend variables use the `CLINICAL_` prefix and are documented in

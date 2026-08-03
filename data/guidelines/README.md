@@ -39,6 +39,30 @@ directory. Verification rejects missing or extra files, unsafe filenames,
 unapproved download hosts or permissions, non-current sources, malformed PDF
 envelopes, files over 4 MiB, byte-size drift, and checksum drift.
 
-Acquisition is not parsing or ingestion. Sub-phase 3.3 must define bounded PDF
-parsing and exclude unapproved third-party material before any text is
-produced. Sub-phase 3.4 must define the Weaviate schema before indexing.
+Acquisition alone is not parsing or ingestion. Sub-phase 3.3 provides the
+bounded local parser below. Sub-phase 3.4 must still define the Weaviate schema
+before indexing.
+
+## Deterministic Local Chunks
+
+Build the ignored local chunk output after acquiring the exact PDFs:
+
+```bash
+make guidelines-chunk
+```
+
+The pinned strict parser normalizes Unicode and whitespace, keeps every chunk
+within one PDF page, limits chunks to 2,400 characters, and records document,
+page, section hint, sequence, text checksum, and stable chunk ID. It rejects
+encrypted files, active content, attachments, checksum/page-count drift,
+empty text, and bounded-resource violations.
+
+The generated `processed/chunks.json` contains extracted text and is ignored.
+The committed [`chunk-lock.json`](chunk-lock.json) contains only parser
+version, source hashes, chunk counts, aggregate chunk hashes, and boundary IDs.
+For `deterministic-pypdf-v1`, the reviewed output is 40 HEARTS-D chunks and 95
+hypertension chunks.
+
+PDFs do not contain a reliable semantic layer. `section` is therefore a
+deterministic heading hint for inspection; the exact source checksum and PDF
+page number remain the authoritative citation lineage.

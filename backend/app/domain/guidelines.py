@@ -151,6 +151,28 @@ class GuidelineChunk(ContractModel):
     ) = None
 
 
+class ParsedGuidelineDocument(ContractModel):
+    """One reviewed source normalized into deterministic bounded chunks."""
+
+    parser_version: ShortMetadata
+    source: GuidelineSource
+    chunks: list[GuidelineChunk] = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_chunks(self) -> "ParsedGuidelineDocument":
+        if not self.source.is_indexable:
+            raise ValueError("parsed source must be current and indexable")
+        if any(chunk.document_id != self.source.document_id for chunk in self.chunks):
+            raise ValueError("every chunk document_id must match its source")
+        sequences = [chunk.sequence for chunk in self.chunks]
+        if sequences != list(range(len(self.chunks))):
+            raise ValueError("chunk sequences must be ordered and contiguous from zero")
+        chunk_ids = [chunk.chunk_id for chunk in self.chunks]
+        if len(set(chunk_ids)) != len(chunk_ids):
+            raise ValueError("parsed chunks must have unique chunk IDs")
+        return self
+
+
 class GuidelineRetrievalRequest(ContractModel):
     """Deidentified and bounded query passed to a retrieval capability."""
 

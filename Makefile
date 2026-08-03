@@ -26,7 +26,7 @@ BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 	synthea-generate synthea-select synthea-verify synthea-cohort \
 	synthea-ensure synthea-generated-reset synthea-fixtures-reset \
 	fhir-seed fhir-verify fhir-reset phase2-live-gate \
-	guidelines-fetch guidelines-verify
+	guidelines-fetch guidelines-verify guidelines-chunk
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -182,6 +182,13 @@ guidelines-verify: $(UV_BIN) ## Verify local guidelines against reviewed checksu
 	$(UV_ENV) $(UV) run --project backend python -m scripts.guideline_corpus verify \
 		--lock data/guidelines/corpus-lock.json \
 		--document-dir data/guidelines/documents
+
+guidelines-chunk: $(UV_BIN) ## Build and verify ignored deterministic guideline chunks
+	$(UV_ENV) $(UV) run --project backend python -m scripts.guideline_chunks \
+		--corpus-lock data/guidelines/corpus-lock.json \
+		--document-dir data/guidelines/documents \
+		--chunk-lock data/guidelines/chunk-lock.json \
+		--output data/guidelines/processed/chunks.json
 
 fhir-seed: synthea-ensure ## Idempotently seed the locked cohort into local HAPI
 	$(UV_ENV) $(UV) run --project backend python -m scripts.fhir_seed seed \

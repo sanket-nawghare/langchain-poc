@@ -14,6 +14,7 @@ from app.domain.guidelines import (
     GuidelineRetrievalResult,
     GuidelineSource,
     GuidelineUsePermission,
+    ParsedGuidelineDocument,
 )
 from app.domain.safety import (
     SafetyDecision,
@@ -57,6 +58,7 @@ __all__ = [
     "Intent",
     "IntentClassification",
     "PatientSummary",
+    "ParsedGuidelineDocument",
     "ResponseDraft",
     "SafetyDecision",
     "SafetyReason",

@@ -6,8 +6,9 @@ Completed Phase 2 extends the application foundation and Phase 1 synthetic FHIR
 path with a typed LangGraph workflow. Phase 3.1 adds provider-neutral guideline
 source, permission, chunk, retrieval, evidence, citation-lineage, and safe
 failure contracts. Phase 3.2 adds two checksum-locked, ignored local WHO PDFs
-and guarded acquisition/verification tooling, but does not parse, index, or
-retrieve them. The graph validates input, classifies intent,
+and guarded acquisition/verification tooling. Phase 3.3 adds a strict bounded
+pypdf adapter and 135 deterministic, page-confined local chunks whose text
+remains ignored. Nothing is embedded, indexed, or retrieved yet. The graph validates input, classifies intent,
 retrieves only normalized patient context, and applies a deterministic safety
 pre-check before producing a qualified deterministic response and minimal
 audit events. Synchronous run creation/status APIs persist redacted queued and

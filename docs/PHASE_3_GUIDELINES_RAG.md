@@ -25,7 +25,7 @@ and explicit failure when evidence is missing or unsafe.
 |---|---|---|
 | 3.1 Source policy and retrieval contracts | Allowed sources, licenses, document metadata, retrieval requests/results, and safe failures are explicit | `[x]` |
 | 3.2 Reviewed starter corpus | A small checksum-locked corpus has provenance, license notes, and no patient data | `[x]` |
-| 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[ ]` |
+| 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[x]` |
 | 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[ ]` |
 | 3.5 Retrieval and citation qualification | Clinical queries return bounded relevant chunks and application-owned citations or fail safely | `[ ]` |
 | 3.6 Workflow integration and Phase 3 gate | The graph retrieves evidence before generation and completes a cited seeded scenario reproducibly | `[ ]` |
@@ -118,16 +118,47 @@ Verified on 2026-08-03:
 
 ## Sub-phase 3.3 — Deterministic Parsing and Chunking
 
-- Parse only approved formats with bounded resource usage.
-- Normalize text without losing page, heading, section, or document lineage.
-- Produce stable chunk IDs and deterministic order from content checksums.
-- Reject empty, malformed, unexpectedly encrypted, or structurally unsafe
+- `[x]` Parse only approved formats with bounded resource usage.
+- `[x]` Normalize text without losing page, heading, section, or document lineage.
+- `[x]` Produce stable chunk IDs and deterministic order from content checksums.
+- `[x]` Reject empty, malformed, unexpectedly encrypted, or structurally unsafe
   documents.
-- Test repeated parsing, chunk boundaries, metadata lineage, and absence of
+- `[x]` Test repeated parsing, chunk boundaries, metadata lineage, and absence of
   patient data.
 
 **Review checkpoint:** review representative chunks and citation lineage before
 creating a vector schema.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- Locked pypdf 6.14.2 behind the application-owned `GuidelineDocumentParser`
+  capability and typed input, encrypted, malformed, and bounds failures.
+- Added `deterministic-pypdf-v1`: strict PDF parsing, Unicode/whitespace
+  normalization, conservative heading hints, page-confined 2,400-character
+  chunks, stable content hashes/IDs, and contiguous document sequences.
+- Bounded source files, page count, extracted page/document text, chunk size,
+  chunk count, catalog actions, attachments, and encrypted inputs. Source
+  checksum and reviewed page count are revalidated before extraction.
+- Produced 40 chunks for HEARTS-D and 95 for the hypertension guideline. The
+  ignored strict output is 280,499 bytes; the committed chunk lock contains no
+  extracted text.
+- Repeated parsing produces byte-equivalent provider-neutral output. Tests
+  cover normalization, chunk boundaries, page/section/document lineage,
+  checksum and page drift, empty/malformed/encrypted PDFs, JavaScript,
+  attachments, oversized extraction, strict output reload, lock drift, and
+  provider-field rejection.
+- The generated output contains no patient contract fields and matches none of
+  the local synthetic cohort IDs or aliases.
+- Reviewed extractable text for separately attributed reuse markers; none were
+  found. The parser extracts no images, and separately owned material remains
+  prohibited by the source policy.
+- `make check` passed with 164 backend and 6 frontend tests, the frontend
+  production build, and Compose validation.
+- No embeddings or Weaviate schema, objects, or calls were added.
+
+**Status:** `[x]` Complete — stop for review before sub-phase 3.4.
 
 ## Sub-phase 3.4 — Weaviate Schema and Idempotent Ingestion
 

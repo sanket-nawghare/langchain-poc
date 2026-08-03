@@ -18,6 +18,7 @@ from app.domain import (
     GuidelineRetrievalResult,
     GuidelineSource,
     GuidelineUsePermission,
+    ParsedGuidelineDocument,
 )
 from app.rag import (
     GuidelineRetrievalError,
@@ -162,6 +163,26 @@ def test_chunk_and_citation_text_are_bounded() -> None:
             publisher="who",
             source_url="https://example.test/guideline",
             excerpt="x" * 501,
+        )
+
+
+def test_parsed_document_requires_contiguous_owned_chunks() -> None:
+    reviewed_source = source()
+    first = GuidelineChunk.model_validate(chunk_values())
+    second = GuidelineChunk.model_validate(chunk_values(1))
+
+    parsed = ParsedGuidelineDocument(
+        parser_version="deterministic-pypdf-v1",
+        source=reviewed_source,
+        chunks=[first, second],
+    )
+    assert [chunk.sequence for chunk in parsed.chunks] == [0, 1]
+
+    with pytest.raises(ValidationError, match="ordered and contiguous"):
+        ParsedGuidelineDocument(
+            parser_version="deterministic-pypdf-v1",
+            source=reviewed_source,
+            chunks=[second, first],
         )
 
 
