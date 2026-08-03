@@ -138,6 +138,10 @@ async def workflow_execution_context(
                         timeout_seconds=settings.workflow_node_timeout_seconds,
                         max_retries=settings.workflow_node_max_retries,
                     ),
+                    response_execution_policy=WorkflowExecutionPolicy(
+                        timeout_seconds=settings.llm_request_timeout_seconds,
+                        max_retries=settings.llm_max_retries,
+                    ),
                 ),
             )
     finally:

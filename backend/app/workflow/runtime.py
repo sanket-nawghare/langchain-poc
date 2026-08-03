@@ -74,3 +74,4 @@ class WorkflowRuntime:
     execution_policy: WorkflowExecutionPolicy = field(
         default_factory=WorkflowExecutionPolicy
     )
+    response_execution_policy: WorkflowExecutionPolicy | None = None

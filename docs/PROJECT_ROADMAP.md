@@ -217,13 +217,13 @@ Implementation proceeds through the review checkpoints in the
 
 ### Scope
 
-- `[~]` Add provider-backed grounded response generation using bounded patient
+- `[x]` Add provider-backed grounded response generation using bounded patient
   context and retrieved guideline excerpts.
-- `[ ]` Keep structured answer parsing, citations, disclaimers, and routing
+- `[x]` Keep structured answer parsing, citations, disclaimers, and routing
   application-owned.
-- `[ ]` Add provider timeout, retry, authentication, rate-limit, unavailable,
+- `[x]` Add provider timeout, retry, authentication, rate-limit, unavailable,
   malformed-output, and context-limit failure handling.
-- `[ ]` Add an opt-in real-provider live gate while keeping tests and startup
+- `[x]` Add an opt-in real-provider live gate while keeping tests and startup
   credential-free.
 - `[ ]` Define versioned, deterministic review rules and severity levels.
 - `[ ]` Detect examples such as medication/allergy conflicts, urgent symptom
@@ -240,8 +240,8 @@ Implementation proceeds through the review checkpoints in the
 
 ### Exit Criteria
 
-- `[ ]` A configured real LLM produces a strictly parsed, grounded answer draft.
-- `[ ]` No provider can fabricate or replace citations or the disclaimer.
+- `[x]` A configured real LLM produces a strictly parsed, grounded answer draft.
+- `[x]` No provider can fabricate or replace citations or the disclaimer.
 - `[ ]` High-risk test cases never bypass review.
 - `[ ]` Low-risk test cases proceed with recorded safety results.
 - `[ ]` A pending run survives a backend restart.
@@ -378,6 +378,7 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
+| 2026-08-03 | Give LangGraph sole ownership of the configured LLM retry budget and deterministically bound normalized fields when projecting grounded context | Prevents multiplicative SDK/workflow retries and ensures valid normalized synthetic records cannot fail before provider invocation merely because the provider boundary is intentionally smaller | Accepted |
 | 2026-08-03 | Build a bounded grounded request only after retrieval and deterministic safety pass, then keep citations and qualifications application-owned | Prevents identifiers, raw FHIR data, full documents, provider objects, model-created citation identity, and unreviewed model output from controlling the durable workflow result | Accepted |
 | 2026-08-03 | Use OpenAI Responses with `gpt-5.6-sol` as the first real grounded-generation provider while retaining strict provider-neutral request, response, and failure contracts | Current official guidance identifies the model as the flagship and supports Responses structured outputs; keeping tools, citations, disclaimers, safety, and routing application-owned prevents the provider from controlling durable clinical behavior | Accepted |
 | 2026-08-03 | Use pinned strict pypdf parsing with page-confined 2,400-character chunks and a content-free deterministic chunk lock | Preserves exact page/source lineage, keeps outputs bounded and reproducible, and detects parser or source drift before vector indexing | Accepted |
@@ -416,6 +417,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 4.1.4 | Completed the opt-in real-provider gate with two `gpt-5.4-mini` runs over the locked synthetic patient and reviewed local index; verified strict answers, five exact citations, qualification, routing reproducibility, persistence, redaction, and no failure fallback; separated invalid grounded input from invalid provider output and removed nested retries | Start checkpoint 4.2.1 versioned deterministic safety policy |
 | 2026-08-03 | Phase 4.1.3 | Wired configured deterministic/OpenAI generation into LangGraph only after sufficient evidence and safety pass; added bounded relevance-selected facts and excerpts, exact application-owned citations, stable provider failure codes, redacted model/latency/token audit counts, and 280 backend/6 frontend passing tests | Stop for review before checkpoint 4.1.4 opt-in real-provider gate |
 | 2026-08-03 | Phase 4.1.2 | Added the official async OpenAI Responses adapter, strict Pydantic answer parsing, stateless/no-tools invocation, bounded validated provider settings, safe SDK failure normalization, and credential-free deterministic tests | Stop for review before checkpoint 4.1.3 grounded prompt and workflow wiring |
 | 2026-08-03 | Phase 4.1.1 | Selected OpenAI Responses with `gpt-5.6-sol`, added bounded deidentified grounded-generation contracts, preserved answer-only strict output, defined provider-neutral safe failures, and recorded the prompt-injection boundary | Stop for review before checkpoint 4.1.2 provider adapter and configuration |

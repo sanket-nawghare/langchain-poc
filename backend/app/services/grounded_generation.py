@@ -17,7 +17,7 @@ from app.domain.generation import (
     GroundedGenerationRequest,
     GroundedPatientContext,
 )
-from app.tools.response import ResponseGenerationMalformedOutputError
+from app.tools.response import ResponseGenerationInputError
 
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 CATEGORY_PRIORITY: dict[ClinicalSummaryCategory, int] = {
@@ -94,12 +94,15 @@ def _clinical_fact(
     category: ClinicalSummaryCategory,
     record: ClinicalRecordSummary,
 ) -> GroundedClinicalFact:
+    def bounded(value: str | None, maximum: int) -> str | None:
+        return value[:maximum] if value is not None else None
+
     return GroundedClinicalFact(
         category=category,
-        display=record.display,
-        status=record.status,
-        effective_at=record.effective_at,
-        value=record.value,
+        display=bounded(record.display, 200),
+        status=bounded(record.status, 80),
+        effective_at=bounded(record.effective_at, 80),
+        value=bounded(record.value, 200),
     )
 
 
@@ -118,9 +121,7 @@ def build_grounded_generation_request(
     if patient.truncated_categories or any(
         value.casefold() in normalized_query for value in forbidden_values
     ):
-        raise ResponseGenerationMalformedOutputError(
-            "grounded generation input is invalid"
-        )
+        raise ResponseGenerationInputError("grounded generation input is invalid")
 
     try:
         facts = [
@@ -137,6 +138,6 @@ def build_grounded_generation_request(
             evidence=evidence,
         )
     except ValidationError:
-        raise ResponseGenerationMalformedOutputError(
+        raise ResponseGenerationInputError(
             "grounded generation input is invalid"
         ) from None

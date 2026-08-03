@@ -76,6 +76,7 @@ from app.tools.response import (
     ResponseGenerationAuthenticationError,
     ResponseGenerationContextLimitError,
     ResponseGenerationError,
+    ResponseGenerationInputError,
     ResponseGenerationMalformedOutputError,
     ResponseGenerationRateLimitError,
     ResponseGenerationRefusalError,
@@ -99,6 +100,7 @@ from app.workflow.graph import (
     RESPONSE_AUTHENTICATION_CODE,
     RESPONSE_CONTEXT_LIMIT_CODE,
     RESPONSE_FAILURE_CODE,
+    RESPONSE_INVALID_INPUT_CODE,
     RESPONSE_INVALID_OUTPUT_CODE,
     RESPONSE_RATE_LIMIT_CODE,
     RESPONSE_REFUSAL_CODE,
@@ -422,6 +424,7 @@ def workflow_runtime(
     guideline_retriever: GuidelineRetriever | None = None,
     without_guideline_retriever: bool = False,
     execution_policy: WorkflowExecutionPolicy | None = None,
+    response_execution_policy: WorkflowExecutionPolicy | None = None,
 ) -> WorkflowRuntime:
     return WorkflowRuntime(
         clock=FixedClock(EXECUTED_AT),
@@ -439,6 +442,7 @@ def workflow_runtime(
             or StubGuidelineRetriever(guideline_result(EvidenceAssessment.SUFFICIENT))
         ),
         execution_policy=execution_policy or WorkflowExecutionPolicy(),
+        response_execution_policy=response_execution_policy,
     )
 
 
@@ -1182,6 +1186,12 @@ async def test_classifier_failure_or_malformed_output_fails_safely(
             ),
             RESPONSE_INVALID_OUTPUT_CODE,
         ),
+        (
+            StaticResponseGenerator(
+                ResponseGenerationInputError("sensitive grounded input")
+            ),
+            RESPONSE_INVALID_INPUT_CODE,
+        ),
         (MalformedResponseGenerator(), RESPONSE_INVALID_OUTPUT_CODE),
         (UnexpectedResponseGenerator(), RESPONSE_FAILURE_CODE),
     ],
@@ -1247,6 +1257,25 @@ async def test_retryable_response_failure_recovers_within_bound() -> None:
     assert result.workflow.final_response.answer == (
         "Recovered bounded educational draft."
     )
+
+
+@pytest.mark.anyio
+async def test_response_retry_policy_does_not_multiply_general_retry_budget() -> None:
+    response_generator = FlakyResponseGenerator()
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(
+            response_generator=response_generator,
+            execution_policy=WorkflowExecutionPolicy(max_retries=3),
+            response_execution_policy=WorkflowExecutionPolicy(max_retries=0),
+        ),
+    )
+
+    assert response_generator.calls == 1
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.failure_code == RESPONSE_UNAVAILABLE_CODE
+    assert result.workflow.final_response is None
 
 
 @pytest.mark.anyio

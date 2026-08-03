@@ -28,6 +28,7 @@ from app.tools.response import (
     ResponseGenerationMalformedOutputError,
     ResponseGenerationRateLimitError,
     ResponseGenerationRefusalError,
+    ResponseGenerationRequestError,
     ResponseGenerationTimeoutError,
     ResponseGenerationUnavailableError,
     ResponseGenerator,
@@ -246,8 +247,16 @@ async def test_openai_adapter_rejects_unsafe_provider_output(
 ) -> None:
     adapter, _ = generator(result)
 
-    with pytest.raises(expected_error):
+    with pytest.raises(expected_error) as captured:
         await adapter.generate(request=grounded_request())
+
+    if result.output_parsed == {"answer": "x" * 4001}:
+        assert captured.value.reason_code == "oversized_provider_answer"
+    if result.output_parsed == {
+        "answer": "Draft",
+        "citations": ["provider-controlled"],
+    }:
+        assert captured.value.reason_code == "unexpected_provider_fields"
 
 
 def status_error(
@@ -308,7 +317,7 @@ def status_error(
         ),
         (
             status_error(openai.BadRequestError, 400),
-            ResponseGenerationMalformedOutputError,
+            ResponseGenerationRequestError,
         ),
         (RuntimeError("sensitive unexpected detail"), ResponseGenerationError),
     ],
@@ -379,7 +388,7 @@ async def test_openai_factory_applies_bounded_settings(
         "api_key": "synthetic-test-secret",
         "base_url": "https://api.openai.test/v1",
         "timeout": 12.0,
-        "max_retries": 1,
+        "max_retries": 0,
     }
     await adapter.close()
     assert client.closed is True

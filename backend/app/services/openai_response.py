@@ -19,11 +19,18 @@ from app.tools.response import (
     ResponseGenerationAuthenticationError,
     ResponseGenerationContextLimitError,
     ResponseGenerationError,
+    ResponseGenerationIncompleteOutputError,
+    ResponseGenerationInvalidAnswerTypeError,
     ResponseGenerationMalformedOutputError,
+    ResponseGenerationMissingAnswerError,
+    ResponseGenerationOversizedAnswerError,
     ResponseGenerationRateLimitError,
     ResponseGenerationRefusalError,
+    ResponseGenerationRequestError,
     ResponseGenerationTimeoutError,
     ResponseGenerationUnavailableError,
+    ResponseGenerationUnexpectedFieldsError,
+    ResponseGenerationUnexpectedOutputError,
 )
 
 SYSTEM_INSTRUCTIONS = (
@@ -94,7 +101,7 @@ def _validate_output_shape(response: ParsedResponse) -> None:
         if item_type == "reasoning":
             continue
         if item_type != "message":
-            raise ResponseGenerationMalformedOutputError(
+            raise ResponseGenerationUnexpectedOutputError(
                 "response provider returned an unexpected output item"
             )
         message_count += 1
@@ -103,7 +110,7 @@ def _validate_output_shape(response: ParsedResponse) -> None:
                 "response provider refused the grounded request"
             )
     if message_count != 1:
-        raise ResponseGenerationMalformedOutputError(
+        raise ResponseGenerationIncompleteOutputError(
             "response provider returned an invalid message count"
         )
 
@@ -142,10 +149,35 @@ def _safe_provider_error(error: Exception) -> ResponseGenerationError:
         (openai.APIConnectionError, openai.InternalServerError),
     ):
         return ResponseGenerationUnavailableError("response provider is unavailable")
-    if isinstance(error, (ValidationError, openai.BadRequestError)):
-        return ResponseGenerationMalformedOutputError(
+    if isinstance(error, openai.BadRequestError):
+        return ResponseGenerationRequestError(
+            "response provider rejected the bounded request"
+        )
+    if isinstance(error, ValidationError):
+        error_types = {item["type"] for item in error.errors(include_input=False)}
+        if error_types & {"string_too_long", "too_long"}:
+            return ResponseGenerationOversizedAnswerError(
+                "response provider answer exceeded the application limit"
+            )
+        if "extra_forbidden" in error_types:
+            return ResponseGenerationUnexpectedFieldsError(
+                "response provider attempted to add application-owned fields"
+            )
+        if "missing" in error_types:
+            return ResponseGenerationMissingAnswerError(
+                "response provider omitted the required answer"
+            )
+        if error_types & {"string_type", "model_type", "dict_type"}:
+            return ResponseGenerationInvalidAnswerTypeError(
+                "response provider returned an invalid answer type"
+            )
+        malformed = ResponseGenerationMalformedOutputError(
             "response provider returned invalid structured output"
         )
+        first_error_type = min(error_types, default="unknown")
+        if first_error_type.replace("_", "").isalnum():
+            malformed.reason_code = f"invalid_structured_output_{first_error_type[:48]}"
+        return malformed
     return ResponseGenerationError("response provider failed")
 
 
@@ -236,7 +268,8 @@ def create_openai_response_generator(settings: Settings) -> OpenAIResponseGenera
         api_key=settings.llm_api_key.get_secret_value(),
         base_url=str(settings.llm_base_url),
         timeout=settings.llm_request_timeout_seconds,
-        max_retries=settings.llm_max_retries,
+        # LangGraph owns the single configured provider retry budget.
+        max_retries=0,
     )
     return OpenAIResponseGenerator(
         client=cast(OpenAIClient, client),

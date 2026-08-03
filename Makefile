@@ -28,7 +28,7 @@ BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 	fhir-seed fhir-verify fhir-reset phase2-live-gate \
 	guidelines-fetch guidelines-verify guidelines-chunk guidelines-index \
 	guidelines-index-verify guidelines-index-reset phase3-retrieval-live-gate \
-	phase3-live-gate
+	phase3-live-gate phase4-generation-live-gate
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -215,6 +215,12 @@ phase3-retrieval-live-gate: guidelines-index-verify ## Run deidentified Phase 3.
 
 phase3-live-gate: fhir-verify phase3-retrieval-live-gate ## Run the cited Phase 3 workflow gate
 	$(UV_ENV) $(UV) run --project backend python -m scripts.phase3_workflow_live_gate \
+		--base-url "$(BACKEND_BASE_URL)" \
+		--manifest data/synthetic/cohort-manifest.json \
+		--evaluation data/guidelines/retrieval-evaluation.json
+
+phase4-generation-live-gate: fhir-verify phase3-retrieval-live-gate ## Run the opt-in real-provider generation gate
+	$(UV_ENV) $(UV) run --project backend python -m scripts.phase4_generation_live_gate \
 		--base-url "$(BACKEND_BASE_URL)" \
 		--manifest data/synthetic/cohort-manifest.json \
 		--evaluation data/guidelines/retrieval-evaluation.json

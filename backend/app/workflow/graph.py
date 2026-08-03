@@ -49,6 +49,7 @@ from app.tools.response import (
     ResponseGenerationAuthenticationError,
     ResponseGenerationContextLimitError,
     ResponseGenerationError,
+    ResponseGenerationInputError,
     ResponseGenerationMalformedOutputError,
     ResponseGenerationRateLimitError,
     ResponseGenerationRefusalError,
@@ -56,7 +57,7 @@ from app.tools.response import (
     ResponseGenerationUnavailableError,
 )
 from app.tools.safety import SafetyPolicyError
-from app.workflow.runtime import WorkflowRuntime
+from app.workflow.runtime import WorkflowExecutionPolicy, WorkflowRuntime
 from app.workflow.state import (
     WorkflowGraphState,
     WorkflowGraphUpdate,
@@ -86,6 +87,7 @@ RESPONSE_RATE_LIMIT_CODE = "response_generation_rate_limited"
 RESPONSE_UNAVAILABLE_CODE = "response_generation_unavailable"
 RESPONSE_CONTEXT_LIMIT_CODE = "response_generation_context_limit"
 RESPONSE_REFUSAL_CODE = "response_generation_refused"
+RESPONSE_INVALID_INPUT_CODE = "response_generation_invalid_input"
 RESPONSE_INVALID_OUTPUT_CODE = "response_generation_invalid_output"
 GUIDELINE_EVIDENCE_UNAVAILABLE_CODE = "guideline_evidence_not_available"
 GUIDELINE_RETRIEVAL_TIMEOUT_CODE = "guideline_retrieval_timeout"
@@ -119,19 +121,20 @@ async def _run_bounded[ResultT](
     runtime: Runtime[WorkflowRuntime],
     *,
     retryable: tuple[type[Exception], ...],
+    policy: WorkflowExecutionPolicy | None = None,
 ) -> ResultT:
-    policy = runtime.context.execution_policy
-    for attempt in range(policy.max_retries + 1):
+    selected_policy = policy or runtime.context.execution_policy
+    for attempt in range(selected_policy.max_retries + 1):
         try:
             return await asyncio.wait_for(
                 operation(),
-                timeout=policy.timeout_seconds,
+                timeout=selected_policy.timeout_seconds,
             )
         except TimeoutError as error:
-            if attempt == policy.max_retries:
+            if attempt == selected_policy.max_retries:
                 raise WorkflowNodeTimeoutError from error
         except retryable:
-            if attempt == policy.max_retries:
+            if attempt == selected_policy.max_retries:
                 raise
     raise AssertionError("bounded workflow operation exhausted without an outcome")
 
@@ -161,6 +164,7 @@ def _transition_with_audit(
     *,
     step: str,
     failure_code: str | None = None,
+    failure_reason: str | None = None,
 ) -> tuple[WorkflowState, WorkflowTransition]:
     updated, transition = transition_workflow(
         workflow,
@@ -178,6 +182,7 @@ def _transition_with_audit(
                 from_status=workflow.status,
                 step=step,
                 failure_code=failure_code,
+                failure_reason=failure_reason,
             )
         ],
     )
@@ -191,6 +196,7 @@ def _status_audit_event(
     from_status: WorkflowStatus,
     step: str,
     failure_code: str | None = None,
+    failure_reason: str | None = None,
 ) -> AuditEvent:
     details: dict[str, AuditValue] = {
         "step": step,
@@ -199,6 +205,8 @@ def _status_audit_event(
     }
     if failure_code is not None:
         details["failure_code"] = failure_code
+    if failure_reason is not None:
+        details["failure_reason"] = failure_reason
     event_type = (
         AuditEventType.WORKFLOW_FAILED
         if workflow.status == WorkflowStatus.FAILED
@@ -623,6 +631,8 @@ def _response_failure_code(error: ResponseGenerationError) -> str:
         return RESPONSE_CONTEXT_LIMIT_CODE
     if isinstance(error, ResponseGenerationRefusalError):
         return RESPONSE_REFUSAL_CODE
+    if isinstance(error, ResponseGenerationInputError):
+        return RESPONSE_INVALID_INPUT_CODE
     if isinstance(error, ResponseGenerationMalformedOutputError):
         return RESPONSE_INVALID_OUTPUT_CODE
     return RESPONSE_FAILURE_CODE
@@ -665,6 +675,7 @@ async def _generate_response(
                 ResponseGenerationRateLimitError,
                 ResponseGenerationUnavailableError,
             ),
+            policy=runtime.context.response_execution_policy,
         )
         raw_payload = (
             raw_result.model_dump()
@@ -694,6 +705,7 @@ async def _generate_response(
             WorkflowStatus.FAILED,
             step=GENERATE_RESPONSE_NODE,
             failure_code=failure_code,
+            failure_reason=error.reason_code,
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
     except ValidationError:

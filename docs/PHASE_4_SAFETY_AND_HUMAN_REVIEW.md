@@ -19,7 +19,7 @@ reviewable and must finish with focused tests and `make check`.
 
 | Sub-phase | Deliverable | Status |
 |---|---|---|
-| 4.1 Grounded LLM response generation | A configured provider drafts structured answers from bounded patient context and retrieved evidence | `[~]` |
+| 4.1 Grounded LLM response generation | A configured provider drafts structured answers from bounded patient context and retrieved evidence | `[x]` |
 | 4.2 Deterministic and LLM-assisted safety | Versioned rules evaluate inputs, evidence, and generated drafts without delegating final safety authority to the model | `[ ]` |
 | 4.3 Persisted review queue and actions | Reviewers can inspect safe metadata and approve, reject, or request changes | `[ ]` |
 | 4.4 Concurrency-safe resume | Valid review actions resume the exact checkpoint once and reject stale or duplicate actions | `[ ]` |
@@ -119,14 +119,31 @@ all provider failures terminate with stable redacted workflow codes.
 
 ### 4.1.4 — Real-Provider Gate
 
-- `[ ]` Add an opt-in live gate using only a seeded synthetic patient and the
+- `[x]` Add an opt-in live gate using only a seeded synthetic patient and the
   reviewed local guideline index.
-- `[ ]` Verify the response is structured, cited, qualified, reproducible at
+- `[x]` Verify the response is structured, cited, qualified, reproducible at
   the routing level, and contains no fabricated citation identity.
-- `[ ]` Verify provider failure never falls back to an uncited deterministic
+- `[x]` Verify provider failure never falls back to an uncited deterministic
   clinical answer.
-- `[ ]` Keep deterministic tests and basic startup independent of credentials
+- `[x]` Keep deterministic tests and basic startup independent of credentials
   and external model availability.
+
+`make phase4-generation-live-gate` verifies the locked synthetic cohort, all
+nine local retrieval cases, and two real-provider workflow runs without making
+the live gate part of normal CI. On 2026-08-03 the gate passed with the locally
+configured `gpt-5.4-mini`: both runs returned strict answers, the same five
+application-owned citation identities and routing history, the educational
+qualification, persisted redacted snapshots, and content-free audit metadata.
+Credential-free contract tests prove every provider failure terminates without
+a deterministic or uncited fallback.
+
+Live validation also found that two normalized observation values exceeded the
+grounded request's stricter field size. The selector now truncates each allowed
+field deterministically at its contract boundary, and pre-provider input
+failures use `response_generation_invalid_input` rather than being mislabeled
+as model output failures. Provider retries now have one owner: the OpenAI SDK
+does not retry internally, while LangGraph applies the configured LLM timeout
+and retry budget once.
 
 ## Sub-phase 4.2 — Deterministic and LLM-Assisted Safety
 

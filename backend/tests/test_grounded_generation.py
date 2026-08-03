@@ -5,7 +5,7 @@ import pytest
 from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
 from app.domain.generation import MAX_GROUNDED_FACTS
 from app.services.grounded_generation import build_grounded_generation_request
-from app.tools.response import ResponseGenerationMalformedOutputError
+from app.tools.response import ResponseGenerationInputError
 
 
 def citation(rank: int, *, excerpt: str | None = None) -> Citation:
@@ -33,6 +33,7 @@ def patient(*, truncated: bool = False) -> PatientSummary:
                     else f"Synthetic condition {index}"
                 ),
                 status="active",
+                value="v" * 250 if index == 39 else None,
             )
             for index in range(40)
         ],
@@ -53,6 +54,7 @@ def test_selector_bounds_and_prioritizes_patient_facts_without_identifiers() -> 
 
     assert len(request.patient_context.facts) == MAX_GROUNDED_FACTS
     assert request.patient_context.facts[0].display == "Asthma relevant condition"
+    assert request.patient_context.facts[0].value == "v" * 200
     serialized = request.model_dump_json()
     assert "synthetic-private-id" not in serialized
     assert "Private Display Name" not in serialized
@@ -87,7 +89,7 @@ def test_selector_rejects_unsafe_or_incomplete_context(
     summary: PatientSummary,
     guidelines: list[Citation],
 ) -> None:
-    with pytest.raises(ResponseGenerationMalformedOutputError):
+    with pytest.raises(ResponseGenerationInputError):
         build_grounded_generation_request(
             query=query,
             patient=summary,
