@@ -16,8 +16,14 @@ from app.tools.fhir import (
 from app.tools.intent import IntentClassificationError, IntentClassifier
 from app.tools.patient import PatientSummaryError, PatientSummaryReader
 from app.tools.response import (
+    ResponseGenerationAuthenticationError,
+    ResponseGenerationContextLimitError,
     ResponseGenerationError,
+    ResponseGenerationMalformedOutputError,
+    ResponseGenerationRateLimitError,
+    ResponseGenerationRefusalError,
     ResponseGenerationTimeoutError,
+    ResponseGenerationUnavailableError,
     ResponseGenerator,
 )
 from app.tools.safety import SafetyPolicy, SafetyPolicyError
@@ -40,7 +46,13 @@ __all__ = [
     "PatientSummaryError",
     "PatientSummaryReader",
     "ResponseGenerationError",
+    "ResponseGenerationAuthenticationError",
+    "ResponseGenerationContextLimitError",
+    "ResponseGenerationMalformedOutputError",
+    "ResponseGenerationRateLimitError",
+    "ResponseGenerationRefusalError",
     "ResponseGenerationTimeoutError",
+    "ResponseGenerationUnavailableError",
     "ResponseGenerator",
     "SafetyPolicy",
     "SafetyPolicyError",

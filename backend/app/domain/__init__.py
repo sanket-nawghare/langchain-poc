@@ -3,6 +3,12 @@
 from app.domain.api import ApiError, ApiSuccess, ErrorDetail
 from app.domain.audit import ActorType, AuditEvent, AuditEventType
 from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
+from app.domain.generation import (
+    GroundedClinicalFact,
+    GroundedEvidence,
+    GroundedGenerationRequest,
+    GroundedPatientContext,
+)
 from app.domain.guideline_index import (
     GuidelineIndexSnapshot,
     GuidelineIngestionResult,
@@ -54,6 +60,10 @@ __all__ = [
     "ErrorDetail",
     "EvidenceAssessment",
     "GeneratedResponse",
+    "GroundedClinicalFact",
+    "GroundedEvidence",
+    "GroundedGenerationRequest",
+    "GroundedPatientContext",
     "GuidelineChunk",
     "GuidelineDocumentFormat",
     "GuidelineEvidenceSummary",

@@ -378,6 +378,7 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
+| 2026-08-03 | Use OpenAI Responses with `gpt-5.6-sol` as the first real grounded-generation provider while retaining strict provider-neutral request, response, and failure contracts | Current official guidance identifies the model as the flagship and supports Responses structured outputs; keeping tools, citations, disclaimers, safety, and routing application-owned prevents the provider from controlling durable clinical behavior | Accepted |
 | 2026-08-03 | Use pinned strict pypdf parsing with page-confined 2,400-character chunks and a content-free deterministic chunk lock | Preserves exact page/source lineage, keeps outputs bounded and reproducible, and detects parser or source drift before vector indexing | Accepted |
 | 2026-08-03 | Use two checksum-locked WHO PDFs as a local-index-only starter corpus and commit metadata rather than document content | Directly supports the seeded diabetes and hypertension scenarios while preserving exact provenance and a conservative repository-redistribution boundary | Accepted |
 | 2026-08-03 | Separate authoritative-publisher eligibility from per-document permission and allow only current, explicitly indexable guideline versions into retrieval | Publisher reputation does not grant redistribution or indexing rights; exact provenance, license review, lifecycle, and checksum records make corpus decisions reviewable | Accepted |
@@ -414,6 +415,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 4.1.1 | Selected OpenAI Responses with `gpt-5.6-sol`, added bounded deidentified grounded-generation contracts, preserved answer-only strict output, defined provider-neutral safe failures, and recorded the prompt-injection boundary | Stop for review before checkpoint 4.1.2 provider adapter and configuration |
 | 2026-08-03 | Phase 4 | Started Phase 4 with grounded real-LLM generation as sub-phase 4.1, followed by deterministic/post-generation safety, persisted review actions, concurrency-safe resume, and final gates | Select the first real model provider, then complete checkpoint 4.1.1 contracts and failure policy |
 | 2026-08-03 | Phase 3 | Completed reviewed guideline RAG end to end: 2 documents/135 chunks, idempotent Weaviate sync, 9-case retrieval evaluation, seeded five-citation workflow, safe weak/failure routing, persisted redaction, restart recovery, 232 backend/6 frontend tests, and clean source-only verification | Stop for final review before creating the Phase 4 branch |
 | 2026-08-03 | Phase 3.6.3 | Made guideline retrieval mandatory for clinical workflows, lazily bound the reviewed local Weaviate retriever, qualified generation with exact application-owned citations, and persisted only the content-free evidence summary plus citation metadata | Stop for review before checkpoint 3.6.4 live and reproducibility gates |

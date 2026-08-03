@@ -29,17 +29,57 @@ reviewable and must finish with focused tests and `make check`.
 
 ### 4.1.1 — Provider Decision and Grounded Contracts
 
-- `[~]` Select the first real model provider and record its model/API/version
+- `[x]` Select the first real model provider and record its model/API/version
   assumptions without coupling domain contracts to its SDK.
-- `[ ]` Define the bounded grounded-generation input: clinical question,
+- `[x]` Define the bounded grounded-generation input: clinical question,
   minimum necessary normalized synthetic patient context, and ranked trusted
   citation excerpts.
-- `[ ]` Keep provider output restricted to `ResponseDraft.answer`; reject
+- `[x]` Keep provider output restricted to `ResponseDraft.answer`; reject
   provider citations, disclaimers, tool calls, or unknown fields.
-- `[ ]` Define safe timeout, unavailable, authentication, rate-limit,
+- `[x]` Define safe timeout, unavailable, authentication, rate-limit,
   malformed-output, and context-limit failures.
-- `[ ]` Specify prompt-injection handling and ensure retrieved text cannot
+- `[x]` Specify prompt-injection handling and ensure retrieved text cannot
   change tools, routing, citations, safety policy, or system instructions.
+
+#### Reviewed provider assumptions
+
+- **Provider:** OpenAI is the first adapter; domain and workflow contracts remain
+  independent of the OpenAI SDK.
+- **API/model:** use the Responses API at `/v1/responses` with
+  `gpt-5.6-sol`, the current flagship model selected on 2026-08-03. Revisit the
+  model at the opt-in live gate rather than silently changing it during an SDK
+  upgrade.
+- **Invocation:** one stateless request with provider storage disabled, no
+  provider tools, bounded output, and a deliberately configured reasoning
+  effort. SDK/version and runtime settings belong to checkpoint 4.1.2.
+- **Output:** use Responses structured parsing against the strict
+  application-owned `ResponseDraft` schema. A refusal, missing parsed object,
+  extra field, oversized answer, or non-message output is not a valid draft.
+- **Data boundary:** the provider receives one question of at most 1,000
+  characters, 1–32 deidentified normalized clinical facts, and 1–8 ordered
+  application-owned citations whose excerpts are each at most 500 characters.
+  Patient ID, display name, raw FHIR resources, full guideline chunks, and
+  workflow/audit state are excluded.
+
+Official assumptions were checked against the OpenAI
+[model guidance](https://developers.openai.com/api/docs/guides/latest-model),
+[GPT-5.6 Sol model page](https://developers.openai.com/api/docs/models/gpt-5.6-sol),
+and [structured-output guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+#### Prompt-injection boundary
+
+- The clinical question, facts, and evidence excerpts are untrusted data, never
+  instructions. The adapter must serialize and delimit them separately from the
+  application-owned system policy.
+- Retrieved text cannot add or call tools, change routing, replace citation
+  identities or the disclaimer, weaken safety rules, or request hidden state.
+  No tools will be exposed to the generation request.
+- The model drafts answer text only. Strict parsing and post-generation safety
+  checks remain mandatory; model output is not trusted merely because it matches
+  the schema.
+- Provider errors are normalized to timeout, unavailable, authentication,
+  rate-limit, malformed-output, context-limit, or refusal failures. Raw provider
+  payloads and exception details do not cross the adapter boundary.
 
 ### 4.1.2 — Provider Adapter and Configuration
 
