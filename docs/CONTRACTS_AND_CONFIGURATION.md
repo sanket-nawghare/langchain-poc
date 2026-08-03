@@ -46,6 +46,8 @@ Rules:
 | Read-only FHIR capability | `tools/fhir.py` | Supported reads/searches, parsed pages, and safe transport failures |
 | Patient-summary capability | `tools/patient.py` | Workflow-facing normalized patient retrieval without raw FHIR |
 | Patient summary and citations | `domain/clinical.py` | Normalized data outside FHIR and retrieval adapters |
+| Guideline source, chunk, and retrieval result | `domain/guidelines.py` | Reviewed provenance, permissions, bounded evidence, and citation lineage |
+| Guideline-retrieval capability | `rag/retrieval.py` | Provider-neutral async retrieval and typed safe failures |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
 | Safety-policy capability | `tools/safety.py` | Versioned deterministic evaluation over normalized context |
 | Audit event | `domain/audit.py` | Minimal attributable workflow history |
@@ -58,6 +60,13 @@ Rules:
 
 All durable models reject unknown fields. This prevents misspelled or
 provider-specific data from silently entering persisted workflow state.
+
+Guideline publisher eligibility and content-use permission are separate.
+`GuidelineSource` records one exact document/version review and exposes it as
+indexable only when it is current and explicitly approved for redistribution
+and indexing or local-only indexing. Link-only, prohibited, superseded, and
+withdrawn sources cannot appear in retrieval matches. The complete review
+rules are in the [guideline source policy](GUIDELINE_SOURCE_POLICY.md).
 
 The Phase 1 patient route returns `ApiSuccess[PatientSummary]`. Typed FHIR
 failures are translated at the HTTP boundary into `ApiError` with a generated
@@ -79,6 +88,15 @@ narratives, and raw FHIR payloads are excluded.
 - URLs serialize as strings and UUIDs use their canonical representation.
 - Raw SDK response objects, FHIR resources, model responses, and Weaviate
   objects are normalized before entering these contracts.
+- Guideline retrieval accepts only a bounded deidentified clinical query,
+  optional allowlisted publishers, an as-of date, and a top-k value from one
+  through eight. Patient identifiers and summaries are not request fields.
+- Guideline chunks are limited to 3,000 characters and citation excerpts to
+  500 characters. Retrieval results contain at most eight ordered matches and
+  enforce document, chunk, source, page, and citation lineage.
+- Evidence is explicitly `sufficient`, `insufficient`, or `conflicting`.
+  Insufficient evidence may be an empty successful result; timeout,
+  unavailable, and malformed responses use separate typed failures.
 - The HAPI adapter returns application-owned JSON/resource and search-page
   types; HTTP requests, responses, exceptions, and upstream error bodies never
   leave the service boundary.

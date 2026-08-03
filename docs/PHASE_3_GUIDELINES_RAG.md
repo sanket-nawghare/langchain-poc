@@ -24,7 +24,7 @@ and explicit failure when evidence is missing or unsafe.
 
 | Sub-phase | Deliverable | Status |
 |---|---|---|
-| 3.1 Source policy and retrieval contracts | Allowed sources, licenses, document metadata, retrieval requests/results, and safe failures are explicit | `[ ]` |
+| 3.1 Source policy and retrieval contracts | Allowed sources, licenses, document metadata, retrieval requests/results, and safe failures are explicit | `[x]` |
 | 3.2 Reviewed starter corpus | A small checksum-locked corpus has provenance, license notes, and no patient data | `[ ]` |
 | 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[ ]` |
 | 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[ ]` |
@@ -33,17 +33,49 @@ and explicit failure when evidence is missing or unsafe.
 
 ## Sub-phase 3.1 — Source Policy and Retrieval Contracts
 
-- Define allowed publishers, document types, recency/version metadata, and
+- `[x]` Define allowed publishers, document types, recency/version metadata, and
   explicit license-review fields.
-- Define application-owned document, chunk, retrieval-query, retrieval-result,
+- `[x]` Define application-owned document, chunk, retrieval-query, retrieval-result,
   and typed failure contracts.
-- Bound query length, result count, chunk size, metadata, and excerpts.
-- Decide how missing, stale, conflicting, or insufficient evidence affects
+- `[x]` Bound query length, result count, chunk size, metadata, and excerpts.
+- `[x]` Decide how missing, stale, conflicting, or insufficient evidence affects
   workflow status and safety review.
-- Test strict parsing, unknown fields, bounds, and provider-object isolation.
+- `[x]` Test strict parsing, unknown fields, bounds, and provider-object isolation.
+
+Source and licensing decisions are defined in the
+[guideline source policy](GUIDELINE_SOURCE_POLICY.md). Publisher eligibility
+does not grant content reuse: every document needs an explicit use-permission
+decision before acquisition or indexing.
 
 **Review checkpoint:** approve sources, licensing fields, evidence sufficiency,
 and contract ownership before acquiring documents.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- Limited initial candidates to WHO, CDC, NICE, and ADA while separating
+  publisher authority from an exact per-document content-use decision.
+- Recorded format, publication/version/access metadata, license review,
+  lifecycle, checksum, and supported-topic requirements. NICE and ADA default
+  to link-only until applicable permission is verified.
+- Added strict application-owned source, chunk, retrieval request/match/result,
+  evidence assessment, and citation-lineage contracts.
+- Limited deidentified clinical queries to 1,000 characters, top-k results to
+  eight, chunk text to 3,000 characters, and citation excerpts to 500
+  characters.
+- Added a provider-neutral async retrieval protocol and distinct timeout,
+  unavailable, and malformed-response failures. An empty `insufficient`
+  result remains a valid outcome rather than an infrastructure error.
+- Added focused tests for allowlists, permissions, lifecycle, chronology,
+  bounds, strict unknown-field rejection, provider-object isolation,
+  deterministic ranks, evidence states, and source/chunk/citation lineage.
+- `make check` passed with 147 backend and 6 frontend tests, the frontend
+  production build, and Compose validation.
+- No document was downloaded, parsed, committed, embedded, or indexed; those
+  actions remain behind the sub-phase 3.2 review gate.
+
+**Status:** `[x]` Complete — stop for review before sub-phase 3.2.
 
 ## Sub-phase 3.2 — Reviewed Starter Corpus
 
@@ -120,4 +152,3 @@ the graph can use guideline results.
 - No patient data enters the corpus, vector metadata, embeddings, or committed
   fixtures.
 - Repository, live retrieval, and isolated-source quality gates pass.
-

@@ -56,7 +56,7 @@ This baseline can change through a recorded decision before implementation.
 | 0. Foundations | Agreed scope, architecture, guardrails, and runnable skeleton | `[x]` |
 | 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[x]` |
 | 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[x]` |
-| 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[ ]` |
+| 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[~]` |
 | 4. Safety and Human Review | Risk rules can pause, approve, reject, and resume work | `[ ]` |
 | 5. Product UI | Users can submit requests and inspect workflow progress | `[ ]` |
 | 6. Quality and Observability | The system is measurable, auditable, and resilient | `[ ]` |
@@ -183,7 +183,7 @@ Implementation will proceed through the review checkpoints in the
 
 ### Scope
 
-- `[ ]` Define a source policy for allowed publishers and document licenses.
+- `[x]` Define a source policy for allowed publishers and document licenses.
 - `[ ]` Add a small, reviewed starter corpus from sources such as WHO, CDC,
   NICE, or ADA.
 - `[ ]` Record document title, publisher, URL, publication date, version, page,
@@ -364,6 +364,7 @@ when the explanation no longer fits here.
 
 | Date | Decision | Rationale | Status |
 |---|---|---|---|
+| 2026-08-03 | Separate authoritative-publisher eligibility from per-document permission and allow only current, explicitly indexable guideline versions into retrieval | Publisher reputation does not grant redistribution or indexing rights; exact provenance, license review, lifecycle, and checksum records make corpus decisions reviewable | Accepted |
 | 2026-07-28 | Raise the default normalized FHIR record cap from 100 to 500 while retaining 100-resource pages and a five-page maximum | All four checksum-locked Synthea fixtures exceed 100 observations; verified maxima of 354 observations and 139 procedures fit within the existing reviewed hard cap and allow a real seeded Phase 2 happy path without hiding truncation | Accepted |
 | 2026-07-28 | Persist redacted queued/final workflow snapshots in application-owned SQLite and fail interrupted work on startup | Provides inspectable recovery without storing query/patient context or automatically replaying clinical work | Accepted |
 | 2026-07-28 | Let response generators draft bounded answer text only; application code owns disclaimers and citations | Prevents a model/provider from removing educational qualifications or fabricating evidence | Accepted |
@@ -397,6 +398,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 3.1 | Completed the per-document source and license policy, strict guideline/chunk/retrieval contracts, evidence decisions, citation-lineage validation, provider-neutral retrieval interface, and safe failure boundary; 147 backend and 6 frontend tests pass, with no corpus content acquired | Stop for review before sub-phase 3.2 |
+| 2026-08-03 | Phase 3.1 | Started source licensing review, application-owned retrieval contracts, bounded evidence behavior, and provider isolation | Complete the Phase 3.1 review gate without acquiring documents |
 | 2026-07-28 | Phase 2.6 | Completed the seeded live workflow/failure gate, persisted-status and redaction proof, bounded cohort-cap reconciliation, clean source-only bootstrap/check, Phase 2 documentation, and Phase 3 review plan; 128 backend and 6 frontend tests pass | Stop for final Phase 2 review before Phase 3 |
 | 2026-07-28 | Phase 2.6 | Started the seeded end-to-end, failure-path, reproducibility, isolated-source, and Phase 2 closeout gate | Complete the three Phase 2.6 reviewable steps |
 | 2026-07-28 | Phase 2.5 | Completed redacted SQLite checkpoints, synchronous run/status APIs, workflow/correlation/trace identity, bounded capability timeout/retry, interrupted-run recovery, and safe error mappings; 128 backend tests pass | Stop for review before sub-phase 2.6 |

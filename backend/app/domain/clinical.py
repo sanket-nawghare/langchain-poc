@@ -1,8 +1,8 @@
 """Normalized patient-context and citation contracts."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import AnyHttpUrl, Field, StringConstraints
 
 from app.domain.base import ContractModel, NonEmptyString, PatientId
 
@@ -45,10 +45,23 @@ class PatientSummary(ContractModel):
 class Citation(ContractModel):
     """Traceable evidence location for a guideline-backed statement."""
 
-    document_id: NonEmptyString
-    chunk_id: NonEmptyString
-    title: NonEmptyString
-    publisher: NonEmptyString
+    document_id: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)
+    ]
+    chunk_id: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)
+    ]
+    title: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)
+    ]
+    publisher: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+    ]
     source_url: AnyHttpUrl
     page: int | None = Field(default=None, ge=1)
-    excerpt: NonEmptyString | None = None
+    excerpt: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+        ]
+        | None
+    ) = None

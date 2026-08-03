@@ -3,6 +3,18 @@
 from app.domain.api import ApiError, ApiSuccess, ErrorDetail
 from app.domain.audit import ActorType, AuditEvent, AuditEventType
 from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
+from app.domain.guidelines import (
+    EvidenceAssessment,
+    GuidelineChunk,
+    GuidelineDocumentFormat,
+    GuidelineLifecycleStatus,
+    GuidelinePublisher,
+    GuidelineRetrievalMatch,
+    GuidelineRetrievalRequest,
+    GuidelineRetrievalResult,
+    GuidelineSource,
+    GuidelineUsePermission,
+)
 from app.domain.safety import (
     SafetyDecision,
     SafetyReason,
@@ -31,7 +43,17 @@ __all__ = [
     "Citation",
     "ClinicalRecordSummary",
     "ErrorDetail",
+    "EvidenceAssessment",
     "GeneratedResponse",
+    "GuidelineChunk",
+    "GuidelineDocumentFormat",
+    "GuidelineLifecycleStatus",
+    "GuidelinePublisher",
+    "GuidelineRetrievalMatch",
+    "GuidelineRetrievalRequest",
+    "GuidelineRetrievalResult",
+    "GuidelineSource",
+    "GuidelineUsePermission",
     "Intent",
     "IntentClassification",
     "PatientSummary",

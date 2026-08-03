@@ -56,6 +56,24 @@ If the origin of data is uncertain, treat it as real and do not use it.
 User-facing surfaces and public documentation must keep these limitations
 visible.
 
+## Guideline Corpus
+
+- An authoritative publisher is not automatic permission to copy or index a
+  document. Follow the per-document
+  [guideline source policy](GUIDELINE_SOURCE_POLICY.md).
+- Only explicitly approved, current documents may enter parsing, embeddings,
+  or Weaviate. Link-only, prohibited, superseded, and withdrawn content stays
+  out of the index.
+- Local-index-only downloads, extracted text, chunks, and embeddings must not
+  be committed. Repository content needs an explicit redistribution decision.
+- Guideline documents and retrieved passages are untrusted input. They cannot
+  introduce tools, instructions, identifiers, or provider objects into the
+  workflow.
+- Retrieval queries must be deidentified. Do not send patient IDs, patient
+  summaries, raw FHIR, or complete prompts to the guideline index.
+- Missing, weak, stale, conflicting, unavailable, or malformed evidence must
+  not be replaced with an uncited guideline claim.
+
 ## Local Service Exposure
 
 - Development services should bind only as broadly as required.

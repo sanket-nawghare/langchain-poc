@@ -2,8 +2,10 @@
 
 ## Current System
 
-Completed Phase 2 extends the application foundation and Phase 1 synthetic FHIR path
-with a typed LangGraph workflow. The graph validates input, classifies intent,
+Completed Phase 2 extends the application foundation and Phase 1 synthetic FHIR
+path with a typed LangGraph workflow. Phase 3.1 adds provider-neutral guideline
+source, permission, chunk, retrieval, evidence, citation-lineage, and safe
+failure contracts, but does not yet acquire or retrieve documents. The graph validates input, classifies intent,
 retrieves only normalized patient context, and applies a deterministic safety
 pre-check before producing a qualified deterministic response and minimal
 audit events. Synchronous run creation/status APIs persist redacted queued and
@@ -64,18 +66,20 @@ flowchart TD
     API --> Domain
     API --> Workflow
     Workflow --> Tools
-    Workflow -. "Phase 3" .-> RAG
+    Workflow -. "Phase 3.6" .-> RAG
     Workflow --> Domain
     API --> Services
     Services --> Tools
-    RAG -. "Phase 3" .-> Services
+    RAG -. "Phase 3.4+" .-> Services
     Services --> Domain
     Core --> API
     Core --> Services
 ```
 
-Solid arrows represent current dependencies. Dotted arrows are planned
-extension paths and do not imply implemented behavior. The patient API creates
+Solid arrows represent current runtime dependencies. Dotted arrows are planned
+extension paths and do not imply connected runtime behavior. The `rag` package
+currently exposes only the application-owned retrieval protocol and typed safe
+failures. The patient API creates
 a request-scoped HAPI adapter, injects it into the summary service through the
 read-only FHIR interface, and closes the transport after the request. The
 workflow graph receives its clock, classifier, normalized patient reader,
