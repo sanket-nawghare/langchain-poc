@@ -80,7 +80,6 @@ from app.workflow.graph import (
     CLASSIFY_INTENT_NODE,
     EDUCATIONAL_DISCLAIMER,
     GENERATE_RESPONSE_NODE,
-    GUIDELINE_EVIDENCE_UNAVAILABLE_CODE,
     GUIDELINE_RETRIEVAL_TIMEOUT_CODE,
     GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE,
     INVALID_GUIDELINE_EVIDENCE_CODE,
@@ -397,6 +396,7 @@ def workflow_runtime(
     safety_policy: SafetyPolicy | None = None,
     response_generator: ResponseGenerator | None = None,
     guideline_retriever: GuidelineRetriever | None = None,
+    without_guideline_retriever: bool = False,
     execution_policy: WorkflowExecutionPolicy | None = None,
 ) -> WorkflowRuntime:
     return WorkflowRuntime(
@@ -408,7 +408,12 @@ def workflow_runtime(
         safety_policy=safety_policy or DeterministicSafetyPolicy(),
         response_generator=response_generator or DeterministicResponseGenerator(),
         audit_event_ids=SequentialAuditEventIdFactory(),
-        guideline_retriever=guideline_retriever,
+        guideline_retriever=(
+            None
+            if without_guideline_retriever
+            else guideline_retriever
+            or StubGuidelineRetriever(guideline_result(EvidenceAssessment.SUFFICIENT))
+        ),
         execution_policy=execution_policy or WorkflowExecutionPolicy(),
     )
 
@@ -497,8 +502,15 @@ def test_rejects_invalid_and_terminal_transitions(
     values = queued_workflow().model_dump()
     values["status"] = initial_status
     if initial_status == WorkflowStatus.COMPLETED:
+        retrieval = guideline_result(EvidenceAssessment.SUFFICIENT)
+        citations = [match.citation for match in retrieval.matches]
+        values["guideline_evidence"] = GuidelineEvidenceSummary.from_retrieval_result(
+            retrieval
+        )
+        values["retrieved_guidelines"] = citations
         values["final_response"] = GeneratedResponse(
             answer="Completed educational answer.",
+            citations=citations,
             disclaimer=EDUCATIONAL_DISCLAIMER,
         )
     if initial_status == WorkflowStatus.FAILED:
@@ -634,9 +646,12 @@ async def test_sufficient_guideline_evidence_is_projected_and_audited_safely() -
     )
     assert result.workflow.guideline_evidence.match_count == 1
     assert len(result.workflow.retrieved_guidelines) == 1
-    # Cited generation is deliberately still guarded until checkpoint 3.6.3.
-    assert result.workflow.status is WorkflowStatus.FAILED
-    assert result.workflow.failure_code == GUIDELINE_EVIDENCE_UNAVAILABLE_CODE
+    assert result.workflow.status is WorkflowStatus.COMPLETED
+    assert result.workflow.failure_code is None
+    assert result.workflow.final_response is not None
+    assert result.workflow.final_response.citations == (
+        result.workflow.retrieved_guidelines
+    )
     retrieval_audit = next(
         event
         for event in result.workflow.audit_log
@@ -797,10 +812,14 @@ async def test_supported_intent_completes_with_qualified_response_and_audit() ->
     ]
     assert result.workflow.final_response is not None
     assert result.workflow.final_response.disclaimer == EDUCATIONAL_DISCLAIMER
-    assert result.workflow.final_response.citations == []
-    assert "No curated guideline evidence" in result.workflow.final_response.answer
+    assert result.workflow.final_response.citations == (
+        result.workflow.retrieved_guidelines
+    )
+    assert len(result.workflow.final_response.citations) == 1
+    assert "1 curated guideline reference(s)" in result.workflow.final_response.answer
     assert [event.event_type for event in result.workflow.audit_log] == [
         AuditEventType.STATUS_CHANGED,
+        AuditEventType.TOOL_CALLED,
         AuditEventType.TOOL_CALLED,
         AuditEventType.TOOL_CALLED,
         AuditEventType.SAFETY_EVALUATED,
@@ -1062,34 +1081,19 @@ async def test_response_failure_timeout_or_untrusted_output_fails_safely(
 
 
 @pytest.mark.anyio
-async def test_phase_3_guideline_context_is_not_accepted_early() -> None:
-    values = queued_workflow().model_dump()
-    values["guideline_evidence"] = GuidelineEvidenceSummary(
-        assessment=EvidenceAssessment.SUFFICIENT,
-        policy_version="retrieval-v1",
-        query_fingerprint="0" * 64,
-        match_count=1,
-        document_ids=["future-guideline"],
-        chunk_ids=["future-chunk"],
-    )
-    values["retrieved_guidelines"] = [
-        Citation(
-            document_id="future-guideline",
-            chunk_id="future-chunk",
-            title="Future guideline",
-            publisher="Future publisher",
-            source_url="https://example.test/future",
-        )
-    ]
+async def test_missing_guideline_retriever_fails_before_generation() -> None:
     response_generator = StaticResponseGenerator(ResponseDraft(answer="must not run"))
 
     result = await execute_workflow_skeleton(
-        WorkflowState.model_validate(values),
-        runtime=workflow_runtime(response_generator=response_generator),
+        queued_workflow(),
+        runtime=workflow_runtime(
+            response_generator=response_generator,
+            without_guideline_retriever=True,
+        ),
     )
 
     assert result.workflow.status == WorkflowStatus.FAILED
-    assert result.workflow.failure_code == GUIDELINE_EVIDENCE_UNAVAILABLE_CODE
+    assert result.workflow.failure_code == GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE
     assert result.workflow.final_response is None
     assert response_generator.calls == 0
 

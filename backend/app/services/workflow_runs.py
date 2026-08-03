@@ -124,6 +124,7 @@ class WorkflowRunService:
                 created_at=snapshot.created_at,
                 updated_at=occurred_at,
                 requires_human_review=snapshot.requires_human_review,
+                guideline_evidence=snapshot.guideline_evidence,
                 failure_code=INTERRUPTED_FAILURE_CODE,
                 transitions=[*snapshot.transitions, transition],
                 audit_log=[*snapshot.audit_log, audit_event],

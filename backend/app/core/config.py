@@ -1,6 +1,7 @@
 """Validated application configuration."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import AnyHttpUrl, Field, SecretStr
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
     weaviate_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8081")
     weaviate_grpc_port: int = Field(default=50051, ge=1, le=65535)
     weaviate_request_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
+    guideline_corpus_lock_path: Path = Path("data/guidelines/corpus-lock.json")
     workflow_node_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
     workflow_node_max_retries: int = Field(default=1, ge=0, le=3)
 

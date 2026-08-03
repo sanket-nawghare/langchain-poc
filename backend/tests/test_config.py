@@ -1,5 +1,7 @@
 """Configuration validation tests."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -17,6 +19,9 @@ def test_safe_local_defaults_require_no_secret() -> None:
     assert settings.fhir_max_records_per_type == 500
     assert settings.weaviate_grpc_port == 50051
     assert settings.weaviate_request_timeout_seconds == 10
+    assert settings.guideline_corpus_lock_path == Path(
+        "data/guidelines/corpus-lock.json"
+    )
     assert settings.workflow_node_timeout_seconds == 10
     assert settings.workflow_node_max_retries == 1
     assert settings.llm_provider == "fake"

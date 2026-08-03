@@ -24,6 +24,7 @@ from app.services.sqlite_workflow_runs import SqliteWorkflowRunStore
 from app.services.workflow_runs import WorkflowRunService
 from app.tools.workflow_runs import WorkflowRunStore, WorkflowRunStoreError
 from app.workflow.runtime import WorkflowRuntime
+from tests.guideline_fixtures import SufficientGuidelineRetriever
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 
@@ -88,6 +89,7 @@ def execution_context(store: WorkflowRunStore) -> WorkflowExecutionContext:
         safety_policy=DeterministicSafetyPolicy(),
         response_generator=DeterministicResponseGenerator(),
         audit_event_ids=SequentialIds(500),
+        guideline_retriever=SufficientGuidelineRetriever(),
     )
     return WorkflowExecutionContext(service=service, runtime=runtime)
 
@@ -138,7 +140,15 @@ async def test_create_and_inspect_redacted_workflow_run(
     UUID(payload["data"]["correlation_id"])
     UUID(payload["data"]["trace_id"])
     assert payload["data"]["status"] == "completed"
-    assert payload["data"]["final_response"]["citations"] == []
+    assert len(payload["data"]["final_response"]["citations"]) == 1
+    assert payload["data"]["guideline_evidence"] == {
+        "assessment": "sufficient",
+        "policy_version": "retrieval-v1",
+        "query_fingerprint": "0" * 64,
+        "match_count": 1,
+        "document_ids": ["who-synthetic-guideline"],
+        "chunk_ids": ["who-synthetic-guideline.0"],
+    }
     assert inspected.json()["data"] == payload["data"]
     for sensitive in (
         "private query marker",
@@ -147,6 +157,7 @@ async def test_create_and_inspect_redacted_workflow_run(
         "Private synthetic condition",
         "patient_data",
         "user_query",
+        "Reviewed bounded evidence chunk",
     ):
         assert sensitive not in created.text
         assert sensitive not in inspected.text

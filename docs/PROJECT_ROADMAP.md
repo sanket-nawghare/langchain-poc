@@ -403,6 +403,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 3.6.3 | Made guideline retrieval mandatory for clinical workflows, lazily bound the reviewed local Weaviate retriever, qualified generation with exact application-owned citations, and persisted only the content-free evidence summary plus citation metadata | Stop for review before checkpoint 3.6.4 live and reproducibility gates |
 | 2026-08-03 | Phase 3.6.2 | Added the optional LangGraph guideline-retrieval node after patient context, bounded request/result validation, sufficient/review/failure routing, typed retry/timeout behavior, and content-free evidence audit metadata | Stop for review before checkpoint 3.6.3 cited generation and persistence |
 | 2026-08-03 | Phase 3.6.1 | Added the content-free workflow evidence summary, strict evidence/citation identity invariants, provider-neutral runtime retrieval capability, and reviewed safe-routing policy without connecting retrieval to LangGraph | Stop for review before checkpoint 3.6.2 graph-node integration |
 | 2026-08-03 | Phase 3.3 | Completed strict bounded PDF parsing, deterministic normalization and page-confined chunks, content-free output locking, local build tooling, structural rejection paths, and patient/provider isolation; 164 backend and 6 frontend tests pass, with no embedding or Weaviate changes | Stop for review before sub-phase 3.4 |

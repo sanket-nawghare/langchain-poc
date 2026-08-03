@@ -233,6 +233,7 @@ The read-only FHIR adapter supports these validated backend settings:
 | `CLINICAL_FHIR_MAX_RECORDS_PER_TYPE` | `500` | 1–500 |
 | `CLINICAL_WEAVIATE_GRPC_PORT` | `50051` | 1–65535 |
 | `CLINICAL_WEAVIATE_REQUEST_TIMEOUT_SECONDS` | `10` | Greater than 0, at most 30 |
+| `CLINICAL_GUIDELINE_CORPUS_LOCK_PATH` | `data/guidelines/corpus-lock.json` | Local reviewed metadata-only corpus lock |
 | `CLINICAL_WORKFLOW_NODE_TIMEOUT_SECONDS` | `10` | Greater than 0, at most 30 |
 | `CLINICAL_WORKFLOW_NODE_MAX_RETRIES` | `1` | 0–3 |
 

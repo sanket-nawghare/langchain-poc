@@ -30,6 +30,7 @@ from app.services.workflow_runs import (
 )
 from app.tools.workflow_runs import WorkflowRunStoreError
 from app.workflow.runtime import WorkflowRuntime
+from tests.guideline_fixtures import SufficientGuidelineRetriever
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 
@@ -71,6 +72,7 @@ def runtime(clock: FixedClock, audit_ids: SequentialIds) -> WorkflowRuntime:
         safety_policy=DeterministicSafetyPolicy(),
         response_generator=DeterministicResponseGenerator(),
         audit_event_ids=audit_ids,
+        guideline_retriever=SufficientGuidelineRetriever(),
     )
 
 
@@ -146,12 +148,21 @@ async def test_service_persists_queued_then_completed_checkpoint(
 
     assert snapshot.status == WorkflowStatus.COMPLETED
     assert snapshot.final_response is not None
+    assert len(snapshot.final_response.citations) == 1
+    assert snapshot.guideline_evidence is not None
+    assert snapshot.guideline_evidence.match_count == 1
     assert snapshot.trace_id == UUID(int=300)
     assert await run_service.get(snapshot.workflow_id) == snapshot
     assert await store.list_incomplete() == []
     serialized = snapshot.model_dump_json()
     assert "What precautions" not in serialized
     assert "Synthetic condition" not in serialized
+    assert "Reviewed bounded evidence chunk" not in serialized
+    values = snapshot.model_dump()
+    evidence = dict(values["guideline_evidence"])
+    evidence["chunk_ids"] = ["mismatched-chunk"]
+    with pytest.raises(ValidationError, match="chunk IDs"):
+        WorkflowRunSnapshot.model_validate({**values, "guideline_evidence": evidence})
 
 
 @pytest.mark.anyio

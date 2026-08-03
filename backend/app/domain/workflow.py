@@ -140,6 +140,18 @@ class WorkflowState(ContractModel):
                 raise ValueError("guideline evidence document IDs must match citations")
             if evidence.assessment is EvidenceAssessment.INSUFFICIENT and citations:
                 raise ValueError("insufficient evidence must not include citations")
+        if self.final_response is not None:
+            if (
+                self.guideline_evidence is None
+                or self.guideline_evidence.assessment
+                is not EvidenceAssessment.SUFFICIENT
+                or not self.retrieved_guidelines
+            ):
+                raise ValueError("completed response requires sufficient evidence")
+            if self.final_response.citations != self.retrieved_guidelines:
+                raise ValueError(
+                    "final response citations must match workflow evidence"
+                )
         if self.safety_result is None:
             return self
         if self.requires_human_review != self.safety_result.requires_human_review:
@@ -183,6 +195,7 @@ class WorkflowRunSnapshot(ContractModel):
     created_at: UtcTimestamp
     updated_at: UtcTimestamp
     requires_human_review: bool | None = None
+    guideline_evidence: GuidelineEvidenceSummary | None = None
     final_response: GeneratedResponse | None = None
     failure_code: NonEmptyString | None = None
     transitions: list[WorkflowTransition] = Field(default_factory=list)
@@ -200,6 +213,22 @@ class WorkflowRunSnapshot(ContractModel):
             self.final_response is not None
         ):
             raise ValueError("final_response must be set only for a completed run")
+        if self.final_response is not None:
+            evidence = self.guideline_evidence
+            if (
+                evidence is None
+                or evidence.assessment is not EvidenceAssessment.SUFFICIENT
+                or not self.final_response.citations
+            ):
+                raise ValueError("completed run requires sufficient cited evidence")
+            if evidence.chunk_ids != [
+                citation.chunk_id for citation in self.final_response.citations
+            ]:
+                raise ValueError("run evidence chunk IDs must match final citations")
+            if set(evidence.document_ids) != {
+                citation.document_id for citation in self.final_response.citations
+            }:
+                raise ValueError("run evidence document IDs must match final citations")
         if any(
             event.workflow_id != self.workflow_id
             or event.correlation_id != self.correlation_id
@@ -264,6 +293,7 @@ class WorkflowRunSnapshot(ContractModel):
             created_at=workflow.created_at,
             updated_at=workflow.updated_at,
             requires_human_review=workflow.requires_human_review,
+            guideline_evidence=workflow.guideline_evidence,
             final_response=workflow.final_response,
             failure_code=workflow.failure_code,
             transitions=execution.transitions,

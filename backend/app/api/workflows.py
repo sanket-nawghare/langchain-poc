@@ -17,6 +17,7 @@ from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
 from app.services.hapi_fhir import create_hapi_fhir_client
+from app.services.local_guideline_retrieval import LocalGuidelineRetriever
 from app.services.patient_summary import create_patient_summary_service
 from app.services.sqlite_workflow_runs import SqliteWorkflowRunStore
 from app.services.workflow_runs import (
@@ -99,29 +100,34 @@ class WorkflowExecutionContext:
 async def workflow_execution_context(
     service: Annotated[WorkflowRunService, Depends(workflow_run_service)],
 ) -> AsyncIterator[WorkflowExecutionContext]:
-    """Provide a workflow runtime and close its HAPI transport."""
+    """Provide a workflow runtime and close request-scoped dependency clients."""
 
     settings = get_settings()
-    async with create_hapi_fhir_client(settings) as client:
-        audit_event_ids = RandomAuditEventIdFactory()
-        yield WorkflowExecutionContext(
-            service=service,
-            runtime=WorkflowRuntime(
-                clock=service.clock,
-                intent_classifier=DeterministicIntentClassifier(),
-                patient_summary_reader=create_patient_summary_service(
-                    settings,
-                    client,
+    guideline_retriever = LocalGuidelineRetriever(settings)
+    try:
+        async with create_hapi_fhir_client(settings) as client:
+            audit_event_ids = RandomAuditEventIdFactory()
+            yield WorkflowExecutionContext(
+                service=service,
+                runtime=WorkflowRuntime(
+                    clock=service.clock,
+                    intent_classifier=DeterministicIntentClassifier(),
+                    patient_summary_reader=create_patient_summary_service(
+                        settings,
+                        client,
+                    ),
+                    safety_policy=DeterministicSafetyPolicy(),
+                    response_generator=DeterministicResponseGenerator(),
+                    audit_event_ids=audit_event_ids,
+                    guideline_retriever=guideline_retriever,
+                    execution_policy=WorkflowExecutionPolicy(
+                        timeout_seconds=settings.workflow_node_timeout_seconds,
+                        max_retries=settings.workflow_node_max_retries,
+                    ),
                 ),
-                safety_policy=DeterministicSafetyPolicy(),
-                response_generator=DeterministicResponseGenerator(),
-                audit_event_ids=audit_event_ids,
-                execution_policy=WorkflowExecutionPolicy(
-                    timeout_seconds=settings.workflow_node_timeout_seconds,
-                    max_retries=settings.workflow_node_max_retries,
-                ),
-            ),
-        )
+            )
+    finally:
+        await guideline_retriever.close()
 
 
 async def initialize_workflow_runs() -> int:

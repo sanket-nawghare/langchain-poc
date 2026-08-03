@@ -203,7 +203,16 @@ def test_final_response_exists_only_on_completed_workflow() -> None:
     }
     response = GeneratedResponse(
         answer="Bounded educational answer.",
+        citations=[citation()],
         disclaimer="Educational demonstration only.",
+    )
+    evidence = GuidelineEvidenceSummary(
+        assessment=EvidenceAssessment.SUFFICIENT,
+        policy_version="retrieval-v1",
+        query_fingerprint="0" * 64,
+        match_count=1,
+        document_ids=["guideline-1"],
+        chunk_ids=["chunk-1"],
     )
 
     with pytest.raises(ValidationError, match="final_response"):
@@ -215,6 +224,8 @@ def test_final_response_exists_only_on_completed_workflow() -> None:
         {
             **values,
             "status": WorkflowStatus.COMPLETED,
+            "guideline_evidence": evidence,
+            "retrieved_guidelines": [citation()],
             "final_response": response,
         }
     )

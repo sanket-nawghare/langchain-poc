@@ -399,11 +399,11 @@ Routing policy fixed for the next checkpoint:
 
 ### 3.6.3 — Cited Generation, Audit, and Persistence
 
-- `[ ]` Permit guideline-backed generation only for sufficient evidence with
+- `[x]` Permit guideline-backed generation only for sufficient evidence with
   validated application-owned citations.
-- `[ ]` Project citations and content-free evidence metadata through the
+- `[x]` Project citations and content-free evidence metadata through the
   redacted run snapshot without persisting retrieval chunk bodies.
-- `[ ]` Prove missing or contradictory evidence cannot produce a completed
+- `[x]` Prove missing or contradictory evidence cannot produce a completed
   answer or fabricated citation.
 
 ### 3.6.4 — End-to-End Phase 3 Gate and Documentation
@@ -415,10 +415,9 @@ Routing policy fixed for the next checkpoint:
 - `[ ]` Update architecture, development, contracts, safety policy, and roadmap
   status, then stop for final Phase 3 review.
 
-**Status:** `[~]` In progress — checkpoint 3.6.2 complete; stop for review
-before cited generation and durable projection in checkpoint 3.6.3. The node
-is active when a retriever is injected; the default production binding remains
-deferred so the Phase 2 generator cannot silently discard retrieved evidence.
+**Status:** `[~]` In progress — checkpoint 3.6.3 complete; stop for review
+before the live, restart, isolated-source, and documentation closeout gate in
+checkpoint 3.6.4.
 
 ## Phase Exit Criteria
 

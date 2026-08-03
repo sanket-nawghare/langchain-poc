@@ -57,6 +57,7 @@ Rules:
 | Locked guideline source catalog | `services/guideline_source_catalog.py` | Strict trusted source identities from the committed metadata-only corpus lock |
 | Weaviate candidate adapter | `services/weaviate_guideline_candidates.py` | Filtered async vector query, strict normalization, checksum/UUID validation, and typed failures |
 | Deterministic guideline retriever | `services/deterministic_guideline_retrieval.py` | Trusted eligibility, calibrated qualification, stable ranking, citations, evidence outcomes, and safe failure mapping |
+| Local workflow retriever composition | `services/local_guideline_retrieval.py` | Lazy request-scoped catalog, embedding, candidate-store, and Weaviate lifecycle behind safe retrieval failures |
 | Guideline-retrieval capability | `rag/retrieval.py` | Provider-neutral async retrieval and typed safe failures |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
 | Safety-policy capability | `tools/safety.py` | Versioned deterministic evaluation over normalized context |
@@ -156,10 +157,11 @@ narratives, and raw FHIR payloads are excluded.
   history whose final status and timestamp match the returned workflow state.
 - Immutable run-scoped context carries application-owned dependencies. It
   includes the clock, intent classifier, patient-summary reader, safety policy,
-  response generator, audit-event ID source, and the optional Phase 3.6
-  guideline-retrieval capability. Checkpoint 3.6.2 connects that capability to
-  a graph node between patient retrieval and safety evaluation; production
-  binding remains deferred until cited generation is connected in 3.6.3.
+  response generator, audit-event ID source, and the Phase 3.6
+  guideline-retrieval capability. The clinical path requires that retriever;
+  a missing binding fails as unavailable. Production lazily connects the local
+  reviewed catalog and Weaviate for supported workflows and closes the
+  request-scoped client after execution.
 - Guideline retrieval receives the bounded workflow query, current application
   date, optional publisher filters, and top-k only. Patient IDs and normalized
   patient summaries are not included. Sufficient evidence continues to safety;
@@ -182,9 +184,12 @@ narratives, and raw FHIR payloads are excluded.
 - Response generators return only `ResponseDraft.answer`, bounded to 4,000
   characters. Unknown fields are rejected; application code attaches the
   educational disclaimer and trusted citations.
-- Until checkpoint 3.6.3 qualifies cited generation, the Phase 2 response path
-  still rejects populated guideline evidence rather than silently discarding
-  citations.
+- A completed clinical response requires sufficient evidence and at least one
+  application-owned citation. The generator receives validated citations but
+  can draft only answer text; the application copies the exact trusted
+  citations and disclaimer into the final response. Snapshots retain the
+  content-free evidence summary and qualified citation metadata, never chunk
+  bodies, patient context, raw queries, prompts, or provider payloads.
 - A final response exists exactly when workflow status is `completed`.
 - In-memory audit events contain application IDs, timestamps, stable event
   types, and small scalar outcome metadata. Queries, patient summaries, prompts,

@@ -384,10 +384,15 @@ async def _retrieve_guidelines(
 ) -> WorkflowGraphUpdate:
     workflow = state["workflow"]
     retriever = runtime.context.guideline_retriever
-    # Checkpoint 3.6.2 keeps the Phase 2 runtime compatible. Checkpoint 3.6.3
-    # makes retrieval mandatory when cited generation is connected.
     if retriever is None:
-        return {}
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=RETRIEVE_GUIDELINES_NODE,
+            failure_code=GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
 
     try:
         request = GuidelineRetrievalRequest(
@@ -584,7 +589,12 @@ async def _generate_response(
     patient = workflow.patient_data
     if patient is None or workflow.safety_result is None:
         raise AssertionError("response generation requires patient and safety results")
-    if workflow.retrieved_guidelines:
+    evidence = workflow.guideline_evidence
+    if (
+        evidence is None
+        or evidence.assessment is not EvidenceAssessment.SUFFICIENT
+        or not workflow.retrieved_guidelines
+    ):
         failed_workflow, transition = _transition_with_audit(
             workflow,
             runtime,
@@ -598,7 +608,7 @@ async def _generate_response(
             lambda: runtime.context.response_generator.generate(
                 query=workflow.user_query,
                 patient=patient,
-                guidelines=[],
+                guidelines=workflow.retrieved_guidelines,
             ),
             runtime,
             retryable=(ResponseGenerationError,),
@@ -611,7 +621,7 @@ async def _generate_response(
         draft = ResponseDraft.model_validate(raw_payload)
         response = GeneratedResponse(
             answer=draft.answer,
-            citations=[],
+            citations=workflow.retrieved_guidelines,
             disclaimer=EDUCATIONAL_DISCLAIMER,
         )
     except (WorkflowNodeTimeoutError, ResponseGenerationTimeoutError):
