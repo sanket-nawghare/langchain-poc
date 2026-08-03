@@ -269,6 +269,7 @@ def test_vector_search_request_is_bounded_finite_and_deidentified() -> None:
     vector = list(model.embed(["adult blood pressure guidance"])[0])
     request = GuidelineVectorSearchRequest(
         schema_version=GUIDELINE_SCHEMA_VERSION,
+        parser_version=PARSER_VERSION,
         embedding_model=model.model_id,
         embedding_dimensions=model.dimensions,
         vector=vector,
@@ -309,6 +310,7 @@ def test_vector_search_request_rejects_malformed_bounds(
     model = DeterministicGuidelineEmbeddingModel()
     values: dict[str, object] = {
         "schema_version": GUIDELINE_SCHEMA_VERSION,
+        "parser_version": PARSER_VERSION,
         "embedding_model": model.model_id,
         "embedding_dimensions": model.dimensions,
         "vector": list(model.embed(["diabetes guidance"])[0]),

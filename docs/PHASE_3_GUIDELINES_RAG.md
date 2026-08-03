@@ -213,7 +213,7 @@ Verified on 2026-08-03:
 | Checkpoint | Deliverable | Status |
 |---|---|---|
 | 3.5.1 Retrieval trust policy and candidate contracts | Candidate bounds, source-of-truth rules, deterministic ordering inputs, and provider-neutral search contracts are explicit | `[x]` |
-| 3.5.2 Trusted catalog and Weaviate candidate adapter | Eligible sources come from the committed lock and filtered vector candidates normalize safely | `[ ]` |
+| 3.5.2 Trusted catalog and Weaviate candidate adapter | Eligible sources come from the committed lock and filtered vector candidates normalize safely | `[x]` |
 | 3.5.3 Evidence qualification and citations | Calibrated deterministic scores produce trusted citations or explicit insufficient/conflicting results | `[ ]` |
 | 3.5.4 Retrieval gate and documentation | Fixture relevance, live queries, failures, redaction, and complete quality gates pass | `[ ]` |
 
@@ -257,6 +257,41 @@ Verified on 2026-08-03:
   validation.
 
 **Status:** `[x]` Complete — stop for review before checkpoint 3.5.2.
+
+### Checkpoint 3.5.2 Verification Record
+
+Verified on 2026-08-03:
+
+- Added a strict installed-backend catalog adapter for the committed corpus
+  lock. It validates the exact metadata-only envelope, rejects provider fields,
+  duplicate/non-indexable sources, invalid counts, and malformed source
+  contracts without importing acquisition CLI code or reading PDF content.
+- Added deterministic eligibility filtering over trusted permission/lifecycle,
+  request `as_of`, and optional publisher allowlists. No eligible source remains
+  a valid empty input for the later `insufficient` decision.
+- Added an asynchronous Weaviate candidate adapter that checks the fixed
+  collection schema, self-provided-vector configuration, and filter indexes;
+  filters by schema/parser/embedding/lifecycle plus eligible document IDs; and
+  requests only an explicit bounded property allowlist and cosine distance.
+- Strict normalization rejects missing/extra fields, provider payloads,
+  invalid distance or chunk lineage, duplicates, filtered-document escape,
+  wrong schema/parser/embedding identity, metadata drift, and malformed UUIDs.
+  Chunk text checksums and UUIDv5 content identity are recomputed before a
+  candidate crosses the adapter boundary.
+- Source hydration accepts a candidate only when checksum, version, publisher,
+  publication date, lifecycle, and document ID agree with an eligible source
+  from the committed lock. Citation construction remains deferred.
+- Timeouts, unavailable transport/schema, incompatible request identity, and
+  malformed responses remain distinct typed failures. The async client is
+  explicitly closed.
+- A read-only live query against `ClinicalGuidelineChunkV1` returned and
+  validated 12 bounded candidates. All candidates matched the trusted catalog;
+  no collection data was changed.
+- `make check` passed with 185 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+
+**Status:** `[x]` Complete — stop for review before checkpoint 3.5.3.
 
 ## Sub-phase 3.6 — Workflow Integration and Phase 3 Gate
 

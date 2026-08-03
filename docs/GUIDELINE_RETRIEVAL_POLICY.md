@@ -26,7 +26,7 @@ clinical recommendation system.
 - Patient identifiers, patient summaries, raw FHIR resources, prompts, model
   messages, and provider objects are rejected by the contracts.
 - The query is embedded through the same versioned application capability used
-  during indexing. Search requests carry an exact embedding model ID,
+  during indexing. Search requests carry exact parser and embedding model IDs,
   dimension, finite nonzero vector, eligible document IDs, and candidate limit.
 - The query fingerprint is SHA-256 over the application-normalized query and is
   the only query-derived value eligible for audit persistence.
@@ -41,8 +41,8 @@ trusted catalog. A source is eligible only when all of these are true:
 3. its publisher is included when an optional publisher filter is present;
 4. its document ID and checksum belong to the current locked corpus.
 
-The vector query then filters the fixed collection by schema version,
-embedding model, current lifecycle, and the eligible document IDs. Returned
+The vector query then filters the fixed collection by schema version, parser
+version, embedding model, current lifecycle, and the eligible document IDs. Returned
 source checksum, publisher, version, and publication date must agree with the
 trusted catalog or the entire response is malformed.
 

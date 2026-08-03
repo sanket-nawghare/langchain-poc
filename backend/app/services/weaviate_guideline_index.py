@@ -27,7 +27,7 @@ GUIDELINE_COLLECTION = "ClinicalGuidelineChunkV1"
 GUIDELINE_SCHEMA_VERSION = 1
 GUIDELINE_OBJECT_NAMESPACE = UUID("740821e2-cf71-5a90-885d-e7bf4787d084")
 
-_PROPERTY_TYPES = {
+GUIDELINE_PROPERTY_TYPES = {
     "schemaVersion": DataType.INT,
     "parserVersion": DataType.TEXT,
     "embeddingModel": DataType.TEXT,
@@ -49,7 +49,7 @@ _PROPERTY_TYPES = {
     "text": DataType.TEXT,
 }
 _SEARCHABLE_PROPERTIES = {"title", "section", "text"}
-_FILTERABLE_PROPERTIES = {
+GUIDELINE_FILTERABLE_PROPERTIES = {
     "schemaVersion",
     "parserVersion",
     "embeddingModel",
@@ -314,11 +314,11 @@ class WeaviateGuidelineVectorStore:
                         Property(
                             name=name,
                             data_type=data_type,
-                            index_filterable=name in _FILTERABLE_PROPERTIES,
+                            index_filterable=name in GUIDELINE_FILTERABLE_PROPERTIES,
                             index_searchable=name in _SEARCHABLE_PROPERTIES,
                             skip_vectorization=True,
                         )
-                        for name, data_type in _PROPERTY_TYPES.items()
+                        for name, data_type in GUIDELINE_PROPERTY_TYPES.items()
                     ],
                     vector_config=Configure.Vectors.self_provided(
                         vector_index_config=Configure.VectorIndex.hnsw(
@@ -330,7 +330,13 @@ class WeaviateGuidelineVectorStore:
 
             config = self._collection().config.get(simple=True)
             actual = {prop.name: prop.data_type for prop in config.properties}
-            if actual != _PROPERTY_TYPES:
+            actual_filterable = {
+                prop.name for prop in config.properties if prop.index_filterable
+            }
+            if (
+                actual != GUIDELINE_PROPERTY_TYPES
+                or actual_filterable != GUIDELINE_FILTERABLE_PROPERTIES
+            ):
                 raise GuidelineVectorStoreSchemaError(
                     "existing guideline collection schema is incompatible"
                 )

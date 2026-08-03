@@ -105,6 +105,7 @@ class GuidelineVectorSearchRequest(ContractModel):
     """Bounded provider-neutral candidate query over an eligible source set."""
 
     schema_version: int = Field(ge=1, le=100)
+    parser_version: ShortMetadata
     embedding_model: EmbeddingModelId
     embedding_dimensions: int = Field(ge=8, le=4096)
     vector: list[float] = Field(min_length=8, max_length=4096)

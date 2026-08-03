@@ -54,6 +54,8 @@ Rules:
 | Guideline vector-store capability | `rag/vector_store.py` | Provider-neutral exact sync, verification, reset, and typed safe failures |
 | Strict PDF parser adapter | `services/pypdf_guidelines.py` | Pinned pypdf normalization with file/page/text/chunk limits and structural checks |
 | Weaviate guideline adapter | `services/weaviate_guideline_index.py` | Versioned self-vectorized schema, stable UUIDs, idempotent mutation, and collection-only reset |
+| Locked guideline source catalog | `services/guideline_source_catalog.py` | Strict trusted source identities from the committed metadata-only corpus lock |
+| Weaviate candidate adapter | `services/weaviate_guideline_candidates.py` | Filtered async vector query, strict normalization, checksum/UUID validation, and typed failures |
 | Guideline-retrieval capability | `rag/retrieval.py` | Provider-neutral async retrieval and typed safe failures |
 | Safety result | `domain/safety.py` | Explicit safety decision, policy version, and reasons |
 | Safety-policy capability | `tools/safety.py` | Versioned deterministic evaluation over normalized context |
@@ -93,12 +95,13 @@ The complete `ClinicalGuidelineChunkV1` snapshot must contain unique object and
 chunk IDs, one source checksum per document, and exact metadata equality after
 each sync. No Weaviate provider payload enters these contracts.
 
-Phase 3.5 vector-search requests carry only exact schema/embedding identity, a
-finite nonzero vector, one through eight trusted eligible document IDs, and a
-candidate limit of at most 32. Normalized candidates contain chunk lineage,
-stored source identity values, and bounded cosine distance but deliberately do
-not contain a trusted `GuidelineSource` or `Citation`. Those values must be
-hydrated from the committed corpus lock after all stored metadata agrees.
+Phase 3.5 vector-search requests carry only exact schema/parser/embedding
+identity, a finite nonzero vector, one through eight trusted eligible document
+IDs, and a candidate limit of at most 32. Normalized candidates contain chunk
+lineage, stored source identity values, and bounded cosine distance but
+deliberately do not contain a trusted `GuidelineSource` or `Citation`. Sources
+must be hydrated from the committed corpus lock after all stored metadata,
+chunk checksums, and stable object identities agree.
 
 The Phase 1 patient route returns `ApiSuccess[PatientSummary]`. Typed FHIR
 failures are translated at the HTTP boundary into `ApiError` with a generated

@@ -20,6 +20,10 @@ class GuidelineVectorStoreUnavailableError(GuidelineVectorStoreError):
     """The configured vector store could not be reached."""
 
 
+class GuidelineVectorStoreTimeoutError(GuidelineVectorStoreError):
+    """The configured vector store exceeded its bounded query timeout."""
+
+
 class GuidelineVectorStoreSchemaError(GuidelineVectorStoreError):
     """The application collection has an incompatible schema."""
 
