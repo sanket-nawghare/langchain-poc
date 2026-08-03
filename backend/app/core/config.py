@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl, Field, SecretStr
+from pydantic import AnyHttpUrl, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,8 +45,37 @@ class Settings(BaseSettings):
     workflow_node_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
     workflow_node_max_retries: int = Field(default=1, ge=0, le=3)
 
-    llm_provider: str = "fake"
+    llm_provider: Literal["fake", "openai"] = "fake"
     llm_api_key: SecretStr | None = None
+    llm_model: str = Field(
+        default="gpt-5.6-sol",
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
+    llm_base_url: AnyHttpUrl = AnyHttpUrl("https://api.openai.com/v1")
+    llm_request_timeout_seconds: float = Field(default=30.0, gt=0, le=60)
+    llm_max_retries: int = Field(default=2, ge=0, le=3)
+    llm_max_output_tokens: int = Field(default=4096, ge=256, le=8192)
+    llm_reasoning_effort: Literal[
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ] = "medium"
+
+    @model_validator(mode="after")
+    def validate_llm_provider(self) -> "Settings":
+        """Require credentials and TLS only when the real provider is selected."""
+
+        if self.llm_provider == "openai":
+            if self.llm_api_key is None:
+                raise ValueError("llm_api_key is required when llm_provider is openai")
+            if self.llm_base_url.scheme != "https":
+                raise ValueError("llm_base_url must use HTTPS for the OpenAI provider")
+        return self
 
 
 @lru_cache

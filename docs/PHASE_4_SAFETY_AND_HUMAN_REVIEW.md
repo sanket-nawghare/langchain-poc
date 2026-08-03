@@ -83,14 +83,18 @@ and [structured-output guide](https://developers.openai.com/api/docs/guides/stru
 
 ### 4.1.2 — Provider Adapter and Configuration
 
-- `[ ]` Implement one provider adapter behind the existing
+- `[x]` Implement one provider adapter behind the existing
   `ResponseGenerator` protocol.
-- `[ ]` Add validated provider, model, endpoint, timeout, retry, and secret
+- `[x]` Add validated provider, model, endpoint, timeout, retry, and secret
   configuration with deterministic fake defaults for tests.
-- `[ ]` Parse structured output strictly and discard provider identifiers,
+- `[x]` Parse structured output strictly and discard provider identifiers,
   token payloads, raw responses, and exception details at the adapter boundary.
-- `[ ]` Test success, authentication, rate-limit, timeout, unavailable,
+- `[x]` Test success, authentication, rate-limit, timeout, unavailable,
   malformed, oversized, and unexpected provider behavior.
+
+The adapter is implemented and independently testable but is not selected by
+the application runtime yet. Checkpoint 4.1.3 owns the workflow/provider wiring,
+generation timing, citation preservation, and redacted audit metadata.
 
 ### 4.1.3 — Grounded Prompt and Workflow Wiring
 

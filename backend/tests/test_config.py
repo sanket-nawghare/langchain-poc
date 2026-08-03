@@ -26,6 +26,12 @@ def test_safe_local_defaults_require_no_secret() -> None:
     assert settings.workflow_node_max_retries == 1
     assert settings.llm_provider == "fake"
     assert settings.llm_api_key is None
+    assert settings.llm_model == "gpt-5.6-sol"
+    assert str(settings.llm_base_url) == "https://api.openai.com/v1"
+    assert settings.llm_request_timeout_seconds == 30
+    assert settings.llm_max_retries == 2
+    assert settings.llm_max_output_tokens == 4096
+    assert settings.llm_reasoning_effort == "medium"
 
 
 def test_invalid_port_fails_with_an_actionable_field_error() -> None:
@@ -69,3 +75,31 @@ def test_secret_values_are_redacted() -> None:
 
     assert "do-not-print-this-secret" not in repr(settings)
     assert "**********" in repr(settings)
+
+
+def test_openai_provider_requires_a_secret_and_https_endpoint() -> None:
+    with pytest.raises(ValidationError, match="llm_api_key is required"):
+        Settings(_env_file=None, llm_provider="openai")
+
+    with pytest.raises(ValidationError, match="must use HTTPS"):
+        Settings(
+            _env_file=None,
+            llm_provider="openai",
+            llm_api_key="test-secret",
+            llm_base_url="http://api.openai.test/v1",
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("llm_provider", "unknown"),
+        ("llm_request_timeout_seconds", 61),
+        ("llm_max_retries", 4),
+        ("llm_max_output_tokens", 8193),
+        ("llm_reasoning_effort", "unbounded"),
+    ],
+)
+def test_invalid_llm_configuration_is_rejected(field: str, value: object) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})

@@ -20,6 +20,12 @@ Rules:
 - Basic health tests and application startup require no LLM credentials.
 - Workflow capability timeouts are bounded to 1–30 seconds and retries to
   zero through three. Local defaults are 10 seconds and one retry.
+- Grounded generation defaults to the deterministic `fake` provider. Selecting
+  `openai` requires a redacted API-key setting and an HTTPS base URL.
+- The OpenAI adapter defaults to `gpt-5.6-sol`, a 30-second provider timeout,
+  two SDK retries, 4,096 maximum output tokens, and `medium` reasoning effort.
+  Provider timeout, retry, token, and reasoning settings have reviewed hard
+  bounds and do not weaken the outer workflow execution bound.
 
 ## Identifier Conventions
 
@@ -66,6 +72,8 @@ Rules:
 | Workflow request and intent classification | `domain/workflow.py` | Bounded untrusted input and strict structured routing output |
 | Response draft and qualified response | `domain/workflow.py` | Bounded provider draft plus application-owned citations and disclaimer |
 | Response-generator capability | `tools/response.py` | Provider-neutral structured answer drafting and safe failures |
+| Grounded-generation request | `domain/generation.py` | Bounded deidentified clinical facts plus ranked application-owned citation excerpts |
+| OpenAI response adapter | `services/openai_response.py` | Stateless strict Responses parsing, provider-error normalization, and SDK payload isolation |
 | Workflow run snapshot | `domain/workflow.py` | Redacted durable lifecycle, response, transition, and audit checkpoint |
 | Workflow-run store | `tools/workflow_runs.py` | Provider-neutral checkpoint save, lookup, and recovery reads |
 
@@ -186,6 +194,13 @@ narratives, and raw FHIR payloads are excluded.
 - Response generators return only `ResponseDraft.answer`, bounded to 4,000
   characters. Unknown fields are rejected; application code attaches the
   educational disclaimer and trusted citations.
+- The OpenAI adapter sends a stateless request with provider storage disabled,
+  no tools, explicit reasoning effort, and strict Pydantic structured output.
+  It returns only `ResponseDraft`; response IDs, usage, raw payloads, prompts,
+  and exception details are discarded at the adapter boundary.
+- Provider authentication, rate-limit, timeout, unavailable, context-limit,
+  refusal, malformed, and unexpected outcomes become provider-neutral safe
+  failures. The adapter never falls back to an uncited answer.
 - A completed clinical response requires sufficient evidence and at least one
   application-owned citation. The generator receives validated citations but
   can draft only answer text; the application copies the exact trusted

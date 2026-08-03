@@ -415,6 +415,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-08-03 | Phase 4.1.2 | Added the official async OpenAI Responses adapter, strict Pydantic answer parsing, stateless/no-tools invocation, bounded validated provider settings, safe SDK failure normalization, and credential-free deterministic tests | Stop for review before checkpoint 4.1.3 grounded prompt and workflow wiring |
 | 2026-08-03 | Phase 4.1.1 | Selected OpenAI Responses with `gpt-5.6-sol`, added bounded deidentified grounded-generation contracts, preserved answer-only strict output, defined provider-neutral safe failures, and recorded the prompt-injection boundary | Stop for review before checkpoint 4.1.2 provider adapter and configuration |
 | 2026-08-03 | Phase 4 | Started Phase 4 with grounded real-LLM generation as sub-phase 4.1, followed by deterministic/post-generation safety, persisted review actions, concurrency-safe resume, and final gates | Select the first real model provider, then complete checkpoint 4.1.1 contracts and failure policy |
 | 2026-08-03 | Phase 3 | Completed reviewed guideline RAG end to end: 2 documents/135 chunks, idempotent Weaviate sync, 9-case retrieval evaluation, seeded five-citation workflow, safe weak/failure routing, persisted redaction, restart recovery, 232 backend/6 frontend tests, and clean source-only verification | Stop for final review before creating the Phase 4 branch |
