@@ -12,7 +12,12 @@ from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
 from app.domain.api import ApiError, ApiSuccess, ErrorDetail
-from app.domain.workflow import WorkflowRunRequest, WorkflowRunSnapshot
+from app.domain.workflow import (
+    ReviewActionRequest,
+    ReviewQueueItem,
+    WorkflowRunRequest,
+    WorkflowRunSnapshot,
+)
 from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
@@ -26,6 +31,7 @@ from app.services.patient_summary import create_patient_summary_service
 from app.services.sqlite_workflow_runs import SqliteWorkflowRunStore
 from app.services.workflow_runs import (
     RandomWorkflowIdentityFactory,
+    WorkflowReviewError,
     WorkflowRunService,
 )
 from app.tools.response import ResponseGenerator
@@ -42,6 +48,7 @@ router = APIRouter(prefix="/api/v1/workflows", tags=["workflows"])
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     status.HTTP_400_BAD_REQUEST: {"model": ApiError},
     status.HTTP_404_NOT_FOUND: {"model": ApiError},
+    status.HTTP_409_CONFLICT: {"model": ApiError},
     status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ApiError},
 }
 
@@ -183,6 +190,129 @@ async def create_workflow_run(
         )
     try:
         snapshot = await context.service.create(request, runtime=context.runtime)
+    except WorkflowRunStoreError:
+        return _error_response(
+            request_id=request_id,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="workflow_storage_unavailable",
+            message="Workflow storage is unavailable.",
+        )
+    return ApiSuccess(request_id=request_id, data=snapshot)
+
+
+@router.get(
+    "/reviews",
+    response_model=ApiSuccess[list[ReviewQueueItem]],
+    responses=ERROR_RESPONSES,
+)
+async def list_pending_reviews(
+    service: Annotated[WorkflowRunService, Depends(workflow_run_service)],
+) -> ApiSuccess[list[ReviewQueueItem]] | JSONResponse:
+    """Return pending workflow reviews as redacted reviewer projections."""
+
+    request_id = uuid4()
+    try:
+        reviews = await service.list_reviews()
+    except WorkflowRunStoreError:
+        return _error_response(
+            request_id=request_id,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="workflow_storage_unavailable",
+            message="Workflow storage is unavailable.",
+        )
+    return ApiSuccess(request_id=request_id, data=reviews)
+
+
+@router.get(
+    "/{workflow_id}/review",
+    response_model=ApiSuccess[ReviewQueueItem],
+    responses=ERROR_RESPONSES,
+)
+async def get_pending_review(
+    workflow_id: str,
+    service: Annotated[WorkflowRunService, Depends(workflow_run_service)],
+) -> ApiSuccess[ReviewQueueItem] | JSONResponse:
+    """Return one pending workflow review projection."""
+
+    request_id = uuid4()
+    try:
+        parsed_id = UUID(workflow_id)
+    except ValueError:
+        return _error_response(
+            request_id=request_id,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="invalid_workflow_id",
+            message="The workflow run ID is invalid.",
+            field="workflow_id",
+        )
+    try:
+        review = await service.get_review(parsed_id)
+    except WorkflowRunStoreError:
+        return _error_response(
+            request_id=request_id,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="workflow_storage_unavailable",
+            message="Workflow storage is unavailable.",
+        )
+    if review is None:
+        return _error_response(
+            request_id=request_id,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="review_not_found",
+            message="The pending review was not found.",
+            field="workflow_id",
+        )
+    return ApiSuccess(request_id=request_id, data=review)
+
+
+@router.post(
+    "/{workflow_id}/review-actions",
+    response_model=ApiSuccess[WorkflowRunSnapshot],
+    responses=ERROR_RESPONSES,
+)
+async def record_review_action(
+    workflow_id: str,
+    raw_request: Annotated[object, Body()],
+    service: Annotated[WorkflowRunService, Depends(workflow_run_service)],
+) -> ApiSuccess[WorkflowRunSnapshot] | JSONResponse:
+    """Record one attributable review action with optimistic concurrency."""
+
+    request_id = uuid4()
+    try:
+        parsed_id = UUID(workflow_id)
+    except ValueError:
+        return _error_response(
+            request_id=request_id,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="invalid_workflow_id",
+            message="The workflow run ID is invalid.",
+            field="workflow_id",
+        )
+    try:
+        request = ReviewActionRequest.model_validate(raw_request)
+    except ValidationError:
+        return _error_response(
+            request_id=request_id,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="invalid_review_action",
+            message="The review action is invalid.",
+        )
+    try:
+        snapshot = await service.record_review_action(parsed_id, request)
+    except WorkflowReviewError as error:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if error.code in {"workflow_not_found", "review_not_found"}
+            else status.HTTP_409_CONFLICT
+            if error.code in {"stale_review_action", "workflow_not_pending_review"}
+            else status.HTTP_400_BAD_REQUEST
+        )
+        return _error_response(
+            request_id=request_id,
+            status_code=status_code,
+            code=error.code,
+            message="The review action could not be applied.",
+        )
     except WorkflowRunStoreError:
         return _error_response(
             request_id=request_id,

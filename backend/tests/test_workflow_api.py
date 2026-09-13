@@ -17,6 +17,7 @@ from app.api.workflows import (
 )
 from app.core.config import Settings
 from app.domain.clinical import ClinicalRecordSummary, PatientSummary
+from app.domain.generation import GroundedGenerationRequest, ResponseGenerationResult
 from app.domain.workflow import WorkflowRunSnapshot
 from app.main import app
 from app.services.deterministic_intent import DeterministicIntentClassifier
@@ -25,6 +26,7 @@ from app.services.deterministic_safety import DeterministicSafetyPolicy
 from app.services.openai_response import OpenAIResponseGenerator
 from app.services.sqlite_workflow_runs import SqliteWorkflowRunStore
 from app.services.workflow_runs import WorkflowRunService
+from app.tools.response import ResponseGenerator
 from app.tools.workflow_runs import WorkflowRunStore, WorkflowRunStoreError
 from app.workflow.runtime import WorkflowRuntime
 from tests.guideline_fixtures import SufficientGuidelineRetriever
@@ -81,6 +83,23 @@ class StaticPatientReader:
         )
 
 
+class ReviewResponseGenerator:
+    async def generate(
+        self,
+        *,
+        request: GroundedGenerationRequest,
+    ) -> ResponseGenerationResult:
+        del request
+        return ResponseGenerationResult.model_validate(
+            {
+                "draft": {
+                    "answer": "Start this medication dose based on guideline evidence."
+                },
+                "metadata": {"generator": "deterministic"},
+            }
+        )
+
+
 class FailingStore:
     async def initialize(self) -> None:
         return None
@@ -91,11 +110,27 @@ class FailingStore:
     async def get(self, workflow_id: UUID) -> WorkflowRunSnapshot | None:
         raise WorkflowRunStoreError("sensitive sqlite failure")
 
+    async def list_pending_review(self) -> list[WorkflowRunSnapshot]:
+        raise WorkflowRunStoreError("sensitive sqlite failure")
+
+    async def save_if_review_version(
+        self,
+        snapshot: WorkflowRunSnapshot,
+        *,
+        expected_review_version: int,
+    ) -> bool:
+        del snapshot, expected_review_version
+        raise WorkflowRunStoreError("sensitive sqlite failure")
+
     async def list_incomplete(self) -> list[WorkflowRunSnapshot]:
         return []
 
 
-def execution_context(store: WorkflowRunStore) -> WorkflowExecutionContext:
+def execution_context(
+    store: WorkflowRunStore,
+    *,
+    response_generator: ResponseGenerator | None = None,
+) -> WorkflowExecutionContext:
     clock = FixedClock()
     service = WorkflowRunService(
         store=store,
@@ -111,7 +146,7 @@ def execution_context(store: WorkflowRunStore) -> WorkflowExecutionContext:
         patient_summary_reader=StaticPatientReader(),
         safety_policy=DeterministicSafetyPolicy(),
         post_generation_safety_policy=DeterministicSafetyPolicy(),
-        response_generator=DeterministicResponseGenerator(),
+        response_generator=response_generator or DeterministicResponseGenerator(),
         audit_event_ids=SequentialIds(500),
         guideline_retriever=SufficientGuidelineRetriever(),
     )
@@ -185,6 +220,85 @@ async def test_create_and_inspect_redacted_workflow_run(
     ):
         assert sensitive not in created.text
         assert sensitive not in inspected.text
+
+
+@pytest.mark.anyio
+async def test_review_queue_and_approval_api(
+    client: AsyncClient,
+    tmp_path: Path,
+) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    context = execution_context(store, response_generator=ReviewResponseGenerator())
+
+    async def context_override() -> WorkflowExecutionContext:
+        return context
+
+    async def service_override() -> WorkflowRunService:
+        return context.service
+
+    app.dependency_overrides[workflow_execution_context] = context_override
+    app.dependency_overrides[workflow_run_service] = service_override
+    try:
+        created = await client.post(
+            "/api/v1/workflows",
+            json={
+                "patient_id": "synthetic-patient-1",
+                "query": "private query marker about medications",
+            },
+        )
+        workflow_id = created.json()["data"]["workflow_id"]
+        reviews = await client.get("/api/v1/workflows/reviews")
+        detail = await client.get(f"/api/v1/workflows/{workflow_id}/review")
+        approved = await client.post(
+            f"/api/v1/workflows/{workflow_id}/review-actions",
+            json={
+                "action": "approve",
+                "reviewer_id": "reviewer-1",
+                "rationale": "Synthetic reviewer approval.",
+                "review_version": 0,
+            },
+        )
+        duplicate = await client.post(
+            f"/api/v1/workflows/{workflow_id}/review-actions",
+            json={
+                "action": "approve",
+                "reviewer_id": "reviewer-1",
+                "rationale": "Duplicate synthetic approval.",
+                "review_version": 0,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert created.status_code == 201
+    assert created.json()["data"]["status"] == "pending_review"
+    assert reviews.status_code == 200
+    assert len(reviews.json()["data"]) == 1
+    assert detail.status_code == 200
+    assert detail.json()["data"]["review_version"] == 0
+    assert approved.status_code == 200
+    approved_data = approved.json()["data"]
+    assert approved_data["status"] == "completed"
+    assert approved_data["review_version"] == 1
+    assert approved_data["final_response"]["answer"] == (
+        "Start this medication dose based on guideline evidence."
+    )
+    assert approved_data["review_record"]["reviewer_id"] == "reviewer-1"
+    assert duplicate.status_code == 409
+    assert duplicate.json()["error"]["code"] == "workflow_not_pending_review"
+    for sensitive in (
+        "private query marker",
+        "synthetic-patient-1",
+        "private-code",
+        "Private synthetic condition",
+        "patient_data",
+        "user_query",
+        "Reviewed bounded evidence chunk",
+    ):
+        assert sensitive not in reviews.text
+        assert sensitive not in detail.text
+        assert sensitive not in approved.text
 
 
 @pytest.mark.anyio

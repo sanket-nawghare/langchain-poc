@@ -48,10 +48,22 @@ class SqliteWorkflowRunStore:
                         status TEXT NOT NULL,
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL,
+                        review_version INTEGER NOT NULL DEFAULT 0,
                         snapshot_json TEXT NOT NULL
                     )
                     """
                 )
+                columns = {
+                    str(row["name"])
+                    for row in connection.execute("PRAGMA table_info(workflow_runs)")
+                }
+                if "review_version" not in columns:
+                    connection.execute(
+                        """
+                        ALTER TABLE workflow_runs
+                        ADD COLUMN review_version INTEGER NOT NULL DEFAULT 0
+                        """
+                    )
                 connection.execute(
                     """
                     CREATE INDEX IF NOT EXISTS idx_workflow_runs_status
@@ -85,15 +97,17 @@ class SqliteWorkflowRunStore:
                         status,
                         created_at,
                         updated_at,
+                        review_version,
                         snapshot_json
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(workflow_id) DO UPDATE SET
                         correlation_id = excluded.correlation_id,
                         trace_id = excluded.trace_id,
                         status = excluded.status,
                         created_at = excluded.created_at,
                         updated_at = excluded.updated_at,
+                        review_version = excluded.review_version,
                         snapshot_json = excluded.snapshot_json
                     """,
                     (
@@ -103,6 +117,7 @@ class SqliteWorkflowRunStore:
                         snapshot.status.value,
                         snapshot.created_at.isoformat(),
                         snapshot.updated_at.isoformat(),
+                        snapshot.review_version,
                         payload,
                     ),
                 )
@@ -143,6 +158,85 @@ class SqliteWorkflowRunStore:
         """Return one validated checkpoint."""
 
         return self._get(workflow_id)
+
+    def _list_pending_review(self) -> list[WorkflowRunSnapshot]:
+        try:
+            with self._connect() as connection:
+                rows = connection.execute(
+                    """
+                    SELECT snapshot_json
+                    FROM workflow_runs
+                    WHERE status = 'pending_review'
+                    ORDER BY updated_at, workflow_id
+                    """
+                ).fetchall()
+        except (OSError, sqlite3.Error) as error:
+            raise WorkflowRunStoreError("workflow review queue read failed") from error
+        return [self._parse_snapshot(str(row["snapshot_json"])) for row in rows]
+
+    async def list_pending_review(self) -> list[WorkflowRunSnapshot]:
+        """Return pending-review checkpoints in deterministic order."""
+
+        return self._list_pending_review()
+
+    def _save_if_review_version(
+        self,
+        snapshot: WorkflowRunSnapshot,
+        *,
+        expected_review_version: int,
+    ) -> bool:
+        payload = json.dumps(
+            snapshot.model_dump(mode="json"),
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        try:
+            with self._connect() as connection:
+                cursor = connection.execute(
+                    """
+                    UPDATE workflow_runs
+                    SET
+                        correlation_id = ?,
+                        trace_id = ?,
+                        status = ?,
+                        created_at = ?,
+                        updated_at = ?,
+                        review_version = ?,
+                        snapshot_json = ?
+                    WHERE workflow_id = ?
+                    AND status = 'pending_review'
+                    AND review_version = ?
+                    """,
+                    (
+                        str(snapshot.correlation_id),
+                        str(snapshot.trace_id),
+                        snapshot.status.value,
+                        snapshot.created_at.isoformat(),
+                        snapshot.updated_at.isoformat(),
+                        snapshot.review_version,
+                        payload,
+                        str(snapshot.workflow_id),
+                        expected_review_version,
+                    ),
+                )
+        except (OSError, sqlite3.Error) as error:
+            raise WorkflowRunStoreError(
+                "workflow review action write failed"
+            ) from error
+        return cursor.rowcount == 1
+
+    async def save_if_review_version(
+        self,
+        snapshot: WorkflowRunSnapshot,
+        *,
+        expected_review_version: int,
+    ) -> bool:
+        """Save a reviewed checkpoint only if its review version is current."""
+
+        return self._save_if_review_version(
+            snapshot,
+            expected_review_version=expected_review_version,
+        )
 
     def _list_incomplete(self) -> list[WorkflowRunSnapshot]:
         try:

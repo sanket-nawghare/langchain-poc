@@ -21,7 +21,7 @@ reviewable and must finish with focused tests and `make check`.
 |---|---|---|
 | 4.1 Grounded LLM response generation | A configured provider drafts structured answers from bounded patient context and retrieved evidence | `[x]` |
 | 4.2 Deterministic and LLM-assisted safety | Versioned rules evaluate inputs, evidence, and generated drafts without delegating final safety authority to the model | `[x]` |
-| 4.3 Persisted review queue and actions | Reviewers can inspect safe metadata and approve, reject, or request changes | `[ ]` |
+| 4.3 Persisted review queue and actions | Reviewers can inspect safe metadata and approve, reject, or request changes | `[x]` |
 | 4.4 Concurrency-safe resume | Valid review actions resume the exact checkpoint once and reject stale or duplicate actions | `[ ]` |
 | 4.5 Phase 4 integration gate | Grounded generation, review, restart, authorization, redaction, and isolated-source gates pass | `[ ]` |
 
@@ -190,17 +190,28 @@ application-owned route evaluates deterministically.
 
 ### 4.3.1 — Review Contracts and Redacted Queue
 
-- `[ ]` Define review item, action, rationale, reviewer identity, policy
+- `[x]` Define review item, action, rationale, reviewer identity, policy
   version, and optimistic-concurrency contracts.
-- `[ ]` Persist only the safe review projection needed for an attributable
+- `[x]` Persist only the safe review projection needed for an attributable
   decision.
 
 ### 4.3.2 — Review API
 
-- `[ ]` Add list/detail endpoints for pending review and approve, reject, and
+- `[x]` Add list/detail endpoints for pending review and approve, reject, and
   request-changes actions.
-- `[ ]` Validate authorization boundaries and reject missing, invalid, stale,
+- `[x]` Validate authorization boundaries and reject missing, invalid, stale,
   or duplicate actions without revealing hidden workflow state.
+
+The workflow checkpoint now carries a reviewer-facing projection for pending
+items: draft answer when one exists, application-owned citations, content-free
+guideline evidence, safety results, and a monotonic `review_version`. The API
+adds `GET /api/v1/workflows/reviews`,
+`GET /api/v1/workflows/{workflow_id}/review`, and
+`POST /api/v1/workflows/{workflow_id}/review-actions`. Actions require
+reviewer identity, rationale, action type, and the current review version.
+Accepted actions persist an attributable `review_record` and redacted
+`review_recorded` audit event; invalid, stale, duplicate, non-pending, and
+non-resumable actions return safe error envelopes.
 
 ## Sub-phase 4.4 — Concurrency-Safe Resume
 

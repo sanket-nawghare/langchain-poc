@@ -24,6 +24,13 @@ PROVIDER_FAILURE_CODES = {
     "response_generation_timeout",
     "response_generation_unavailable",
 }
+PHASE4_PROGRESS = {
+    "4.1_grounded_generation": "complete",
+    "4.2_safety_routing": "complete",
+    "4.3_review_queue_actions": "complete",
+    "4.4_concurrency_safe_resume": "pending",
+    "4.5_phase_gate": "pending",
+}
 
 
 class GenerationLiveGateError(RuntimeError):
@@ -286,6 +293,7 @@ async def run_gate(
         "persistence": "verified",
         "redaction": "verified",
         "failure_no_fallback": "covered_by_deterministic_gate",
+        "phase_progress": PHASE4_PROGRESS,
     }
 
 

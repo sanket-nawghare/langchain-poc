@@ -49,6 +49,34 @@ class ResponseDraft(ContractModel):
     answer: str = Field(min_length=1, max_length=MAX_RESPONSE_ANSWER_LENGTH)
 
 
+class ReviewActionType(StrEnum):
+    """Reviewer decisions supported by the human-review queue."""
+
+    APPROVE = "approve"
+    REJECT = "reject"
+    REQUEST_CHANGES = "request_changes"
+
+
+class ReviewActionRequest(ContractModel):
+    """Attributable optimistic-concurrency review action."""
+
+    action: ReviewActionType
+    reviewer_id: NonEmptyString = Field(max_length=128)
+    rationale: NonEmptyString = Field(max_length=1000)
+    review_version: int = Field(ge=0)
+
+
+class ReviewRecord(ContractModel):
+    """Persisted redacted record of one accepted review action."""
+
+    action: ReviewActionType
+    reviewer_id: NonEmptyString = Field(max_length=128)
+    rationale: NonEmptyString = Field(max_length=1000)
+    policy_version: NonEmptyString
+    reviewed_at: UtcTimestamp
+    review_version: int = Field(ge=1)
+
+
 class WorkflowStatus(StrEnum):
     """Persistable workflow lifecycle states."""
 
@@ -212,8 +240,14 @@ class WorkflowRunSnapshot(ContractModel):
     updated_at: UtcTimestamp
     requires_human_review: bool | None = None
     guideline_evidence: GuidelineEvidenceSummary | None = None
+    response_draft: ResponseDraft | None = None
+    review_citations: list[Citation] = Field(default_factory=list)
+    safety_result: SafetyResult | None = None
+    post_generation_safety_result: SafetyResult | None = None
     final_response: GeneratedResponse | None = None
     failure_code: NonEmptyString | None = None
+    review_version: int = Field(default=0, ge=0)
+    review_record: ReviewRecord | None = None
     transitions: list[WorkflowTransition] = Field(default_factory=list)
     audit_log: list[AuditEvent] = Field(default_factory=list)
 
@@ -245,6 +279,33 @@ class WorkflowRunSnapshot(ContractModel):
                 citation.document_id for citation in self.final_response.citations
             }:
                 raise ValueError("run evidence document IDs must match final citations")
+        if self.response_draft is not None:
+            evidence = self.guideline_evidence
+            if (
+                evidence is None
+                or evidence.assessment is not EvidenceAssessment.SUFFICIENT
+                or not self.review_citations
+            ):
+                raise ValueError("response draft requires sufficient review evidence")
+            if evidence.chunk_ids != [
+                citation.chunk_id for citation in self.review_citations
+            ]:
+                raise ValueError("review evidence chunk IDs must match draft citations")
+            if set(evidence.document_ids) != {
+                citation.document_id for citation in self.review_citations
+            }:
+                raise ValueError(
+                    "review evidence document IDs must match draft citations"
+                )
+        if (
+            self.status == WorkflowStatus.PENDING_REVIEW
+            and self.requires_human_review is not True
+        ):
+            raise ValueError("pending review requires the review flag")
+        if self.review_record is not None and self.review_record.review_version != (
+            self.review_version
+        ):
+            raise ValueError("review record version must match snapshot version")
         if any(
             event.workflow_id != self.workflow_id
             or event.correlation_id != self.correlation_id
@@ -310,8 +371,50 @@ class WorkflowRunSnapshot(ContractModel):
             updated_at=workflow.updated_at,
             requires_human_review=workflow.requires_human_review,
             guideline_evidence=workflow.guideline_evidence,
+            response_draft=workflow.response_draft,
+            review_citations=workflow.retrieved_guidelines,
+            safety_result=workflow.safety_result,
+            post_generation_safety_result=workflow.post_generation_safety_result,
             final_response=workflow.final_response,
             failure_code=workflow.failure_code,
             transitions=execution.transitions,
             audit_log=workflow.audit_log,
+        )
+
+
+class ReviewQueueItem(ContractModel):
+    """Redacted queue projection for a pending workflow review."""
+
+    workflow_id: WorkflowId
+    correlation_id: CorrelationId
+    trace_id: TraceId
+    status: WorkflowStatus
+    created_at: UtcTimestamp
+    updated_at: UtcTimestamp
+    review_version: int = Field(ge=0)
+    requires_human_review: bool
+    guideline_evidence: GuidelineEvidenceSummary | None = None
+    response_draft: ResponseDraft | None = None
+    citations: list[Citation] = Field(default_factory=list)
+    safety_result: SafetyResult | None = None
+    post_generation_safety_result: SafetyResult | None = None
+
+    @classmethod
+    def from_snapshot(cls, snapshot: WorkflowRunSnapshot) -> "ReviewQueueItem":
+        """Build the safe reviewer-facing view of one pending checkpoint."""
+
+        return cls(
+            workflow_id=snapshot.workflow_id,
+            correlation_id=snapshot.correlation_id,
+            trace_id=snapshot.trace_id,
+            status=snapshot.status,
+            created_at=snapshot.created_at,
+            updated_at=snapshot.updated_at,
+            review_version=snapshot.review_version,
+            requires_human_review=bool(snapshot.requires_human_review),
+            guideline_evidence=snapshot.guideline_evidence,
+            response_draft=snapshot.response_draft,
+            citations=snapshot.review_citations,
+            safety_result=snapshot.safety_result,
+            post_generation_safety_result=snapshot.post_generation_safety_result,
         )

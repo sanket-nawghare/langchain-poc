@@ -22,5 +22,16 @@ class WorkflowRunStore(Protocol):
     async def get(self, workflow_id: UUID) -> WorkflowRunSnapshot | None:
         """Return one checkpoint or None when it does not exist."""
 
+    async def list_pending_review(self) -> list[WorkflowRunSnapshot]:
+        """Return pending-review checkpoints in deterministic order."""
+
+    async def save_if_review_version(
+        self,
+        snapshot: WorkflowRunSnapshot,
+        *,
+        expected_review_version: int,
+    ) -> bool:
+        """Save a reviewed checkpoint only if its review version is current."""
+
     async def list_incomplete(self) -> list[WorkflowRunSnapshot]:
         """Return queued and running checkpoints for safe recovery."""

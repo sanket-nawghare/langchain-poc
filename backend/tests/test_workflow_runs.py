@@ -11,10 +11,16 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.clinical import ClinicalRecordSummary, PatientSummary
+from app.domain.guidelines import GuidelineEvidenceSummary
+from app.domain.safety import SafetyDecision, SafetyResult
 from app.domain.workflow import (
+    ResponseDraft,
+    ReviewActionRequest,
+    ReviewActionType,
     WorkflowRunRequest,
     WorkflowRunSnapshot,
     WorkflowStatus,
+    WorkflowTransition,
 )
 from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
@@ -30,9 +36,13 @@ from app.services.workflow_runs import (
 )
 from app.tools.workflow_runs import WorkflowRunStoreError
 from app.workflow.runtime import WorkflowRuntime
-from tests.guideline_fixtures import SufficientGuidelineRetriever
+from tests.guideline_fixtures import (
+    SufficientGuidelineRetriever,
+    sufficient_guideline_result,
+)
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
+PENDING_REVIEW_WORKFLOW_ID = UUID(int=900)
 
 
 @dataclass(frozen=True)
@@ -86,6 +96,50 @@ def service(store: SqliteWorkflowRunStore) -> WorkflowRunService:
         correlation_ids=SequentialIds(200),
         trace_ids=SequentialIds(300),
         audit_event_ids=SequentialIds(400),
+    )
+
+
+def pending_review_snapshot(
+    *, workflow_id: UUID = PENDING_REVIEW_WORKFLOW_ID
+) -> WorkflowRunSnapshot:
+    result = sufficient_guideline_result()
+    return WorkflowRunSnapshot(
+        workflow_id=workflow_id,
+        correlation_id=UUID(int=901),
+        trace_id=UUID(int=902),
+        status=WorkflowStatus.PENDING_REVIEW,
+        created_at=NOW,
+        updated_at=NOW,
+        requires_human_review=True,
+        guideline_evidence=GuidelineEvidenceSummary.from_retrieval_result(result),
+        response_draft=ResponseDraft(
+            answer="Start this medication dose based on guideline evidence."
+        ),
+        review_citations=[match.citation for match in result.matches],
+        safety_result=SafetyResult(
+            decision=SafetyDecision.PASS,
+            requires_human_review=False,
+            policy_version="safety-precheck-v1",
+        ),
+        post_generation_safety_result=SafetyResult(
+            decision=SafetyDecision.REVIEW,
+            requires_human_review=True,
+            policy_version="safety-post-generation-v1",
+        ),
+        transitions=[
+            WorkflowTransition(
+                from_status=WorkflowStatus.QUEUED,
+                to_status=WorkflowStatus.RUNNING,
+                occurred_at=NOW,
+                step="begin_execution",
+            ),
+            WorkflowTransition(
+                from_status=WorkflowStatus.RUNNING,
+                to_status=WorkflowStatus.PENDING_REVIEW,
+                occurred_at=NOW,
+                step="post_generation_safety",
+            ),
+        ],
     )
 
 
@@ -164,6 +218,109 @@ async def test_service_persists_queued_then_completed_checkpoint(
     evidence["chunk_ids"] = ["mismatched-chunk"]
     with pytest.raises(ValidationError, match="chunk IDs"):
         WorkflowRunSnapshot.model_validate({**values, "guideline_evidence": evidence})
+
+
+@pytest.mark.anyio
+async def test_review_queue_lists_pending_redacted_projection(tmp_path: Path) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    snapshot = pending_review_snapshot()
+    await store.save(snapshot)
+
+    reviews = await service(store).list_reviews()
+
+    assert len(reviews) == 1
+    assert reviews[0].workflow_id == snapshot.workflow_id
+    assert reviews[0].review_version == 0
+    assert reviews[0].response_draft == snapshot.response_draft
+    assert reviews[0].citations == snapshot.review_citations
+    serialized = reviews[0].model_dump_json()
+    assert "synthetic-patient-1" not in serialized
+    assert "patient_data" not in serialized
+
+
+@pytest.mark.anyio
+async def test_review_approval_finalizes_exact_persisted_draft_once(
+    tmp_path: Path,
+) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    snapshot = pending_review_snapshot()
+    await store.save(snapshot)
+
+    approved = await service(store).record_review_action(
+        snapshot.workflow_id,
+        ReviewActionRequest(
+            action=ReviewActionType.APPROVE,
+            reviewer_id="reviewer-1",
+            rationale="Synthetic reviewer approval.",
+            review_version=0,
+        ),
+    )
+    duplicate_saved = await store.save_if_review_version(
+        pending_review_snapshot(workflow_id=snapshot.workflow_id),
+        expected_review_version=0,
+    )
+
+    assert approved.status == WorkflowStatus.COMPLETED
+    assert approved.review_version == 1
+    assert approved.final_response is not None
+    assert snapshot.response_draft is not None
+    assert approved.final_response.answer == snapshot.response_draft.answer
+    assert approved.final_response.citations == snapshot.review_citations
+    assert [transition.step for transition in approved.transitions[-2:]] == [
+        "review_approved",
+        "finalize_reviewed_response",
+    ]
+    assert approved.audit_log[-1].actor_id == "reviewer-1"
+    assert approved.audit_log[-1].details["action"] == "approve"
+    assert duplicate_saved is False
+    assert await store.get(snapshot.workflow_id) == approved
+
+
+@pytest.mark.anyio
+async def test_review_reject_or_request_changes_terminates_without_response(
+    tmp_path: Path,
+) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    snapshot = pending_review_snapshot()
+    await store.save(snapshot)
+
+    rejected = await service(store).record_review_action(
+        snapshot.workflow_id,
+        ReviewActionRequest(
+            action=ReviewActionType.REQUEST_CHANGES,
+            reviewer_id="reviewer-1",
+            rationale="Needs bounded changes.",
+            review_version=0,
+        ),
+    )
+
+    assert rejected.status == WorkflowStatus.REJECTED
+    assert rejected.final_response is None
+    assert rejected.review_version == 1
+    assert rejected.transitions[-1].step == "review_changes_requested"
+    assert rejected.audit_log[-1].details["action"] == "request_changes"
+
+
+@pytest.mark.anyio
+async def test_stale_review_action_is_rejected(tmp_path: Path) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    snapshot = pending_review_snapshot()
+    await store.save(snapshot)
+
+    with pytest.raises(RuntimeError, match="stale_review_action"):
+        await service(store).record_review_action(
+            snapshot.workflow_id,
+            ReviewActionRequest(
+                action=ReviewActionType.APPROVE,
+                reviewer_id="reviewer-1",
+                rationale="Synthetic reviewer approval.",
+                review_version=1,
+            ),
+        )
 
 
 @pytest.mark.anyio
