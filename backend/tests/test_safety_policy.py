@@ -6,6 +6,8 @@ from app.domain.clinical import ClinicalRecordSummary, PatientSummary
 from app.domain.safety import SafetyDecision, SafetySeverity
 from app.services.deterministic_safety import (
     INITIAL_SAFETY_POLICY_VERSION,
+    SAFETY_PRECHECK_POLICY_VERSION,
+    SAFETY_RULES,
     DeterministicSafetyPolicy,
 )
 
@@ -36,7 +38,24 @@ async def test_complete_context_passes_initial_policy() -> None:
     assert result.decision == SafetyDecision.PASS
     assert result.requires_human_review is False
     assert result.policy_version == INITIAL_SAFETY_POLICY_VERSION
+    assert result.policy_version == SAFETY_PRECHECK_POLICY_VERSION
     assert result.reasons == []
+
+
+def test_safety_rule_catalog_has_stable_versioned_metadata() -> None:
+    assert set(SAFETY_RULES) == {
+        "urgent_language",
+        "medication_allergy_conflict",
+        "missing_core_context",
+        "patient_context_truncated",
+    }
+    assert SAFETY_RULES["medication_allergy_conflict"].severity == SafetySeverity.HIGH
+    assert SAFETY_RULES["missing_core_context"].evidence_references == (
+        "patient:conditions",
+        "patient:allergies",
+        "patient:medications",
+        "patient:observations",
+    )
 
 
 @pytest.mark.anyio
@@ -64,6 +83,53 @@ async def test_missing_core_context_requires_review() -> None:
 
     assert result.decision == SafetyDecision.REVIEW
     assert [reason.code for reason in result.reasons] == ["missing_core_context"]
+
+
+@pytest.mark.anyio
+async def test_medication_allergy_conflict_requires_review_without_names() -> None:
+    result = await DeterministicSafetyPolicy().evaluate(
+        query="What precautions relate to this medication?",
+        patient=PatientSummary(
+            patient_id="synthetic-patient-1",
+            allergies=[
+                ClinicalRecordSummary(
+                    display="private-marker allergy",
+                    code="private-marker",
+                )
+            ],
+            medications=[
+                ClinicalRecordSummary(
+                    display="private-marker tablet",
+                    code="private-marker",
+                )
+            ],
+        ),
+    )
+
+    assert result.decision == SafetyDecision.REVIEW
+    assert [(reason.code, reason.severity) for reason in result.reasons] == [
+        ("medication_allergy_conflict", SafetySeverity.HIGH)
+    ]
+    assert result.reasons[0].evidence_references == [
+        "patient:allergies",
+        "patient:medications",
+    ]
+    assert "private-marker" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.anyio
+async def test_medication_allergy_generic_terms_do_not_conflict() -> None:
+    result = await DeterministicSafetyPolicy().evaluate(
+        query="What precautions relate to this medication?",
+        patient=PatientSummary(
+            patient_id="synthetic-patient-1",
+            allergies=[ClinicalRecordSummary(display="Unspecified drug allergy")],
+            medications=[ClinicalRecordSummary(display="Daily oral medication")],
+        ),
+    )
+
+    assert result.decision == SafetyDecision.PASS
+    assert result.reasons == []
 
 
 @pytest.mark.anyio

@@ -149,10 +149,23 @@ and retry budget once.
 
 ### 4.2.1 — Versioned Safety Policy
 
-- `[ ]` Define severity, rule identifiers, evidence references, and policy
-  versioning for pre-generation and post-generation checks.
-- `[ ]` Cover urgent language, medication/allergy conflicts, missing or
-  truncated context, unsupported recommendations, and evidence disagreement.
+- `[x]` Define severity, rule identifiers, evidence references, and policy
+  versioning for pre-generation checks.
+- `[x]` Cover urgent language, medication/allergy conflicts, missing or
+  truncated context, and pre-generation unsupported evidence routing.
+- `[x]` Confirm weak, insufficient, and conflicting guideline evidence cannot
+  reach generation.
+- `[ ]` Extend versioned rule metadata to post-generation draft checks in
+  4.2.2.
+
+The pre-generation deterministic policy now exposes stable rule metadata under
+`safety-precheck-v1`, including severity and bounded evidence references for
+urgent language, medication/allergy context conflicts, missing core context,
+and truncated patient context. Unsupported, weak, insufficient, and conflicting
+guideline evidence remains blocked from generation by the Phase 3 retrieval
+assessment before the safety pre-check. Draft-specific unsupported
+recommendation checks are intentionally left to 4.2.2, where generated content
+can be evaluated without rewriting it.
 
 ### 4.2.2 — Post-Generation Safety Evaluation
 

@@ -1061,6 +1061,35 @@ async def test_sparse_or_truncated_context_pauses_for_review(
 
 
 @pytest.mark.anyio
+async def test_medication_allergy_conflict_pauses_before_generation() -> None:
+    response_generator = StaticResponseGenerator(ResponseDraft(answer="must not run"))
+    patient = PatientSummary(
+        patient_id="synthetic-patient-1",
+        allergies=[
+            ClinicalRecordSummary(display="Synthetic penicillin allergy"),
+        ],
+        medications=[
+            ClinicalRecordSummary(display="Synthetic penicillin tablet"),
+        ],
+    )
+
+    result = await execute_workflow_skeleton(
+        queued_workflow("What precautions apply to this medication?"),
+        runtime=workflow_runtime(
+            patient_reader=StaticPatientSummaryReader(patient),
+            response_generator=response_generator,
+        ),
+    )
+
+    assert result.workflow.status == WorkflowStatus.PENDING_REVIEW
+    assert result.workflow.safety_result is not None
+    assert [reason.code for reason in result.workflow.safety_result.reasons] == [
+        "medication_allergy_conflict"
+    ]
+    assert response_generator.calls == 0
+
+
+@pytest.mark.anyio
 async def test_block_decision_rejects_without_implementing_review_actions() -> None:
     blocked = SafetyResult(
         decision=SafetyDecision.BLOCK,
