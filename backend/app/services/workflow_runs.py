@@ -132,10 +132,10 @@ class WorkflowRunService:
         snapshot = await self.store.get(workflow_id)
         if snapshot is None:
             raise WorkflowReviewError("workflow_not_found")
-        if snapshot.status is not WorkflowStatus.PENDING_REVIEW:
-            raise WorkflowReviewError("workflow_not_pending_review")
         if request.review_version != snapshot.review_version:
             raise WorkflowReviewError("stale_review_action")
+        if snapshot.status is not WorkflowStatus.PENDING_REVIEW:
+            raise WorkflowReviewError("workflow_not_pending_review")
 
         occurred_at = self.clock.now()
         next_version = snapshot.review_version + 1

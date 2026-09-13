@@ -286,7 +286,7 @@ async def test_review_queue_and_approval_api(
     )
     assert approved_data["review_record"]["reviewer_id"] == "reviewer-1"
     assert duplicate.status_code == 409
-    assert duplicate.json()["error"]["code"] == "workflow_not_pending_review"
+    assert duplicate.json()["error"]["code"] == "stale_review_action"
     for sensitive in (
         "private query marker",
         "synthetic-patient-1",

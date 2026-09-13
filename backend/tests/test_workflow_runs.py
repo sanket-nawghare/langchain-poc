@@ -32,6 +32,7 @@ from app.services.sqlite_workflow_runs import (
 from app.services.workflow_runs import (
     INTERRUPTED_FAILURE_CODE,
     RECOVERY_STEP,
+    WorkflowReviewError,
     WorkflowRunService,
 )
 from app.tools.workflow_runs import WorkflowRunStoreError
@@ -321,6 +322,62 @@ async def test_stale_review_action_is_rejected(tmp_path: Path) -> None:
                 review_version=1,
             ),
         )
+
+
+@pytest.mark.anyio
+async def test_pending_review_survives_restart_without_auto_execution(
+    tmp_path: Path,
+) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    snapshot = pending_review_snapshot()
+    await store.save(snapshot)
+
+    recovered_count = await service(store).recover_interrupted()
+    recovered = await store.get(snapshot.workflow_id)
+
+    assert recovered_count == 0
+    assert recovered == snapshot
+    assert await service(store).get_review(snapshot.workflow_id) is not None
+
+
+@pytest.mark.anyio
+async def test_concurrent_review_approval_resumes_only_once(tmp_path: Path) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    snapshot = pending_review_snapshot()
+    await store.save(snapshot)
+    run_service = service(store)
+
+    async def approve() -> WorkflowRunSnapshot | WorkflowReviewError:
+        try:
+            return await run_service.record_review_action(
+                snapshot.workflow_id,
+                ReviewActionRequest(
+                    action=ReviewActionType.APPROVE,
+                    reviewer_id="reviewer-1",
+                    rationale="Synthetic reviewer approval.",
+                    review_version=0,
+                ),
+            )
+        except WorkflowReviewError as error:
+            return error
+
+    results = await asyncio.gather(approve(), approve())
+    approvals = [item for item in results if isinstance(item, WorkflowRunSnapshot)]
+    errors = [item for item in results if isinstance(item, WorkflowReviewError)]
+    persisted = await store.get(snapshot.workflow_id)
+
+    assert len(approvals) == 1
+    assert len(errors) == 1
+    assert errors[0].code == "stale_review_action"
+    assert persisted == approvals[0]
+    assert persisted is not None
+    assert persisted.status == WorkflowStatus.COMPLETED
+    assert [transition.step for transition in persisted.transitions].count(
+        "finalize_reviewed_response"
+    ) == 1
+    assert persisted.review_version == 1
 
 
 @pytest.mark.anyio

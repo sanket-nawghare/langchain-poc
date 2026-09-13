@@ -22,7 +22,7 @@ reviewable and must finish with focused tests and `make check`.
 | 4.1 Grounded LLM response generation | A configured provider drafts structured answers from bounded patient context and retrieved evidence | `[x]` |
 | 4.2 Deterministic and LLM-assisted safety | Versioned rules evaluate inputs, evidence, and generated drafts without delegating final safety authority to the model | `[x]` |
 | 4.3 Persisted review queue and actions | Reviewers can inspect safe metadata and approve, reject, or request changes | `[x]` |
-| 4.4 Concurrency-safe resume | Valid review actions resume the exact checkpoint once and reject stale or duplicate actions | `[ ]` |
+| 4.4 Concurrency-safe resume | Valid review actions resume the exact checkpoint once and reject stale or duplicate actions | `[x]` |
 | 4.5 Phase 4 integration gate | Grounded generation, review, restart, authorization, redaction, and isolated-source gates pass | `[ ]` |
 
 ## Sub-phase 4.1 — Grounded LLM Response Generation
@@ -217,15 +217,25 @@ non-resumable actions return safe error envelopes.
 
 ### 4.4.1 — Durable Checkpoint Resume
 
-- `[ ]` Persist the exact resumable graph checkpoint and review version.
-- `[ ]` Resume only after approval; rejection terminates and request-changes
+- `[x]` Persist the exact resumable graph checkpoint and review version.
+- `[x]` Resume only after approval; rejection terminates and request-changes
   follows an explicit bounded route.
 
 ### 4.4.2 — Restart and Race Safety
 
-- `[ ]` Prove pending work survives restart without automatic execution.
-- `[ ]` Prove concurrent, duplicate, stale, or replayed actions cannot resume a
+- `[x]` Prove pending work survives restart without automatic execution.
+- `[x]` Prove concurrent, duplicate, stale, or replayed actions cannot resume a
   workflow more than once.
+
+Approval now resumes only a persisted draft checkpoint by appending a
+`pending_review -> running -> completed` transition pair and publishing the
+exact saved draft with its saved application-owned citations. Rejection and
+request-changes terminate as `rejected` without creating a final response.
+The SQLite store applies review actions with a conditional
+`workflow_id/status/review_version` update; duplicate, stale, replayed, or
+concurrent actions cannot advance the same pending item twice. Startup recovery
+continues to fail only `queued` and `running` checkpoints, so pending review
+work survives restart without automatic execution.
 
 ## Sub-phase 4.5 — Phase Gate and Documentation
 

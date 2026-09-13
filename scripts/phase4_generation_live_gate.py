@@ -28,7 +28,7 @@ PHASE4_PROGRESS = {
     "4.1_grounded_generation": "complete",
     "4.2_safety_routing": "complete",
     "4.3_review_queue_actions": "complete",
-    "4.4_concurrency_safe_resume": "pending",
+    "4.4_concurrency_safe_resume": "complete",
     "4.5_phase_gate": "pending",
 }
 
