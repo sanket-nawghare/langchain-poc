@@ -57,7 +57,7 @@ This baseline can change through a recorded decision before implementation.
 | 1. FHIR Integration | Synthetic patients can be loaded and queried safely | `[x]` |
 | 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[x]` |
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[x]` |
-| 4. Grounded Generation, Safety, and Human Review | A real grounded model plus risk rules can safely draft, pause, review, and resume work | `[~]` |
+| 4. Grounded Generation, Safety, and Human Review | A real grounded model plus risk rules can safely draft, pause, review, and resume work | `[x]` |
 | 5. Product UI | Users can submit requests and inspect workflow progress | `[ ]` |
 | 6. Quality and Observability | The system is measurable, auditable, and resilient | `[ ]` |
 | 7. Packaging and Release | A new contributor can run and understand the project | `[ ]` |
@@ -225,27 +225,27 @@ Implementation proceeds through the review checkpoints in the
   malformed-output, and context-limit failure handling.
 - `[x]` Add an opt-in real-provider live gate while keeping tests and startup
   credential-free.
-- `[ ]` Define versioned, deterministic review rules and severity levels.
-- `[ ]` Detect examples such as medication/allergy conflicts, urgent symptom
+- `[x]` Define versioned, deterministic review rules and severity levels.
+- `[x]` Detect examples such as medication/allergy conflicts, urgent symptom
   language, missing critical context, and unsupported recommendations.
-- `[ ]` Separate rule-based checks from LLM-assisted checks.
-- `[ ]` Add a structured `SafetyResult` with reasons and evidence.
-- `[ ]` Route flagged runs to a persisted `pending_review` state.
-- `[ ]` Implement reviewer approve, reject, and request-changes actions.
-- `[ ]` Resume the exact checkpoint after approval.
-- `[ ]` Add reviewer identity, timestamp, rationale, and policy version to the
+- `[x]` Separate rule-based checks from LLM-assisted checks.
+- `[x]` Add a structured `SafetyResult` with reasons and evidence.
+- `[x]` Route flagged runs to a persisted `pending_review` state.
+- `[x]` Implement reviewer approve, reject, and request-changes actions.
+- `[x]` Resume the exact checkpoint after approval.
+- `[x]` Add reviewer identity, timestamp, rationale, and policy version to the
   audit trail.
-- `[ ]` Prevent duplicate or stale approval actions.
-- `[ ]` Test pause/resume behavior and authorization boundaries.
+- `[x]` Prevent duplicate or stale approval actions.
+- `[x]` Test pause/resume behavior and authorization boundaries.
 
 ### Exit Criteria
 
 - `[x]` A configured real LLM produces a strictly parsed, grounded answer draft.
 - `[x]` No provider can fabricate or replace citations or the disclaimer.
-- `[ ]` High-risk test cases never bypass review.
-- `[ ]` Low-risk test cases proceed with recorded safety results.
-- `[ ]` A pending run survives a backend restart.
-- `[ ]` Every review action is attributable and auditable.
+- `[x]` High-risk test cases never bypass review.
+- `[x]` Low-risk test cases proceed with recorded safety results.
+- `[x]` A pending run survives a backend restart.
+- `[x]` Every review action is attributable and auditable.
 
 ---
 
@@ -417,7 +417,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
-| 2026-09-13 | Phase 4.4 | Completed concurrency-safe review resume: approval publishes only the exact persisted draft/citations, rejection and request-changes terminate without final output, pending reviews survive restart, and stale/duplicate/concurrent actions cannot resume more than once | Complete Phase 4.5 final gate and documentation |
+| 2026-09-13 | Phase 4.5 | Closed Phase 4 with deterministic gates for grounded generation, safety review/block routing, review APIs, restart survival, stale/duplicate/concurrent review protection, redaction, and isolated source handling; updated the Phase 4 live-gate progress map and final roadmap status | Stop for final Phase 4 review before creating the Phase 5 branch |
+| 2026-09-13 | Phase 4.4 | Completed concurrency-safe review resume: approval publishes only the exact persisted draft/citations, rejection and request-changes terminate without final output, pending reviews survive restart, and stale/duplicate/concurrent actions cannot resume more than once | Phase 4.5 final gate and documentation |
 | 2026-09-13 | Phase 4.3 | Added persisted review queue contracts and API actions with reviewer identity, rationale, policy version, optimistic `review_version`, safe list/detail projections, approve/reject/request-changes handling, and redacted `review_recorded` audit events | Phase 4.4 restart and race-safety gates |
 | 2026-09-13 | Phase 4.2.2 | Added post-generation safety as a separate graph node before final response publication; drafts are evaluated under `safety-post-generation-v1`, medication-change language routes to review, diagnosis/prescribing language blocks, grounding signals are required, and only redacted safety metadata is audited | Phase 4.3 persisted review queue and actions |
 | 2026-09-13 | Phase 4.2.1 | Added the versioned `safety-precheck-v1` deterministic rule catalog with stable reason IDs, severity, bounded evidence references, medication/allergy conflict review routing, and backend coverage; documented that weak/conflicting evidence stays blocked before generation while draft-specific unsupported recommendation checks move to 4.2.2 | Stop for review before checkpoint 4.2.2 post-generation safety evaluation |

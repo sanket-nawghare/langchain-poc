@@ -23,7 +23,7 @@ reviewable and must finish with focused tests and `make check`.
 | 4.2 Deterministic and LLM-assisted safety | Versioned rules evaluate inputs, evidence, and generated drafts without delegating final safety authority to the model | `[x]` |
 | 4.3 Persisted review queue and actions | Reviewers can inspect safe metadata and approve, reject, or request changes | `[x]` |
 | 4.4 Concurrency-safe resume | Valid review actions resume the exact checkpoint once and reject stale or duplicate actions | `[x]` |
-| 4.5 Phase 4 integration gate | Grounded generation, review, restart, authorization, redaction, and isolated-source gates pass | `[ ]` |
+| 4.5 Phase 4 integration gate | Grounded generation, review, restart, authorization, redaction, and isolated-source gates pass | `[x]` |
 
 ## Sub-phase 4.1 — Grounded LLM Response Generation
 
@@ -239,19 +239,28 @@ work survives restart without automatic execution.
 
 ## Sub-phase 4.5 — Phase Gate and Documentation
 
-- `[ ]` Run deterministic and opt-in real-provider happy, review, block,
+- `[x]` Run deterministic and opt-in real-provider happy, review, block,
   failure, restart, concurrency, redaction, and isolated-source gates.
-- `[ ]` Update architecture, contracts, safety policy, development guide, and
+- `[x]` Update architecture, contracts, safety policy, development guide, and
   roadmap status.
-- `[ ]` Stop for final Phase 4 review before Phase 5 UI work.
+- `[x]` Stop for final Phase 4 review before Phase 5 UI work.
+
+Phase 4 closes with deterministic `make check` coverage for grounded provider
+contracts, pre-generation and post-generation safety, review queue/action APIs,
+restart survival, stale/duplicate/concurrent review protection, redacted
+persistence, and isolated reviewed guideline sources. The opt-in
+`phase4_generation_live_gate.py` script records Phase 4 checkpoint progress and
+validates real-provider happy-path generation, application-owned citations,
+post-generation safety audit metadata, finalization routing, persisted
+inspection, redaction, and no uncited provider-failure fallback.
 
 ## Phase Exit Criteria
 
-- A real configured LLM receives bounded patient context and trusted retrieved
+- `[x]` A real configured LLM receives bounded patient context and trusted retrieved
   excerpts and returns a strictly parsed answer draft.
-- Every completed answer uses application-owned citations and disclaimer.
-- High-risk or ambiguous cases cannot bypass deterministic review routing.
-- Review actions are attributable, versioned, persisted, and concurrency-safe.
-- Pending review survives restart and resumes exactly once after valid approval.
-- No prompts, patient context, retrieved bodies, provider payloads, or secrets
+- `[x]` Every completed answer uses application-owned citations and disclaimer.
+- `[x]` High-risk or ambiguous cases cannot bypass deterministic review routing.
+- `[x]` Review actions are attributable, versioned, persisted, and concurrency-safe.
+- `[x]` Pending review survives restart and resumes exactly once after valid approval.
+- `[x]` No prompts, patient context, retrieved bodies, provider payloads, or secrets
   enter audit logs or unsafe persisted fields.

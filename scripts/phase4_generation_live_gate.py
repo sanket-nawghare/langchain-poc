@@ -29,7 +29,7 @@ PHASE4_PROGRESS = {
     "4.2_safety_routing": "complete",
     "4.3_review_queue_actions": "complete",
     "4.4_concurrency_safe_resume": "complete",
-    "4.5_phase_gate": "pending",
+    "4.5_phase_gate": "complete",
 }
 
 
@@ -156,6 +156,8 @@ def validate_provider_workflow(
         _mapping(item, label="transition").get("step")
         for item in _sequence(workflow.get("transitions"), label="transitions")
     ]
+    if transitions[-1:] != ["finalize_response"]:
+        raise GenerationLiveGateError("provider result bypassed finalization")
     audit = [
         _mapping(item, label="audit event")
         for item in _sequence(workflow.get("audit_log"), label="audit log")
@@ -165,6 +167,27 @@ def validate_provider_workflow(
     ]
     if len(generation_events) != 1:
         raise GenerationLiveGateError("provider generation audit event is missing")
+    post_generation_safety_events = [
+        event
+        for event in audit
+        if event.get("event_type") == "safety_evaluated"
+        and _mapping(event.get("details"), label="safety audit").get("phase")
+        == "post_generation"
+    ]
+    if len(post_generation_safety_events) != 1:
+        raise GenerationLiveGateError("post-generation safety audit event is missing")
+    safety_details = _mapping(
+        post_generation_safety_events[0].get("details"),
+        label="post-generation safety audit",
+    )
+    if (
+        safety_details.get("decision") != "pass"
+        or safety_details.get("policy_version") != "safety-post-generation-v1"
+        or safety_details.get("reason_count") != 0
+    ):
+        raise GenerationLiveGateError(
+            "post-generation safety audit metadata is invalid"
+        )
     details = _mapping(generation_events[0].get("details"), label="generation audit")
     model_alias = details.get("model_alias")
     if (
@@ -200,6 +223,7 @@ def validate_provider_workflow(
         "transitions": transitions,
         "audit_types": [event.get("event_type") for event in audit],
         "model_alias": model_alias,
+        "phase_progress": PHASE4_PROGRESS,
     }
 
 

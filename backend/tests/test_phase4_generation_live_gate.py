@@ -5,6 +5,7 @@ from typing import Any, cast
 
 import pytest
 from scripts.phase4_generation_live_gate import (
+    PHASE4_PROGRESS,
     GenerationLiveGateError,
     validate_provider_failure,
     validate_provider_workflow,
@@ -37,7 +38,7 @@ def completed_snapshot() -> dict[str, object]:
         },
         "transitions": [
             {"step": "begin_execution"},
-            {"step": "generate_response"},
+            {"step": "finalize_response"},
         ],
         "audit_log": [
             {"event_type": "status_changed", "details": {}},
@@ -57,6 +58,15 @@ def completed_snapshot() -> dict[str, object]:
                     "output_tokens": 30,
                 },
             },
+            {
+                "event_type": "safety_evaluated",
+                "details": {
+                    "phase": "post_generation",
+                    "decision": "pass",
+                    "policy_version": "safety-post-generation-v1",
+                    "reason_count": 0,
+                },
+            },
             {"event_type": "status_changed", "details": {}},
         ],
     }
@@ -72,6 +82,8 @@ def test_live_gate_accepts_structured_cited_provider_result() -> None:
 
     assert projection["model_alias"] == "gpt-5.6-luna"
     assert projection["citation_identities"] == [("who-guideline", "who-guideline.0")]
+    assert projection["phase_progress"] == PHASE4_PROGRESS
+    assert set(PHASE4_PROGRESS.values()) == {"complete"}
 
 
 @pytest.mark.parametrize(
