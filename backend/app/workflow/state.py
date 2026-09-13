@@ -15,6 +15,7 @@ from app.domain.safety import SafetyResult
 from app.domain.workflow import (
     GeneratedResponse,
     Intent,
+    ResponseDraft,
     WorkflowState,
     WorkflowStatus,
     WorkflowTransition,
@@ -136,6 +137,37 @@ def set_workflow_safety_result(
         {
             "safety_result": safety_result,
             "requires_human_review": safety_result.requires_human_review,
+        }
+    )
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_response_draft(
+    workflow: WorkflowState,
+    response_draft: ResponseDraft,
+) -> WorkflowState:
+    """Return a validated workflow copy with a non-final response draft."""
+
+    values = workflow.model_dump()
+    values["response_draft"] = response_draft
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_post_generation_safety_result(
+    workflow: WorkflowState,
+    safety_result: SafetyResult,
+) -> WorkflowState:
+    """Return a validated workflow copy with draft-specific safety routing."""
+
+    expected_review = (
+        bool(workflow.safety_result and workflow.safety_result.requires_human_review)
+        or safety_result.requires_human_review
+    )
+    values = workflow.model_dump()
+    values.update(
+        {
+            "post_generation_safety_result": safety_result,
+            "requires_human_review": expected_review,
         }
     )
     return WorkflowState.model_validate(values)

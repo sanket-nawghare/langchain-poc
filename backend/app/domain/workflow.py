@@ -95,6 +95,8 @@ class WorkflowState(ContractModel):
     guideline_evidence: GuidelineEvidenceSummary | None = None
     retrieved_guidelines: list[Citation] = Field(default_factory=list)
     safety_result: SafetyResult | None = None
+    response_draft: ResponseDraft | None = None
+    post_generation_safety_result: SafetyResult | None = None
     requires_human_review: bool | None = None
     final_response: GeneratedResponse | None = None
     audit_log: list[AuditEvent] = Field(default_factory=list)
@@ -153,9 +155,23 @@ class WorkflowState(ContractModel):
                     "final response citations must match workflow evidence"
                 )
         if self.safety_result is None:
+            if self.post_generation_safety_result is not None:
+                raise ValueError(
+                    "post-generation safety requires pre-generation safety"
+                )
             return self
-        if self.requires_human_review != self.safety_result.requires_human_review:
-            raise ValueError("requires_human_review must match safety_result")
+        if (
+            self.post_generation_safety_result is not None
+            and self.response_draft is None
+        ):
+            raise ValueError("post-generation safety requires a response draft")
+        expected_review = self.safety_result.requires_human_review or (
+            self.post_generation_safety_result.requires_human_review
+            if self.post_generation_safety_result is not None
+            else False
+        )
+        if self.requires_human_review != expected_review:
+            raise ValueError("requires_human_review must match safety routing")
         return self
 
 

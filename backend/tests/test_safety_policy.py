@@ -1,11 +1,13 @@
-"""Versioned deterministic safety pre-check tests."""
+"""Versioned deterministic safety policy tests."""
 
 import pytest
 
-from app.domain.clinical import ClinicalRecordSummary, PatientSummary
+from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
 from app.domain.safety import SafetyDecision, SafetySeverity
+from app.domain.workflow import ResponseDraft
 from app.services.deterministic_safety import (
     INITIAL_SAFETY_POLICY_VERSION,
+    SAFETY_POST_GENERATION_POLICY_VERSION,
     SAFETY_PRECHECK_POLICY_VERSION,
     SAFETY_RULES,
     DeterministicSafetyPolicy,
@@ -25,6 +27,18 @@ def patient_with_core_context(
             )
         ],
         truncated_categories=["observations"] if truncated else [],
+    )
+
+
+def citation() -> Citation:
+    return Citation(
+        document_id="who-synthetic-guideline",
+        chunk_id="who-synthetic-guideline.0",
+        title="Synthetic Guideline",
+        publisher="WHO",
+        source_url="https://example.test/guideline",
+        page=1,
+        excerpt="Bounded evidence excerpt.",
     )
 
 
@@ -48,6 +62,9 @@ def test_safety_rule_catalog_has_stable_versioned_metadata() -> None:
         "medication_allergy_conflict",
         "missing_core_context",
         "patient_context_truncated",
+        "draft_autonomous_medication_change",
+        "draft_diagnosis_or_prescribing",
+        "draft_missing_grounding_signal",
     }
     assert SAFETY_RULES["medication_allergy_conflict"].severity == SafetySeverity.HIGH
     assert SAFETY_RULES["missing_core_context"].evidence_references == (
@@ -167,3 +184,67 @@ async def test_multiple_rules_have_stable_order_and_replay() -> None:
         "patient_context_truncated",
     ]
     assert first.model_dump(mode="json") == second.model_dump(mode="json")
+
+
+@pytest.mark.anyio
+async def test_grounded_draft_passes_post_generation_policy() -> None:
+    result = await DeterministicSafetyPolicy().evaluate_draft(
+        query="What precautions relate to these conditions?",
+        draft=ResponseDraft(answer="Guideline evidence supports routine follow-up."),
+        citations=[citation()],
+    )
+
+    assert result.decision == SafetyDecision.PASS
+    assert result.requires_human_review is False
+    assert result.policy_version == SAFETY_POST_GENERATION_POLICY_VERSION
+    assert result.reasons == []
+
+
+@pytest.mark.anyio
+async def test_draft_medication_change_requires_review_without_echoing_answer() -> None:
+    result = await DeterministicSafetyPolicy().evaluate_draft(
+        query="What precautions relate to these conditions?",
+        draft=ResponseDraft(
+            answer="Start private-marker medication based on guideline evidence."
+        ),
+        citations=[citation()],
+    )
+
+    assert result.decision == SafetyDecision.REVIEW
+    assert [(reason.code, reason.severity) for reason in result.reasons] == [
+        ("draft_autonomous_medication_change", SafetySeverity.HIGH)
+    ]
+    assert result.reasons[0].evidence_references == ["draft:answer"]
+    assert "private-marker" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.anyio
+async def test_draft_diagnosis_or_prescribing_is_blocked() -> None:
+    result = await DeterministicSafetyPolicy().evaluate_draft(
+        query="What precautions relate to these conditions?",
+        draft=ResponseDraft(
+            answer="You have private-marker based on guideline evidence."
+        ),
+        citations=[citation()],
+    )
+
+    assert result.decision == SafetyDecision.BLOCK
+    assert result.requires_human_review is False
+    assert [reason.code for reason in result.reasons] == [
+        "draft_diagnosis_or_prescribing"
+    ]
+    assert "private-marker" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.anyio
+async def test_draft_without_grounding_signal_requires_review() -> None:
+    result = await DeterministicSafetyPolicy().evaluate_draft(
+        query="What precautions relate to these conditions?",
+        draft=ResponseDraft(answer="Routine follow-up is reasonable."),
+        citations=[citation()],
+    )
+
+    assert result.decision == SafetyDecision.REVIEW
+    assert [reason.code for reason in result.reasons] == [
+        "draft_missing_grounding_signal"
+    ]

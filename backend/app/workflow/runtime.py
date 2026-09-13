@@ -9,7 +9,7 @@ from app.rag.retrieval import GuidelineRetriever
 from app.tools.intent import IntentClassifier
 from app.tools.patient import PatientSummaryReader
 from app.tools.response import ResponseGenerator
-from app.tools.safety import SafetyPolicy
+from app.tools.safety import PostGenerationSafetyPolicy, SafetyPolicy
 
 
 class WorkflowClock(Protocol):
@@ -68,6 +68,7 @@ class WorkflowRuntime:
     intent_classifier: IntentClassifier
     patient_summary_reader: PatientSummaryReader
     safety_policy: SafetyPolicy
+    post_generation_safety_policy: PostGenerationSafetyPolicy
     response_generator: ResponseGenerator
     audit_event_ids: AuditEventIdFactory
     guideline_retriever: GuidelineRetriever | None = None

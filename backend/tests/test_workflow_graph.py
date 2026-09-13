@@ -84,18 +84,21 @@ from app.tools.response import (
     ResponseGenerationUnavailableError,
     ResponseGenerator,
 )
-from app.tools.safety import SafetyPolicy, SafetyPolicyError
+from app.tools.safety import PostGenerationSafetyPolicy, SafetyPolicy, SafetyPolicyError
 from app.workflow.graph import (
     BEGIN_EXECUTION_NODE,
     CLASSIFICATION_FAILURE_CODE,
     CLASSIFICATION_TIMEOUT_CODE,
     CLASSIFY_INTENT_NODE,
     EDUCATIONAL_DISCLAIMER,
+    FINALIZE_RESPONSE_NODE,
     GENERATE_RESPONSE_NODE,
     GUIDELINE_RETRIEVAL_TIMEOUT_CODE,
     GUIDELINE_RETRIEVAL_UNAVAILABLE_CODE,
     INVALID_GUIDELINE_EVIDENCE_CODE,
     INVALID_PATIENT_SUMMARY_CODE,
+    POST_GENERATION_SAFETY_FAILURE_CODE,
+    POST_GENERATION_SAFETY_NODE,
     REJECT_UNSUPPORTED_NODE,
     RESPONSE_AUTHENTICATION_CODE,
     RESPONSE_CONTEXT_LIMIT_CODE,
@@ -229,6 +232,47 @@ class MalformedSafetyPolicy:
         )
 
 
+class StaticPostGenerationSafetyPolicy:
+    def __init__(
+        self,
+        result: SafetyResult | SafetyPolicyError,
+    ) -> None:
+        self.result = result
+        self.calls = 0
+
+    async def evaluate_draft(
+        self,
+        *,
+        query: str,
+        draft: ResponseDraft,
+        citations: list[Citation],
+    ) -> SafetyResult:
+        del query, draft, citations
+        self.calls += 1
+        if isinstance(self.result, SafetyPolicyError):
+            raise self.result
+        return self.result
+
+
+class MalformedPostGenerationSafetyPolicy:
+    async def evaluate_draft(
+        self,
+        *,
+        query: str,
+        draft: ResponseDraft,
+        citations: list[Citation],
+    ) -> SafetyResult:
+        del query, draft, citations
+        return cast(
+            SafetyResult,
+            {
+                "decision": "unsafe-provider-value",
+                "requires_human_review": False,
+                "policy_version": "malformed",
+            },
+        )
+
+
 class StaticResponseGenerator:
     def __init__(
         self,
@@ -298,7 +342,9 @@ class FlakyResponseGenerator:
         if self.calls == 1:
             raise ResponseGenerationUnavailableError("transient sensitive failure")
         return ResponseGenerationResult(
-            draft=ResponseDraft(answer="Recovered bounded educational draft."),
+            draft=ResponseDraft(
+                answer="Recovered bounded educational guideline draft."
+            ),
             metadata=ResponseGenerationMetadata(generator="deterministic"),
         )
 
@@ -420,6 +466,7 @@ def workflow_runtime(
     *,
     patient_reader: PatientSummaryReader | None = None,
     safety_policy: SafetyPolicy | None = None,
+    post_generation_safety_policy: PostGenerationSafetyPolicy | None = None,
     response_generator: ResponseGenerator | None = None,
     guideline_retriever: GuidelineRetriever | None = None,
     without_guideline_retriever: bool = False,
@@ -433,6 +480,9 @@ def workflow_runtime(
             patient_reader or StaticPatientSummaryReader(complete_patient_summary())
         ),
         safety_policy=safety_policy or DeterministicSafetyPolicy(),
+        post_generation_safety_policy=(
+            post_generation_safety_policy or DeterministicSafetyPolicy()
+        ),
         response_generator=response_generator or DeterministicResponseGenerator(),
         audit_event_ids=SequentialAuditEventIdFactory(),
         guideline_retriever=(
@@ -635,6 +685,8 @@ def test_graph_has_only_the_reviewed_response_and_audit_topology() -> None:
         RETRIEVE_GUIDELINES_NODE,
         SAFETY_PRECHECK_NODE,
         GENERATE_RESPONSE_NODE,
+        POST_GENERATION_SAFETY_NODE,
+        FINALIZE_RESPONSE_NODE,
         "__end__",
     }
     assert {(edge.source, edge.target) for edge in graph.edges} == {
@@ -649,8 +701,12 @@ def test_graph_has_only_the_reviewed_response_and_audit_topology() -> None:
         (RETRIEVE_GUIDELINES_NODE, "__end__"),
         (SAFETY_PRECHECK_NODE, GENERATE_RESPONSE_NODE),
         (SAFETY_PRECHECK_NODE, "__end__"),
-        (REJECT_UNSUPPORTED_NODE, "__end__"),
+        (GENERATE_RESPONSE_NODE, POST_GENERATION_SAFETY_NODE),
         (GENERATE_RESPONSE_NODE, "__end__"),
+        (POST_GENERATION_SAFETY_NODE, FINALIZE_RESPONSE_NODE),
+        (POST_GENERATION_SAFETY_NODE, "__end__"),
+        (FINALIZE_RESPONSE_NODE, "__end__"),
+        (REJECT_UNSUPPORTED_NODE, "__end__"),
     }
 
 
@@ -704,7 +760,7 @@ async def test_sufficient_guideline_evidence_is_projected_and_audited_safely() -
 @pytest.mark.anyio
 async def test_generation_receives_bounded_context_and_audits_safe_metadata() -> None:
     response_generator = StaticResponseGenerator(
-        ResponseDraft(answer="Private provider response body."),
+        ResponseDraft(answer="Private provider guideline response body."),
         metadata=ResponseGenerationMetadata(
             generator="provider",
             model_alias="gpt-test-alias",
@@ -751,6 +807,78 @@ async def test_generation_receives_bounded_context_and_audits_safe_metadata() ->
     assert queued_workflow().user_query not in serialized_audit
     assert "Private provider response body" not in serialized_audit
     assert "Bounded evidence excerpt" not in serialized_audit
+
+
+@pytest.mark.anyio
+async def test_post_generation_safety_can_pause_draft_before_final_response() -> None:
+    response_generator = StaticResponseGenerator(
+        ResponseDraft(answer="Start this medication dose based on guideline evidence.")
+    )
+
+    result = await execute_workflow(
+        queued_workflow("What precautions apply to this medication?"),
+        runtime=workflow_runtime(response_generator=response_generator),
+    )
+
+    assert result.workflow.status == WorkflowStatus.PENDING_REVIEW
+    assert result.workflow.response_draft is not None
+    assert result.workflow.final_response is None
+    assert result.workflow.post_generation_safety_result is not None
+    assert [
+        reason.code for reason in result.workflow.post_generation_safety_result.reasons
+    ] == ["draft_autonomous_medication_change"]
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        POST_GENERATION_SAFETY_NODE,
+    ]
+
+
+@pytest.mark.anyio
+async def test_post_generation_safety_can_block_diagnosis_or_prescribing() -> None:
+    response_generator = StaticResponseGenerator(
+        ResponseDraft(answer="You have a diagnosis based on guideline evidence.")
+    )
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(response_generator=response_generator),
+    )
+
+    assert result.workflow.status == WorkflowStatus.REJECTED
+    assert result.workflow.response_draft is not None
+    assert result.workflow.final_response is None
+    assert result.workflow.post_generation_safety_result is not None
+    assert (
+        result.workflow.post_generation_safety_result.decision == SafetyDecision.BLOCK
+    )
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        POST_GENERATION_SAFETY_NODE,
+    ]
+
+
+@pytest.mark.anyio
+async def test_post_generation_safety_failure_does_not_publish_draft() -> None:
+    response_generator = StaticResponseGenerator(
+        ResponseDraft(answer="Guideline evidence supports a bounded draft.")
+    )
+
+    result = await execute_workflow(
+        queued_workflow(),
+        runtime=workflow_runtime(
+            response_generator=response_generator,
+            post_generation_safety_policy=MalformedPostGenerationSafetyPolicy(),
+        ),
+    )
+
+    assert result.workflow.status == WorkflowStatus.FAILED
+    assert result.workflow.failure_code == POST_GENERATION_SAFETY_FAILURE_CODE
+    assert result.workflow.response_draft is not None
+    assert result.workflow.final_response is None
+    assert [item.step for item in result.transitions] == [
+        BEGIN_EXECUTION_NODE,
+        POST_GENERATION_SAFETY_NODE,
+    ]
 
 
 @pytest.mark.anyio
@@ -905,7 +1033,7 @@ async def test_supported_intent_completes_with_qualified_response_and_audit() ->
         (
             WorkflowStatus.RUNNING,
             WorkflowStatus.COMPLETED,
-            GENERATE_RESPONSE_NODE,
+            FINALIZE_RESPONSE_NODE,
         ),
     ]
     assert result.workflow.final_response is not None
@@ -922,6 +1050,7 @@ async def test_supported_intent_completes_with_qualified_response_and_audit() ->
         AuditEventType.TOOL_CALLED,
         AuditEventType.SAFETY_EVALUATED,
         AuditEventType.RESPONSE_GENERATED,
+        AuditEventType.SAFETY_EVALUATED,
         AuditEventType.STATUS_CHANGED,
     ]
     assert len({event.event_id for event in result.workflow.audit_log}) == len(
@@ -1284,7 +1413,7 @@ async def test_retryable_response_failure_recovers_within_bound() -> None:
     assert response_generator.calls == 2
     assert result.workflow.final_response is not None
     assert result.workflow.final_response.answer == (
-        "Recovered bounded educational draft."
+        "Recovered bounded educational guideline draft."
     )
 
 

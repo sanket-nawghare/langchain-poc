@@ -110,6 +110,7 @@ def execution_context(store: WorkflowRunStore) -> WorkflowExecutionContext:
         intent_classifier=DeterministicIntentClassifier(),
         patient_summary_reader=StaticPatientReader(),
         safety_policy=DeterministicSafetyPolicy(),
+        post_generation_safety_policy=DeterministicSafetyPolicy(),
         response_generator=DeterministicResponseGenerator(),
         audit_event_ids=SequentialIds(500),
         guideline_retriever=SufficientGuidelineRetriever(),

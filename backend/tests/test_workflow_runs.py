@@ -70,6 +70,7 @@ def runtime(clock: FixedClock, audit_ids: SequentialIds) -> WorkflowRuntime:
         intent_classifier=DeterministicIntentClassifier(),
         patient_summary_reader=StaticPatientReader(),
         safety_policy=DeterministicSafetyPolicy(),
+        post_generation_safety_policy=DeterministicSafetyPolicy(),
         response_generator=DeterministicResponseGenerator(),
         audit_event_ids=audit_ids,
         guideline_retriever=SufficientGuidelineRetriever(),

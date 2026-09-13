@@ -20,7 +20,7 @@ reviewable and must finish with focused tests and `make check`.
 | Sub-phase | Deliverable | Status |
 |---|---|---|
 | 4.1 Grounded LLM response generation | A configured provider drafts structured answers from bounded patient context and retrieved evidence | `[x]` |
-| 4.2 Deterministic and LLM-assisted safety | Versioned rules evaluate inputs, evidence, and generated drafts without delegating final safety authority to the model | `[ ]` |
+| 4.2 Deterministic and LLM-assisted safety | Versioned rules evaluate inputs, evidence, and generated drafts without delegating final safety authority to the model | `[x]` |
 | 4.3 Persisted review queue and actions | Reviewers can inspect safe metadata and approve, reject, or request changes | `[ ]` |
 | 4.4 Concurrency-safe resume | Valid review actions resume the exact checkpoint once and reject stale or duplicate actions | `[ ]` |
 | 4.5 Phase 4 integration gate | Grounded generation, review, restart, authorization, redaction, and isolated-source gates pass | `[ ]` |
@@ -169,11 +169,22 @@ can be evaluated without rewriting it.
 
 ### 4.2.2 — Post-Generation Safety Evaluation
 
-- `[ ]` Evaluate the grounded draft separately from deterministic input rules.
-- `[ ]` Allow an LLM-assisted signal only as structured evidence for
+- `[x]` Evaluate the grounded draft separately from deterministic input rules.
+- `[x]` Allow an LLM-assisted signal only as structured evidence for
   application-owned deterministic routing.
-- `[ ]` Route pass, review, and block outcomes explicitly without silently
+- `[x]` Route pass, review, and block outcomes explicitly without silently
   rewriting generated content.
+
+Generated drafts now stay non-final until a separate post-generation safety node
+evaluates them under `safety-post-generation-v1`. The initial deterministic
+draft checks route autonomous medication-change language to review, block
+diagnosis/prescribing language, and require an evidence-grounding signal when
+citations are present. The graph persists the draft in workflow state, audits
+only outcome/version/reason counts, and finalizes the answer with
+application-owned citations and disclaimer only after the post-generation
+decision passes. No LLM-assisted evaluator is wired yet; the protocol boundary
+requires any future model signal to return structured evidence that the
+application-owned route evaluates deterministically.
 
 ## Sub-phase 4.3 — Persisted Review Queue and Actions
 

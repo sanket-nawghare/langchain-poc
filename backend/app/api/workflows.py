@@ -131,6 +131,7 @@ async def workflow_execution_context(
                         client,
                     ),
                     safety_policy=DeterministicSafetyPolicy(),
+                    post_generation_safety_policy=DeterministicSafetyPolicy(),
                     response_generator=response_generator,
                     audit_event_ids=audit_event_ids,
                     guideline_retriever=guideline_retriever,

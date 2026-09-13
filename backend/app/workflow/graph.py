@@ -65,6 +65,8 @@ from app.workflow.state import (
     set_workflow_guideline_evidence,
     set_workflow_intent,
     set_workflow_patient_data,
+    set_workflow_post_generation_safety_result,
+    set_workflow_response_draft,
     set_workflow_safety_result,
     transition_workflow,
 )
@@ -76,10 +78,14 @@ RETRIEVE_PATIENT_NODE = "retrieve_patient"
 RETRIEVE_GUIDELINES_NODE = "retrieve_guidelines"
 SAFETY_PRECHECK_NODE = "safety_precheck"
 GENERATE_RESPONSE_NODE = "generate_response"
+POST_GENERATION_SAFETY_NODE = "post_generation_safety"
+FINALIZE_RESPONSE_NODE = "finalize_response"
 CLASSIFICATION_FAILURE_CODE = "intent_classification_failed"
 CLASSIFICATION_TIMEOUT_CODE = "intent_classification_timeout"
 INVALID_PATIENT_SUMMARY_CODE = "invalid_patient_summary"
 SAFETY_FAILURE_CODE = "safety_evaluation_failed"
+POST_GENERATION_SAFETY_FAILURE_CODE = "post_generation_safety_evaluation_failed"
+POST_GENERATION_SAFETY_TIMEOUT_CODE = "post_generation_safety_evaluation_timeout"
 RESPONSE_FAILURE_CODE = "response_generation_failed"
 RESPONSE_TIMEOUT_CODE = "response_generation_timeout"
 RESPONSE_AUTHENTICATION_CODE = "response_generation_authentication_failed"
@@ -103,6 +109,7 @@ type ClassificationRoute = Literal["supported", "unsupported", "failed"]
 type RetrievalRoute = Literal["retrieved", "failed"]
 type GuidelineRetrievalRoute = Literal["continue", "review", "failed"]
 type SafetyRoute = Literal["pass", "review", "block", "failed"]
+type GenerationRoute = Literal["generated", "failed"]
 
 type WorkflowCompiledGraph = CompiledStateGraph[
     WorkflowGraphState,
@@ -683,11 +690,6 @@ async def _generate_response(
             else raw_result
         )
         generation = ResponseGenerationResult.model_validate(raw_payload)
-        response = GeneratedResponse(
-            answer=generation.draft.answer,
-            citations=workflow.retrieved_guidelines,
-            disclaimer=EDUCATIONAL_DISCLAIMER,
-        )
     except WorkflowNodeTimeoutError:
         failed_workflow, transition = _transition_with_audit(
             workflow,
@@ -727,17 +729,11 @@ async def _generate_response(
         )
         return {"workflow": failed_workflow, "transitions": [transition]}
 
-    completed_workflow, transition = transition_workflow(
-        workflow,
-        WorkflowStatus.COMPLETED,
-        occurred_at=runtime.context.clock.now(),
-        step=GENERATE_RESPONSE_NODE,
-        final_response=response,
-    )
+    draft_workflow = set_workflow_response_draft(workflow, generation.draft)
     generation_details: dict[str, AuditValue] = {
         "generator": generation.metadata.generator,
         "outcome": "success",
-        "citation_count": len(response.citations),
+        "citation_count": len(workflow.retrieved_guidelines),
     }
     for key, value in (
         ("model_alias", generation.metadata.model_alias),
@@ -748,19 +744,137 @@ async def _generate_response(
         if value is not None:
             generation_details[key] = value
     audited_workflow = append_workflow_audit_events(
-        completed_workflow,
+        draft_workflow,
         [
             _audit_event(
-                completed_workflow,
+                draft_workflow,
                 runtime,
                 AuditEventType.RESPONSE_GENERATED,
                 details=generation_details,
             ),
+        ],
+    )
+    return {"workflow": audited_workflow}
+
+
+async def _post_generation_safety(
+    state: WorkflowGraphState,
+    runtime: Runtime[WorkflowRuntime],
+) -> WorkflowGraphUpdate:
+    workflow = state["workflow"]
+    if workflow.response_draft is None:
+        raise AssertionError("post-generation safety requires a response draft")
+    response_draft = workflow.response_draft
+    try:
+        raw_result = await _run_bounded(
+            lambda: runtime.context.post_generation_safety_policy.evaluate_draft(
+                query=workflow.user_query,
+                draft=response_draft,
+                citations=workflow.retrieved_guidelines,
+            ),
+            runtime,
+            retryable=(SafetyPolicyError,),
+        )
+        raw_payload = (
+            raw_result.model_dump()
+            if isinstance(raw_result, SafetyResult)
+            else raw_result
+        )
+        safety_result = SafetyResult.model_validate(raw_payload)
+        updated_workflow = set_workflow_post_generation_safety_result(
+            workflow,
+            safety_result,
+        )
+    except WorkflowNodeTimeoutError:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=POST_GENERATION_SAFETY_NODE,
+            failure_code=POST_GENERATION_SAFETY_TIMEOUT_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except (SafetyPolicyError, ValidationError):
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=POST_GENERATION_SAFETY_NODE,
+            failure_code=POST_GENERATION_SAFETY_FAILURE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+    except Exception:
+        failed_workflow, transition = _transition_with_audit(
+            workflow,
+            runtime,
+            WorkflowStatus.FAILED,
+            step=POST_GENERATION_SAFETY_NODE,
+            failure_code=POST_GENERATION_SAFETY_FAILURE_CODE,
+        )
+        return {"workflow": failed_workflow, "transitions": [transition]}
+
+    audited_workflow = append_workflow_audit_events(
+        updated_workflow,
+        [
+            _audit_event(
+                updated_workflow,
+                runtime,
+                AuditEventType.SAFETY_EVALUATED,
+                details={
+                    "phase": "post_generation",
+                    "decision": safety_result.decision.value,
+                    "policy_version": safety_result.policy_version,
+                    "reason_count": len(safety_result.reasons),
+                },
+            )
+        ],
+    )
+    if safety_result.decision == SafetyDecision.REVIEW:
+        reviewed_workflow, transition = _transition_with_audit(
+            audited_workflow,
+            runtime,
+            WorkflowStatus.PENDING_REVIEW,
+            step=POST_GENERATION_SAFETY_NODE,
+        )
+        return {"workflow": reviewed_workflow, "transitions": [transition]}
+    if safety_result.decision == SafetyDecision.BLOCK:
+        blocked_workflow, transition = _transition_with_audit(
+            audited_workflow,
+            runtime,
+            WorkflowStatus.REJECTED,
+            step=POST_GENERATION_SAFETY_NODE,
+        )
+        return {"workflow": blocked_workflow, "transitions": [transition]}
+    return {"workflow": audited_workflow}
+
+
+async def _finalize_response(
+    state: WorkflowGraphState,
+    runtime: Runtime[WorkflowRuntime],
+) -> WorkflowGraphUpdate:
+    workflow = state["workflow"]
+    if workflow.response_draft is None:
+        raise AssertionError("final response requires a response draft")
+    response = GeneratedResponse(
+        answer=workflow.response_draft.answer,
+        citations=workflow.retrieved_guidelines,
+        disclaimer=EDUCATIONAL_DISCLAIMER,
+    )
+    completed_workflow, transition = transition_workflow(
+        workflow,
+        WorkflowStatus.COMPLETED,
+        occurred_at=runtime.context.clock.now(),
+        step=FINALIZE_RESPONSE_NODE,
+        final_response=response,
+    )
+    audited_workflow = append_workflow_audit_events(
+        completed_workflow,
+        [
             _status_audit_event(
                 completed_workflow,
                 runtime,
                 from_status=workflow.status,
-                step=GENERATE_RESPONSE_NODE,
+                step=FINALIZE_RESPONSE_NODE,
             ),
         ],
     )
@@ -806,6 +920,12 @@ async def _route_safety(state: WorkflowGraphState) -> SafetyRoute:
     return "pass"
 
 
+async def _route_generation(state: WorkflowGraphState) -> GenerationRoute:
+    return (
+        "failed" if state["workflow"].status == WorkflowStatus.FAILED else "generated"
+    )
+
+
 def build_workflow_graph() -> WorkflowCompiledGraph:
     """Compile deterministic routing through a qualified response."""
 
@@ -820,6 +940,8 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
     builder.add_node(RETRIEVE_GUIDELINES_NODE, _retrieve_guidelines)
     builder.add_node(SAFETY_PRECHECK_NODE, _safety_precheck)
     builder.add_node(GENERATE_RESPONSE_NODE, _generate_response)
+    builder.add_node(POST_GENERATION_SAFETY_NODE, _post_generation_safety)
+    builder.add_node(FINALIZE_RESPONSE_NODE, _finalize_response)
     builder.add_edge(START, BEGIN_EXECUTION_NODE)
     builder.add_edge(BEGIN_EXECUTION_NODE, CLASSIFY_INTENT_NODE)
     builder.add_conditional_edges(
@@ -858,8 +980,26 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
             "failed": END,
         },
     )
+    builder.add_conditional_edges(
+        GENERATE_RESPONSE_NODE,
+        _route_generation,
+        {
+            "generated": POST_GENERATION_SAFETY_NODE,
+            "failed": END,
+        },
+    )
+    builder.add_conditional_edges(
+        POST_GENERATION_SAFETY_NODE,
+        _route_safety,
+        {
+            "pass": FINALIZE_RESPONSE_NODE,
+            "review": END,
+            "block": END,
+            "failed": END,
+        },
+    )
     builder.add_edge(REJECT_UNSUPPORTED_NODE, END)
-    builder.add_edge(GENERATE_RESPONSE_NODE, END)
+    builder.add_edge(FINALIZE_RESPONSE_NODE, END)
     return builder.compile()
 
 

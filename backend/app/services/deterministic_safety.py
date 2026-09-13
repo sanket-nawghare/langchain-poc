@@ -3,15 +3,17 @@
 import re
 from dataclasses import dataclass
 
-from app.domain.clinical import PatientSummary
+from app.domain.clinical import Citation, PatientSummary
 from app.domain.safety import (
     SafetyDecision,
     SafetyReason,
     SafetyResult,
     SafetySeverity,
 )
+from app.domain.workflow import ResponseDraft
 
 SAFETY_PRECHECK_POLICY_VERSION = "safety-precheck-v1"
+SAFETY_POST_GENERATION_POLICY_VERSION = "safety-post-generation-v1"
 INITIAL_SAFETY_POLICY_VERSION = SAFETY_PRECHECK_POLICY_VERSION
 URGENT_LANGUAGE = (
     "chest pain",
@@ -23,6 +25,16 @@ URGENT_LANGUAGE = (
     "unconscious",
 )
 SAFETY_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+AUTONOMOUS_MEDICATION_PATTERN = re.compile(
+    r"\b(start|stop|increase|decrease|double|halve|change|adjust)\b"
+    r".{0,80}\b(medication|medicine|dose|dosage|tablet|capsule|mg|insulin)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+DIAGNOSIS_OR_PRESCRIBING_PATTERN = re.compile(
+    r"\b(i diagnose|diagnosis is|you have|i prescribe|prescribe you|"
+    r"prescription for)\b",
+    re.IGNORECASE,
+)
 GENERIC_MEDICATION_ALLERGY_TERMS = frozenset(
     {
         "allergy",
@@ -91,6 +103,24 @@ SAFETY_RULES: dict[str, SafetyRule] = {
         message="One or more patient context collections are truncated.",
         severity=SafetySeverity.WARNING,
         evidence_references=(),
+    ),
+    "draft_autonomous_medication_change": SafetyRule(
+        code="draft_autonomous_medication_change",
+        message="Generated draft includes medication-change language requiring review.",
+        severity=SafetySeverity.HIGH,
+        evidence_references=("draft:answer",),
+    ),
+    "draft_diagnosis_or_prescribing": SafetyRule(
+        code="draft_diagnosis_or_prescribing",
+        message="Generated draft appears to diagnose or prescribe and is blocked.",
+        severity=SafetySeverity.HIGH,
+        evidence_references=("draft:answer",),
+    ),
+    "draft_missing_grounding_signal": SafetyRule(
+        code="draft_missing_grounding_signal",
+        message="Generated draft does not include an evidence-grounding signal.",
+        severity=SafetySeverity.WARNING,
+        evidence_references=("draft:answer", "guidelines:citations"),
     ),
 }
 
@@ -178,5 +208,52 @@ class DeterministicSafetyPolicy:
             ),
             requires_human_review=requires_review,
             policy_version=SAFETY_PRECHECK_POLICY_VERSION,
+            reasons=reasons,
+        )
+
+    async def evaluate_draft(
+        self,
+        *,
+        query: str,
+        draft: ResponseDraft,
+        citations: list[Citation],
+    ) -> SafetyResult:
+        """Flag generated content that should not become a final answer as-is."""
+
+        del query
+        normalized_answer = " ".join(draft.answer.casefold().split())
+        reasons: list[SafetyReason] = []
+        if DIAGNOSIS_OR_PRESCRIBING_PATTERN.search(draft.answer):
+            reasons.append(SAFETY_RULES["draft_diagnosis_or_prescribing"].reason())
+        if AUTONOMOUS_MEDICATION_PATTERN.search(draft.answer):
+            reasons.append(SAFETY_RULES["draft_autonomous_medication_change"].reason())
+        if not citations or not any(
+            phrase in normalized_answer
+            for phrase in (
+                "guideline",
+                "guidelines",
+                "evidence",
+                "citation",
+                "citations",
+                "reference",
+                "references",
+            )
+        ):
+            reasons.append(SAFETY_RULES["draft_missing_grounding_signal"].reason())
+
+        blocked = any(
+            reason.code == "draft_diagnosis_or_prescribing" for reason in reasons
+        )
+        requires_review = bool(reasons) and not blocked
+        return SafetyResult(
+            decision=(
+                SafetyDecision.BLOCK
+                if blocked
+                else SafetyDecision.REVIEW
+                if requires_review
+                else SafetyDecision.PASS
+            ),
+            requires_human_review=requires_review,
+            policy_version=SAFETY_POST_GENERATION_POLICY_VERSION,
             reasons=reasons,
         )
