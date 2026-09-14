@@ -5,6 +5,7 @@ from typing import Annotated, Literal, TypedDict
 from fastapi import APIRouter, Depends, Response, status
 
 from app.core.config import get_settings
+from app.core.observability import metrics_registry
 from app.services.readiness import ReadinessReport, check_dependencies
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -43,3 +44,10 @@ async def readiness(
     if report.status != "ready":
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return report
+
+
+@router.get("/metrics")
+async def metrics() -> dict[str, object]:
+    """Return process-local operational metrics without payload content."""
+
+    return metrics_registry.snapshot()

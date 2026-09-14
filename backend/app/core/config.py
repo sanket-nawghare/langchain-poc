@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
     dependency_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
+    max_request_body_bytes: int = Field(default=16_384, ge=1024, le=1_048_576)
+    workflow_rate_limit_per_minute: int = Field(default=120, ge=1, le=10_000)
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:5173",

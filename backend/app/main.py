@@ -15,6 +15,12 @@ from app.api.patients import router as patient_router
 from app.api.workflows import initialize_workflow_runs
 from app.api.workflows import router as workflow_router
 from app.core.config import get_settings
+from app.core.observability import (
+    RequestBodyLimitMiddleware,
+    RequestObservabilityMiddleware,
+    SecurityHeadersMiddleware,
+    WorkflowRateLimitMiddleware,
+)
 from app.domain.api import ApiError, ErrorDetail
 
 
@@ -66,6 +72,16 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
+)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestObservabilityMiddleware)
+app.add_middleware(
+    WorkflowRateLimitMiddleware,
+    requests_per_minute=settings.workflow_rate_limit_per_minute,
+)
+app.add_middleware(
+    RequestBodyLimitMiddleware,
+    max_body_bytes=settings.max_request_body_bytes,
 )
 app.include_router(health_router)
 app.include_router(evidence_router)
