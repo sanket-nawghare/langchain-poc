@@ -3,7 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 
-function workflowPayload(status = 201): Response {
+type WorkflowOverride = {
+  readonly status?: string;
+  readonly final_response?: object | null;
+  readonly response_draft?: object | null;
+  readonly failure_code?: string | null;
+  readonly post_generation_safety_result?: object | null;
+};
+
+function workflowPayload(
+  status = 201,
+  override: WorkflowOverride = {},
+): Response {
   return new Response(
     JSON.stringify({
       request_id: "request-1",
@@ -11,7 +22,7 @@ function workflowPayload(status = 201): Response {
         workflow_id: "workflow-1",
         correlation_id: "correlation-1",
         trace_id: "trace-1",
-        status: "completed",
+        status: override.status ?? "completed",
         created_at: "2026-09-14T00:00:00Z",
         updated_at: "2026-09-14T00:00:01Z",
         requires_human_review: false,
@@ -23,7 +34,7 @@ function workflowPayload(status = 201): Response {
           document_ids: ["who-synthetic-guideline"],
           chunk_ids: ["who-synthetic-guideline.0"],
         },
-        response_draft: {
+        response_draft: override.response_draft ?? {
           answer: "Guideline evidence supports routine follow-up.",
         },
         review_citations: [
@@ -42,13 +53,14 @@ function workflowPayload(status = 201): Response {
           policy_version: "safety-precheck-v1",
           reasons: [],
         },
-        post_generation_safety_result: {
-          decision: "pass",
-          requires_human_review: false,
-          policy_version: "safety-post-generation-v1",
-          reasons: [],
-        },
-        final_response: {
+        post_generation_safety_result:
+          override.post_generation_safety_result ?? {
+            decision: "pass",
+            requires_human_review: false,
+            policy_version: "safety-post-generation-v1",
+            reasons: [],
+          },
+        final_response: override.final_response ?? {
           answer: "Guideline evidence supports routine follow-up.",
           citations: [
             {
@@ -62,10 +74,34 @@ function workflowPayload(status = 201): Response {
           ],
           disclaimer: "Educational demonstration; not medical advice.",
         },
-        failure_code: null,
+        failure_code: override.failure_code ?? null,
         review_version: 0,
-        transitions: [],
-        audit_log: [],
+        transitions: [
+          {
+            from_status: "queued",
+            to_status: "running",
+            occurred_at: "2026-09-14T00:00:00Z",
+            step: "begin_execution",
+          },
+          {
+            from_status: "running",
+            to_status: override.status ?? "completed",
+            occurred_at: "2026-09-14T00:00:01Z",
+            step:
+              override.status === "pending_review"
+                ? "post_generation_safety"
+                : "finalize_response",
+          },
+        ],
+        audit_log: [
+          {
+            event_id: "event-1",
+            event_type: "response_generated",
+            occurred_at: "2026-09-14T00:00:01Z",
+            actor_type: "system",
+            details: { outcome: "success" },
+          },
+        ],
       },
     }),
     { status },
@@ -122,12 +158,117 @@ describe("App", () => {
     expect(
       screen.getByText("Reviewed synthetic guideline"),
     ).toBeInTheDocument();
+    expect(screen.getByText("finalize response")).toBeInTheDocument();
+    expect(screen.getByText("response generated")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("patient_data");
     expect(document.body).not.toHaveTextContent("private-code");
     expect(fetchMock).toHaveBeenLastCalledWith(
       "http://localhost:8000/api/v1/workflows",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("renders pending-review draft and safety reasons", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        workflowPayload(201, {
+          status: "pending_review",
+          final_response: null,
+          response_draft: {
+            answer: "Start this medication dose based on guideline evidence.",
+          },
+          post_generation_safety_result: {
+            decision: "review",
+            requires_human_review: true,
+            policy_version: "safety-post-generation-v1",
+            reasons: [
+              {
+                code: "draft_autonomous_medication_change",
+                message:
+                  "Generated draft includes medication-change language requiring review.",
+                severity: "high",
+                evidence_references: ["draft:answer"],
+              },
+            ],
+          },
+        }),
+      );
+
+    render(<App />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use sample question" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("pending review")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Draft awaiting review")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Generated draft includes medication-change language requiring review.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows safe API errors", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            request_id: "request-1",
+            error: {
+              code: "invalid_workflow_request",
+              message: "The workflow request is invalid.",
+            },
+          }),
+          { status: 400 },
+        ),
+      );
+
+    render(<App />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use sample question" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "invalid_workflow_request",
+      );
+    });
+    expect(document.body).not.toHaveTextContent("private invalid query");
+  });
+
+  it("keeps submitted runs available in local history", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(workflowPayload());
+
+    render(<App />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use sample question" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
+
+    await screen.findByText("completed");
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Recent runs" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
   });
 
   it("reports an unavailable backend without hiding the application", async () => {

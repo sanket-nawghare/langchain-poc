@@ -22,7 +22,7 @@ be independently reviewable and end with focused frontend tests plus
 | Sub-phase | Deliverable | Status |
 |---|---|---|
 | 5.1 UI shell and API contracts | Typed frontend API client, request form, and safe result rendering skeleton | `[x]` |
-| 5.2 Workflow run experience | Loading, success, pending-review, rejected, failed, and empty states for workflow submission | `[ ]` |
+| 5.2 Workflow run experience | Loading, success, pending-review, rejected, failed, and empty states for workflow submission | `[x]` |
 | 5.3 Review queue and actions | Reviewer queue/detail/actions with safety reasons and stale-action handling | `[ ]` |
 | 5.4 Workflow visualization and history | Graph/status visualization, run history, transitions, and audit details | `[ ]` |
 | 5.5 Phase 5 integration gate | Accessibility, redaction, critical journeys, and documentation pass | `[ ]` |
@@ -48,11 +48,18 @@ messages.
 
 ## Sub-phase 5.2 - Workflow Run Experience
 
-- `[ ]` Add ergonomic loading, retry, success, pending-review, rejected, failed,
+- `[x]` Add ergonomic loading, retry, success, pending-review, rejected, failed,
   and validation states.
-- `[ ]` Render final responses with application-owned citations and disclaimer.
-- `[ ]` Render pending-review and rejected states with safety reason summaries.
-- `[ ]` Add component tests for the major workflow states.
+- `[x]` Render final responses with application-owned citations and disclaimer.
+- `[x]` Render pending-review and rejected states with safety reason summaries.
+- `[x]` Add component tests for the major workflow states.
+
+The workflow run surface now includes a fuller status summary, safe API error
+messaging, sample-question shortcut, final and pending-review answer panels,
+safety reasons, citations, transitions, redacted audit summaries, and a local
+recent-run history. Component coverage exercises available/unavailable backend
+status, completed runs, pending-review runs, API validation failures, and local
+history.
 
 ## Sub-phase 5.3 - Review Queue and Actions
 

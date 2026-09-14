@@ -2,7 +2,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
   ApiClientError,
+  AuditEvent,
   SafetyReason,
+  WorkflowTransition,
   WorkflowRunSnapshot,
   checkHealth,
   createWorkflowRun,
@@ -10,8 +12,10 @@ import {
 
 type ApiStatus = "checking" | "available" | "unavailable";
 type SubmitStatus = "idle" | "submitting" | "succeeded" | "failed";
+type ViewMode = "run" | "review" | "history";
 
 const defaultPatientId = "synthetic-patient-1";
+const sampleQuestion = "What precautions relate to this patient's conditions?";
 
 function statusLabel(status: WorkflowRunSnapshot["status"]): string {
   return status.replace("_", " ");
@@ -22,6 +26,77 @@ function safetyReasons(workflow: WorkflowRunSnapshot): readonly SafetyReason[] {
     ...(workflow.safety_result?.reasons ?? []),
     ...(workflow.post_generation_safety_result?.reasons ?? []),
   ];
+}
+
+function statusMessage(workflow: WorkflowRunSnapshot): string {
+  if (workflow.status === "completed") {
+    return "Completed with grounded citations and recorded safety checks.";
+  }
+  if (workflow.status === "pending_review") {
+    return "Paused for reviewer action before the draft can be published.";
+  }
+  if (workflow.status === "rejected") {
+    return "Stopped without publishing a final response.";
+  }
+  if (workflow.status === "failed") {
+    return "Stopped because one workflow dependency or contract failed safely.";
+  }
+  return "Workflow is still being processed.";
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function WorkflowTimeline({
+  transitions,
+}: {
+  readonly transitions: readonly WorkflowTransition[];
+}) {
+  if (transitions.length === 0) {
+    return (
+      <p className="notice">No transitions have been recorded for this run.</p>
+    );
+  }
+  return (
+    <ol className="timeline" aria-label="Workflow transitions">
+      {transitions.map((transition, index) => (
+        <li key={`${transition.step}:${transition.occurred_at}:${index}`}>
+          <span>{transition.step.replaceAll("_", " ")}</span>
+          <small>
+            {transition.from_status} to {transition.to_status}
+          </small>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function AuditSummary({
+  auditLog,
+}: {
+  readonly auditLog: readonly AuditEvent[];
+}) {
+  if (auditLog.length === 0) {
+    return <p className="notice">No audit events are available yet.</p>;
+  }
+  return (
+    <ul className="audit-list" aria-label="Redacted audit events">
+      {auditLog.slice(-6).map((event) => (
+        <li key={event.event_id}>
+          <span>{event.event_type.replaceAll("_", " ")}</span>
+          <small>{event.actor_type}</small>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function WorkflowResult({
@@ -44,6 +119,7 @@ function WorkflowResult({
           {statusLabel(workflow.status)}
         </span>
       </div>
+      <p className="result-summary">{statusMessage(workflow)}</p>
 
       <dl className="meta-grid" aria-label="Workflow metadata">
         <div>
@@ -61,6 +137,10 @@ function WorkflowResult({
         <div>
           <dt>Evidence</dt>
           <dd>{workflow.guideline_evidence?.assessment ?? "not available"}</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd>{formatDate(workflow.updated_at)}</dd>
         </div>
       </dl>
 
@@ -119,6 +199,57 @@ function WorkflowResult({
           </ul>
         </section>
       ) : null}
+
+      <section className="detail-grid" aria-label="Workflow details">
+        <div>
+          <h3>Transitions</h3>
+          <WorkflowTimeline transitions={workflow.transitions} />
+        </div>
+        <div>
+          <h3>Audit</h3>
+          <AuditSummary auditLog={workflow.audit_log} />
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function RunHistory({
+  runs,
+  selectedId,
+  onSelect,
+}: {
+  readonly runs: readonly WorkflowRunSnapshot[];
+  readonly selectedId?: string;
+  readonly onSelect: (workflow: WorkflowRunSnapshot) => void;
+}) {
+  return (
+    <section className="panel history-panel" aria-labelledby="history-title">
+      <div className="panel__header">
+        <div>
+          <p className="eyebrow">Local history</p>
+          <h2 id="history-title">Recent runs</h2>
+        </div>
+      </div>
+      {runs.length === 0 ? (
+        <p className="notice">Submitted workflows will appear here.</p>
+      ) : (
+        <ul className="run-list">
+          {runs.map((run) => (
+            <li key={run.workflow_id}>
+              <button
+                className="run-list__button"
+                type="button"
+                aria-current={run.workflow_id === selectedId}
+                onClick={() => onSelect(run)}
+              >
+                <span>{statusLabel(run.status)}</span>
+                <small>{formatDate(run.updated_at)}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -129,6 +260,8 @@ export function App() {
   const [query, setQuery] = useState("");
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
   const [workflow, setWorkflow] = useState<WorkflowRunSnapshot | null>(null);
+  const [runHistory, setRunHistory] = useState<WorkflowRunSnapshot[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("run");
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = useMemo(
@@ -167,6 +300,10 @@ export function App() {
         query: query.trim(),
       });
       setWorkflow(result);
+      setRunHistory((current) => [
+        result,
+        ...current.filter((run) => run.workflow_id !== result.workflow_id),
+      ]);
       setSubmitStatus("succeeded");
     } catch (caught) {
       const message =
@@ -195,6 +332,30 @@ export function App() {
         </div>
       </header>
 
+      <nav className="tabs" aria-label="Phase 5 workspace">
+        <button
+          type="button"
+          aria-pressed={viewMode === "run"}
+          onClick={() => setViewMode("run")}
+        >
+          Request
+        </button>
+        <button
+          type="button"
+          aria-pressed={viewMode === "review"}
+          onClick={() => setViewMode("review")}
+        >
+          Review
+        </button>
+        <button
+          type="button"
+          aria-pressed={viewMode === "history"}
+          onClick={() => setViewMode("history")}
+        >
+          History
+        </button>
+      </nav>
+
       <div className="workspace">
         <section
           className="panel request-panel"
@@ -222,9 +383,16 @@ export function App() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 rows={6}
-                placeholder="What precautions relate to this patient's conditions?"
+                placeholder={sampleQuestion}
               />
             </label>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setQuery(sampleQuestion)}
+            >
+              Use sample question
+            </button>
             {error ? (
               <p className="notice notice--danger" role="alert">
                 {error}
@@ -257,6 +425,16 @@ export function App() {
           </section>
         )}
       </div>
+
+      {viewMode === "history" ? (
+        <div className="workspace workspace--single">
+          <RunHistory
+            runs={runHistory}
+            selectedId={workflow?.workflow_id}
+            onSelect={setWorkflow}
+          />
+        </div>
+      ) : null}
     </main>
   );
 }
