@@ -28,7 +28,7 @@ BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 	fhir-seed fhir-verify fhir-reset phase2-live-gate \
 	guidelines-fetch guidelines-verify guidelines-chunk guidelines-index \
 	guidelines-index-verify guidelines-index-reset phase3-retrieval-live-gate \
-	phase3-live-gate phase4-generation-live-gate
+	phase3-live-gate phase4-generation-live-gate phase6-quality-gate
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -224,6 +224,10 @@ phase4-generation-live-gate: fhir-verify phase3-retrieval-live-gate ## Run the o
 		--base-url "$(BACKEND_BASE_URL)" \
 		--manifest data/synthetic/cohort-manifest.json \
 		--evaluation data/guidelines/retrieval-evaluation.json
+
+phase6-quality-gate: $(UV_BIN) ## Run offline quality, dependency, and secret checks
+	$(UV_ENV) $(UV) run --project backend python -m scripts.phase6_quality_gate \
+		--root .
 
 fhir-seed: synthea-ensure ## Idempotently seed the locked cohort into local HAPI
 	$(UV_ENV) $(UV) run --project backend python -m scripts.fhir_seed seed \
