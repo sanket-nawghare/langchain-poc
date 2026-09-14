@@ -1107,6 +1107,9 @@ async def test_allergy_history_completes_from_patient_summary_without_rag() -> N
     assert result.workflow.final_response.citations[0].document_id == (
         "synthetic-patient-summary"
     )
+    assert str(result.workflow.final_response.citations[0].source_url) == (
+        "http://localhost:8000/api/v1/evidence/synthetic-patient-summary"
+    )
     assert result.transitions[-1].step == FINALIZE_PATIENT_SUMMARY_NODE
     assert [event.event_type for event in result.workflow.audit_log] == [
         AuditEventType.STATUS_CHANGED,

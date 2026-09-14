@@ -126,7 +126,7 @@ class WorkflowNodeTimeoutError(TimeoutError):
 
 
 PATIENT_SUMMARY_SOURCE_URL = (
-    "https://clinical-workflow.local/evidence/synthetic-patient-summary"
+    "http://localhost:8000/api/v1/evidence/synthetic-patient-summary"
 )
 ALLERGY_QUERY_PATTERN = re.compile(r"\ballerg(?:y|ies|ic)\b", re.IGNORECASE)
 HISTORY_QUERY_PATTERN = re.compile(

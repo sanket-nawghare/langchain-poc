@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.evidence import router as evidence_router
 from app.api.health import router as health_router
 from app.api.patients import router as patient_router
 from app.api.workflows import initialize_workflow_runs
@@ -67,5 +68,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(health_router)
+app.include_router(evidence_router)
 app.include_router(patient_router)
 app.include_router(workflow_router)
