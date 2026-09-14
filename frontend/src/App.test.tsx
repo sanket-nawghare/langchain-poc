@@ -1,14 +1,83 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+
+function workflowPayload(status = 201): Response {
+  return new Response(
+    JSON.stringify({
+      request_id: "request-1",
+      data: {
+        workflow_id: "workflow-1",
+        correlation_id: "correlation-1",
+        trace_id: "trace-1",
+        status: "completed",
+        created_at: "2026-09-14T00:00:00Z",
+        updated_at: "2026-09-14T00:00:01Z",
+        requires_human_review: false,
+        guideline_evidence: {
+          assessment: "sufficient",
+          policy_version: "retrieval-v1",
+          query_fingerprint: "0".repeat(64),
+          match_count: 1,
+          document_ids: ["who-synthetic-guideline"],
+          chunk_ids: ["who-synthetic-guideline.0"],
+        },
+        response_draft: {
+          answer: "Guideline evidence supports routine follow-up.",
+        },
+        review_citations: [
+          {
+            document_id: "who-synthetic-guideline",
+            chunk_id: "who-synthetic-guideline.0",
+            title: "Reviewed synthetic guideline",
+            publisher: "who",
+            source_url: "https://example.test/reviewed-guideline",
+            page: 1,
+          },
+        ],
+        safety_result: {
+          decision: "pass",
+          requires_human_review: false,
+          policy_version: "safety-precheck-v1",
+          reasons: [],
+        },
+        post_generation_safety_result: {
+          decision: "pass",
+          requires_human_review: false,
+          policy_version: "safety-post-generation-v1",
+          reasons: [],
+        },
+        final_response: {
+          answer: "Guideline evidence supports routine follow-up.",
+          citations: [
+            {
+              document_id: "who-synthetic-guideline",
+              chunk_id: "who-synthetic-guideline.0",
+              title: "Reviewed synthetic guideline",
+              publisher: "who",
+              source_url: "https://example.test/reviewed-guideline",
+              page: 1,
+            },
+          ],
+          disclaimer: "Educational demonstration; not medical advice.",
+        },
+        failure_code: null,
+        review_version: 0,
+        transitions: [],
+        audit_log: [],
+      },
+    }),
+    { status },
+  );
+}
 
 describe("App", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders the foundation shell and reports an available backend", async () => {
+  it("renders the Phase 5 shell and reports an available backend", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
     );
@@ -18,13 +87,47 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: "AI Clinical Workflow Engine" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/not a medical device/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Clinical QA" }),
+    ).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(
         "Backend: available",
       );
     });
+  });
+
+  it("submits a workflow and renders the completed response safely", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(workflowPayload());
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Clinical question"), {
+      target: { value: "What precautions relate to these conditions?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Guideline evidence supports routine follow-up."),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("completed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Reviewed synthetic guideline"),
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("patient_data");
+    expect(document.body).not.toHaveTextContent("private-code");
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://localhost:8000/api/v1/workflows",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("reports an unavailable backend without hiding the application", async () => {

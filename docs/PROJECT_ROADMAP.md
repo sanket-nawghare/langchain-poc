@@ -58,7 +58,7 @@ This baseline can change through a recorded decision before implementation.
 | 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[x]` |
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[x]` |
 | 4. Grounded Generation, Safety, and Human Review | A real grounded model plus risk rules can safely draft, pause, review, and resume work | `[x]` |
-| 5. Product UI | Users can submit requests and inspect workflow progress | `[ ]` |
+| 5. Product UI | Users can submit requests and inspect workflow progress | `[~]` |
 | 6. Quality and Observability | The system is measurable, auditable, and resilient | `[ ]` |
 | 7. Packaging and Release | A new contributor can run and understand the project | `[ ]` |
 | 8. Future Extensions | Optional capabilities are prioritized after the MVP | `[ ]` |
@@ -254,6 +254,9 @@ Implementation proceeds through the review checkpoints in the
 **Goal:** Provide a clear interface for submitting requests, reviewing evidence,
 and understanding workflow execution.
 
+Implementation will proceed through the review checkpoints in the
+[Phase 5 execution plan](PHASE_5_PRODUCT_UI.md).
+
 ### Scope
 
 - `[ ]` Build patient selection and request submission views.
@@ -417,6 +420,8 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-09-14 | Phase 5.1 | Added typed frontend API contracts/client for workflows and review actions, replaced the placeholder with a work-focused clinical-QA request shell, rendered safe workflow result metadata, answers, safety reasons, and citations, and added frontend tests for health/submission/redaction basics | Stop for review before checkpoint 5.2 workflow run experience |
+| 2026-09-14 | Phase 5 | Started Product UI work with a checkpointed execution plan covering frontend API contracts, workflow submission/results, review actions, workflow visualization/history, and final UI gates | Complete checkpoint 5.1 UI shell and API contracts |
 | 2026-09-13 | Phase 4.5 | Closed Phase 4 with deterministic gates for grounded generation, safety review/block routing, review APIs, restart survival, stale/duplicate/concurrent review protection, redaction, and isolated source handling; updated the Phase 4 live-gate progress map and final roadmap status | Stop for final Phase 4 review before creating the Phase 5 branch |
 | 2026-09-13 | Phase 4.4 | Completed concurrency-safe review resume: approval publishes only the exact persisted draft/citations, rejection and request-changes terminate without final output, pending reviews survive restart, and stale/duplicate/concurrent actions cannot resume more than once | Phase 4.5 final gate and documentation |
 | 2026-09-13 | Phase 4.3 | Added persisted review queue contracts and API actions with reviewer identity, rationale, policy version, optimistic `review_version`, safe list/detail projections, approve/reject/request-changes handling, and redacted `review_recorded` audit events | Phase 4.4 restart and race-safety gates |
