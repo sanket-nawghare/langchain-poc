@@ -19,6 +19,24 @@ The initial endpoints are:
 - `GET /health/live` — confirms that the API process is running.
 - `GET /health/ready` — confirms SQLite, HAPI FHIR, and Weaviate readiness.
 
+Grounded generation defaults to the credential-free deterministic provider.
+Configure one real provider in `backend/.env` when needed:
+
+```dotenv
+# OpenAI
+CLINICAL_LLM_PROVIDER=openai
+CLINICAL_LLM_API_KEY=replace-with-an-openai-api-key
+CLINICAL_LLM_MODEL=gpt-5.6-sol
+
+# Or Anthropic
+CLINICAL_LLM_PROVIDER=anthropic
+CLINICAL_LLM_API_KEY=replace-with-an-anthropic-api-key
+CLINICAL_LLM_ANTHROPIC_MODEL=claude-sonnet-4-6
+```
+
+Only one provider block should be active. Restart the backend after changing
+the provider configuration.
+
 Run all backend formatting, linting, typing, and test checks from the repository
 root:
 

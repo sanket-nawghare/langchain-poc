@@ -21,6 +21,7 @@ from app.domain.generation import GroundedGenerationRequest, ResponseGenerationR
 from app.domain.safety import SafetyDecision, SafetyResult
 from app.domain.workflow import WorkflowRunSnapshot, WorkflowStatus, WorkflowTransition
 from app.main import app
+from app.services.anthropic_response import AnthropicResponseGenerator
 from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
@@ -52,6 +53,20 @@ async def test_configured_response_generator_selects_openai() -> None:
     )
 
     assert isinstance(configured, OpenAIResponseGenerator)
+    await configured.close()
+
+
+@pytest.mark.anyio
+async def test_configured_response_generator_selects_anthropic() -> None:
+    configured = create_configured_response_generator(
+        Settings(
+            _env_file=None,
+            llm_provider="anthropic",
+            llm_api_key="synthetic-test-secret",
+        )
+    )
+
+    assert isinstance(configured, AnthropicResponseGenerator)
     await configured.close()
 
 

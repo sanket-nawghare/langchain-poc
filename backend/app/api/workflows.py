@@ -18,6 +18,10 @@ from app.domain.workflow import (
     WorkflowRunRequest,
     WorkflowRunSnapshot,
 )
+from app.services.anthropic_response import (
+    AnthropicResponseGenerator,
+    create_anthropic_response_generator,
+)
 from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
@@ -97,6 +101,8 @@ def create_configured_response_generator(settings: Settings) -> ResponseGenerato
 
     if settings.llm_provider == "openai":
         return create_openai_response_generator(settings)
+    if settings.llm_provider == "anthropic":
+        return create_anthropic_response_generator(settings)
     return DeterministicResponseGenerator()
 
 
@@ -153,7 +159,10 @@ async def workflow_execution_context(
                 ),
             )
     finally:
-        if isinstance(response_generator, OpenAIResponseGenerator):
+        if isinstance(
+            response_generator,
+            (OpenAIResponseGenerator, AnthropicResponseGenerator),
+        ):
             await response_generator.close()
         await guideline_retriever.close()
 

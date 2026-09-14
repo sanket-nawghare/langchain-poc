@@ -66,6 +66,15 @@ Official assumptions were checked against the OpenAI
 [GPT-5.6 Sol model page](https://developers.openai.com/api/docs/models/gpt-5.6-sol),
 and [structured-output guide](https://developers.openai.com/api/docs/guides/structured-outputs).
 
+Anthropic support was added after the initial Phase 4 gate without changing
+the provider-neutral workflow contract. It uses the native Messages API and
+`messages.parse()` against the same application-owned `ResponseDraft` model.
+The OpenAI-compatible Claude endpoint is intentionally not used because its
+strict function schema is not guaranteed. See Anthropic's
+[native structured-output documentation](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+and
+[OpenAI SDK compatibility limitations](https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk).
+
 #### Prompt-injection boundary
 
 - The clinical question, facts, and evidence excerpts are untrusted data, never
@@ -141,9 +150,9 @@ Live validation also found that two normalized observation values exceeded the
 grounded request's stricter field size. The selector now truncates each allowed
 field deterministically at its contract boundary, and pre-provider input
 failures use `response_generation_invalid_input` rather than being mislabeled
-as model output failures. Provider retries now have one owner: the OpenAI SDK
-does not retry internally, while LangGraph applies the configured LLM timeout
-and retry budget once.
+as model output failures. Provider retries now have one owner: the OpenAI and
+Anthropic SDK adapters do not retry internally, while LangGraph applies the
+configured LLM timeout and retry budget once.
 
 ## Sub-phase 4.2 — Deterministic and LLM-Assisted Safety
 

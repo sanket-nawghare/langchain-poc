@@ -28,6 +28,8 @@ def test_safe_local_defaults_require_no_secret() -> None:
     assert settings.llm_api_key is None
     assert settings.llm_model == "gpt-5.6-sol"
     assert str(settings.llm_base_url) == "https://api.openai.com/v1"
+    assert settings.llm_anthropic_model == "claude-sonnet-4-6"
+    assert str(settings.llm_anthropic_base_url) == "https://api.anthropic.com/"
     assert settings.llm_request_timeout_seconds == 30
     assert settings.llm_max_retries == 2
     assert settings.llm_max_output_tokens == 4096
@@ -77,16 +79,27 @@ def test_secret_values_are_redacted() -> None:
     assert "**********" in repr(settings)
 
 
-def test_openai_provider_requires_a_secret_and_https_endpoint() -> None:
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+def test_real_provider_requires_a_secret(provider: str) -> None:
     with pytest.raises(ValidationError, match="llm_api_key is required"):
-        Settings(_env_file=None, llm_provider="openai")
+        Settings(_env_file=None, llm_provider=provider)
 
+
+def test_real_provider_requires_an_https_endpoint() -> None:
     with pytest.raises(ValidationError, match="must use HTTPS"):
         Settings(
             _env_file=None,
             llm_provider="openai",
             llm_api_key="test-secret",
             llm_base_url="http://api.openai.test/v1",
+        )
+
+    with pytest.raises(ValidationError, match="must use HTTPS"):
+        Settings(
+            _env_file=None,
+            llm_provider="anthropic",
+            llm_api_key="test-secret",
+            llm_anthropic_base_url="http://api.anthropic.test",
         )
 
 
@@ -98,6 +111,7 @@ def test_openai_provider_requires_a_secret_and_https_endpoint() -> None:
         ("llm_max_retries", 4),
         ("llm_max_output_tokens", 8193),
         ("llm_reasoning_effort", "unbounded"),
+        ("llm_anthropic_model", "model with spaces"),
     ],
 )
 def test_invalid_llm_configuration_is_rejected(field: str, value: object) -> None:

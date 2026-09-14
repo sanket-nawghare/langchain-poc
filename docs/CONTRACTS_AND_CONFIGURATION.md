@@ -21,11 +21,15 @@ Rules:
 - Workflow capability timeouts are bounded to 1–30 seconds and retries to
   zero through three. Local defaults are 10 seconds and one retry.
 - Grounded generation defaults to the deterministic `fake` provider. Selecting
-  `openai` requires a redacted API-key setting and an HTTPS base URL.
+  `openai` or `anthropic` requires a redacted API-key setting and an HTTPS
+  provider URL.
 - The OpenAI adapter defaults to `gpt-5.6-sol`, a 30-second provider timeout,
-  two SDK retries, 4,096 maximum output tokens, and `medium` reasoning effort.
-  Provider timeout, retry, token, and reasoning settings have reviewed hard
-  bounds and do not weaken the outer workflow execution bound.
+  4,096 maximum output tokens, and `medium` reasoning effort.
+- The native Anthropic adapter defaults to `claude-sonnet-4-6`, the Anthropic
+  Messages API, the same timeout/output bounds, and Pydantic structured-output
+  parsing. The reasoning-effort setting remains OpenAI-specific.
+- Both SDK adapters disable internal retries. LangGraph owns the configured
+  provider retry budget so attempts are not multiplied across layers.
 
 ## Identifier Conventions
 
@@ -74,6 +78,7 @@ Rules:
 | Response-generator capability | `tools/response.py` | Provider-neutral structured answer drafting and safe failures |
 | Grounded-generation request | `domain/generation.py` | Bounded deidentified clinical facts plus ranked application-owned citation excerpts |
 | OpenAI response adapter | `services/openai_response.py` | Stateless strict Responses parsing, provider-error normalization, and SDK payload isolation |
+| Anthropic response adapter | `services/anthropic_response.py` | Native Messages structured parsing, provider-error normalization, and SDK payload isolation |
 | Workflow run snapshot | `domain/workflow.py` | Redacted durable lifecycle, response, transition, and audit checkpoint |
 | Workflow-run store | `tools/workflow_runs.py` | Provider-neutral checkpoint save, lookup, and recovery reads |
 
