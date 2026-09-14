@@ -91,6 +91,7 @@ from app.workflow.graph import (
     CLASSIFICATION_TIMEOUT_CODE,
     CLASSIFY_INTENT_NODE,
     EDUCATIONAL_DISCLAIMER,
+    FINALIZE_PATIENT_SUMMARY_NODE,
     FINALIZE_RESPONSE_NODE,
     GENERATE_RESPONSE_NODE,
     GUIDELINE_RETRIEVAL_TIMEOUT_CODE,
@@ -446,6 +447,7 @@ def guideline_result(
 def complete_patient_summary(
     *,
     patient_id: str = "synthetic-patient-1",
+    allergies: list[ClinicalRecordSummary] | None = None,
     truncated_categories: list[ClinicalSummaryCategory] | None = None,
 ) -> PatientSummary:
     return PatientSummary(
@@ -457,6 +459,7 @@ def complete_patient_summary(
                 status="active",
             )
         ],
+        allergies=allergies or [],
         truncated_categories=truncated_categories or [],
     )
 
@@ -684,6 +687,7 @@ def test_graph_has_only_the_reviewed_response_and_audit_topology() -> None:
         RETRIEVE_PATIENT_NODE,
         RETRIEVE_GUIDELINES_NODE,
         SAFETY_PRECHECK_NODE,
+        FINALIZE_PATIENT_SUMMARY_NODE,
         GENERATE_RESPONSE_NODE,
         POST_GENERATION_SAFETY_NODE,
         FINALIZE_RESPONSE_NODE,
@@ -696,15 +700,18 @@ def test_graph_has_only_the_reviewed_response_and_audit_topology() -> None:
         (CLASSIFY_INTENT_NODE, REJECT_UNSUPPORTED_NODE),
         (CLASSIFY_INTENT_NODE, "__end__"),
         (RETRIEVE_PATIENT_NODE, RETRIEVE_GUIDELINES_NODE),
+        (RETRIEVE_PATIENT_NODE, SAFETY_PRECHECK_NODE),
         (RETRIEVE_PATIENT_NODE, "__end__"),
         (RETRIEVE_GUIDELINES_NODE, SAFETY_PRECHECK_NODE),
         (RETRIEVE_GUIDELINES_NODE, "__end__"),
+        (SAFETY_PRECHECK_NODE, FINALIZE_PATIENT_SUMMARY_NODE),
         (SAFETY_PRECHECK_NODE, GENERATE_RESPONSE_NODE),
         (SAFETY_PRECHECK_NODE, "__end__"),
         (GENERATE_RESPONSE_NODE, POST_GENERATION_SAFETY_NODE),
         (GENERATE_RESPONSE_NODE, "__end__"),
         (POST_GENERATION_SAFETY_NODE, FINALIZE_RESPONSE_NODE),
         (POST_GENERATION_SAFETY_NODE, "__end__"),
+        (FINALIZE_PATIENT_SUMMARY_NODE, "__end__"),
         (FINALIZE_RESPONSE_NODE, "__end__"),
         (REJECT_UNSUPPORTED_NODE, "__end__"),
     }
@@ -1062,6 +1069,52 @@ async def test_supported_intent_completes_with_qualified_response_and_audit() ->
     assert result.workflow.user_query not in serialized_audit
     assert result.workflow.patient_id not in serialized_audit
     assert "Synthetic condition" not in serialized_audit
+
+
+@pytest.mark.anyio
+async def test_allergy_history_completes_from_patient_summary_without_rag() -> None:
+    retriever = StubGuidelineRetriever(
+        guideline_result(EvidenceAssessment.INSUFFICIENT)
+    )
+    patient = complete_patient_summary(
+        allergies=[
+            ClinicalRecordSummary(
+                code="609328004",
+                display="Allergic disposition (finding)",
+                status="active",
+                effective_at="1985-02-01T13:35:03+05:30",
+            )
+        ]
+    )
+
+    result = await execute_workflow(
+        queued_workflow("what is the allergy history of the patient"),
+        runtime=workflow_runtime(
+            patient_reader=StaticPatientSummaryReader(patient),
+            guideline_retriever=retriever,
+        ),
+    )
+
+    assert retriever.requests == []
+    assert result.workflow.status == WorkflowStatus.COMPLETED
+    assert result.workflow.guideline_evidence is None
+    assert result.workflow.retrieved_guidelines == []
+    assert result.workflow.safety_result is not None
+    assert result.workflow.safety_result.decision == SafetyDecision.PASS
+    assert result.workflow.final_response is not None
+    assert "Allergic disposition (finding)" in result.workflow.final_response.answer
+    assert "1985-02-01T13:35:03+05:30" in result.workflow.final_response.answer
+    assert result.workflow.final_response.citations[0].document_id == (
+        "synthetic-patient-summary"
+    )
+    assert result.transitions[-1].step == FINALIZE_PATIENT_SUMMARY_NODE
+    assert [event.event_type for event in result.workflow.audit_log] == [
+        AuditEventType.STATUS_CHANGED,
+        AuditEventType.TOOL_CALLED,
+        AuditEventType.TOOL_CALLED,
+        AuditEventType.SAFETY_EVALUATED,
+        AuditEventType.STATUS_CHANGED,
+    ]
 
 
 @pytest.mark.anyio

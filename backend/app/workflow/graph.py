@@ -1,6 +1,7 @@
 """Provider-neutral clinical workflow graph."""
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable
 from typing import Literal
 
@@ -11,7 +12,7 @@ from langgraph.runtime import Runtime
 from pydantic import ValidationError
 
 from app.domain.audit import ActorType, AuditEvent, AuditEventType, AuditValue
-from app.domain.clinical import PatientSummary
+from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
 from app.domain.generation import ResponseGenerationResult
 from app.domain.guidelines import (
     EvidenceAssessment,
@@ -77,6 +78,7 @@ REJECT_UNSUPPORTED_NODE = "reject_unsupported"
 RETRIEVE_PATIENT_NODE = "retrieve_patient"
 RETRIEVE_GUIDELINES_NODE = "retrieve_guidelines"
 SAFETY_PRECHECK_NODE = "safety_precheck"
+FINALIZE_PATIENT_SUMMARY_NODE = "finalize_patient_summary"
 GENERATE_RESPONSE_NODE = "generate_response"
 POST_GENERATION_SAFETY_NODE = "post_generation_safety"
 FINALIZE_RESPONSE_NODE = "finalize_response"
@@ -106,9 +108,9 @@ EDUCATIONAL_DISCLAIMER = (
 )
 
 type ClassificationRoute = Literal["supported", "unsupported", "failed"]
-type RetrievalRoute = Literal["retrieved", "failed"]
+type RetrievalRoute = Literal["patient_summary", "guidelines", "failed"]
 type GuidelineRetrievalRoute = Literal["continue", "review", "failed"]
-type SafetyRoute = Literal["pass", "review", "block", "failed"]
+type SafetyRoute = Literal["patient_summary", "pass", "review", "block", "failed"]
 type GenerationRoute = Literal["generated", "failed"]
 
 type WorkflowCompiledGraph = CompiledStateGraph[
@@ -121,6 +123,16 @@ type WorkflowCompiledGraph = CompiledStateGraph[
 
 class WorkflowNodeTimeoutError(TimeoutError):
     """A workflow capability exhausted its bounded attempts."""
+
+
+PATIENT_SUMMARY_SOURCE_URL = (
+    "https://clinical-workflow.local/evidence/synthetic-patient-summary"
+)
+ALLERGY_QUERY_PATTERN = re.compile(r"\ballerg(?:y|ies|ic)\b", re.IGNORECASE)
+HISTORY_QUERY_PATTERN = re.compile(
+    r"\b(history|histories|list|lists|show|shows|have|has|had|known|recorded)\b",
+    re.IGNORECASE,
+)
 
 
 async def _run_bounded[ResultT](
@@ -397,6 +409,92 @@ async def _retrieve_patient(
         ],
     )
     return {"workflow": audited_workflow}
+
+
+def _is_allergy_history_query(query: str) -> bool:
+    """Return whether the request asks for allergy history from patient data."""
+
+    return bool(ALLERGY_QUERY_PATTERN.search(query)) and bool(
+        HISTORY_QUERY_PATTERN.search(query)
+    )
+
+
+def _allergy_record_summary(record: ClinicalRecordSummary) -> str:
+    parts = [record.display]
+    if record.status is not None:
+        parts.append(f"status: {record.status}")
+    if record.effective_at is not None:
+        parts.append(f"recorded/effective: {record.effective_at}")
+    if record.value is not None:
+        parts.append(f"value: {record.value}")
+    return "; ".join(parts)
+
+
+def _patient_summary_citation(*, category: str, excerpt: str) -> Citation:
+    return Citation(
+        document_id="synthetic-patient-summary",
+        chunk_id=f"patient-summary.{category}",
+        title=f"Synthetic patient {category.replace('_', ' ')} summary",
+        publisher="Local FHIR patient summary",
+        source_url=PATIENT_SUMMARY_SOURCE_URL,
+        excerpt=excerpt,
+    )
+
+
+def _allergy_history_response(patient: PatientSummary) -> GeneratedResponse:
+    if patient.allergies:
+        allergy_lines = [
+            f"{index}. {_allergy_record_summary(allergy)}"
+            for index, allergy in enumerate(patient.allergies, start=1)
+        ]
+        answer = (
+            "The normalized synthetic FHIR summary includes the following "
+            "allergy history:\n" + "\n".join(allergy_lines)
+        )
+        excerpt = "; ".join(allergy.display for allergy in patient.allergies[:3])
+    else:
+        answer = (
+            "The normalized synthetic FHIR summary does not include recorded "
+            "allergy history for this patient."
+        )
+        excerpt = "No AllergyIntolerance records were included in the summary."
+    return GeneratedResponse(
+        answer=answer,
+        citations=[
+            _patient_summary_citation(category="allergies", excerpt=excerpt),
+        ],
+        disclaimer=EDUCATIONAL_DISCLAIMER,
+    )
+
+
+async def _finalize_patient_summary_response(
+    state: WorkflowGraphState,
+    runtime: Runtime[WorkflowRuntime],
+) -> WorkflowGraphUpdate:
+    workflow = state["workflow"]
+    patient = workflow.patient_data
+    if patient is None:
+        raise AssertionError("patient summary response requires patient data")
+    response = _allergy_history_response(patient)
+    completed_workflow, transition = transition_workflow(
+        workflow,
+        WorkflowStatus.COMPLETED,
+        occurred_at=runtime.context.clock.now(),
+        step=FINALIZE_PATIENT_SUMMARY_NODE,
+        final_response=response,
+    )
+    audited_workflow = append_workflow_audit_events(
+        completed_workflow,
+        [
+            _status_audit_event(
+                completed_workflow,
+                runtime,
+                from_status=workflow.status,
+                step=FINALIZE_PATIENT_SUMMARY_NODE,
+            ),
+        ],
+    )
+    return {"workflow": audited_workflow, "transitions": [transition]}
 
 
 def _guideline_failure_code(error: GuidelineRetrievalError) -> str:
@@ -893,9 +991,12 @@ async def _route_classification(
 
 
 async def _route_retrieval(state: WorkflowGraphState) -> RetrievalRoute:
-    return (
-        "failed" if state["workflow"].status == WorkflowStatus.FAILED else "retrieved"
-    )
+    workflow = state["workflow"]
+    if workflow.status == WorkflowStatus.FAILED:
+        return "failed"
+    if _is_allergy_history_query(workflow.user_query):
+        return "patient_summary"
+    return "guidelines"
 
 
 async def _route_guideline_retrieval(
@@ -917,6 +1018,8 @@ async def _route_safety(state: WorkflowGraphState) -> SafetyRoute:
         return "review"
     if workflow.status == WorkflowStatus.REJECTED:
         return "block"
+    if _is_allergy_history_query(workflow.user_query):
+        return "patient_summary"
     return "pass"
 
 
@@ -939,6 +1042,7 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
     builder.add_node(RETRIEVE_PATIENT_NODE, _retrieve_patient)
     builder.add_node(RETRIEVE_GUIDELINES_NODE, _retrieve_guidelines)
     builder.add_node(SAFETY_PRECHECK_NODE, _safety_precheck)
+    builder.add_node(FINALIZE_PATIENT_SUMMARY_NODE, _finalize_patient_summary_response)
     builder.add_node(GENERATE_RESPONSE_NODE, _generate_response)
     builder.add_node(POST_GENERATION_SAFETY_NODE, _post_generation_safety)
     builder.add_node(FINALIZE_RESPONSE_NODE, _finalize_response)
@@ -957,7 +1061,8 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
         RETRIEVE_PATIENT_NODE,
         _route_retrieval,
         {
-            "retrieved": RETRIEVE_GUIDELINES_NODE,
+            "patient_summary": SAFETY_PRECHECK_NODE,
+            "guidelines": RETRIEVE_GUIDELINES_NODE,
             "failed": END,
         },
     )
@@ -974,6 +1079,7 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
         SAFETY_PRECHECK_NODE,
         _route_safety,
         {
+            "patient_summary": FINALIZE_PATIENT_SUMMARY_NODE,
             "pass": GENERATE_RESPONSE_NODE,
             "review": END,
             "block": END,
@@ -992,6 +1098,7 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
         POST_GENERATION_SAFETY_NODE,
         _route_safety,
         {
+            "patient_summary": FINALIZE_RESPONSE_NODE,
             "pass": FINALIZE_RESPONSE_NODE,
             "review": END,
             "block": END,
@@ -999,6 +1106,7 @@ def build_workflow_graph() -> WorkflowCompiledGraph:
         },
     )
     builder.add_edge(REJECT_UNSUPPORTED_NODE, END)
+    builder.add_edge(FINALIZE_PATIENT_SUMMARY_NODE, END)
     builder.add_edge(FINALIZE_RESPONSE_NODE, END)
     return builder.compile()
 

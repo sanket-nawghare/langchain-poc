@@ -34,6 +34,7 @@ const workflowSteps = [
   { id: "retrieve_patient", label: "Patient" },
   { id: "retrieve_guidelines", label: "Guidelines" },
   { id: "safety_precheck", label: "Pre-check" },
+  { id: "finalize_patient_summary", label: "Patient facts" },
   { id: "generate_response", label: "Draft" },
   { id: "post_generation_safety", label: "Draft safety" },
   { id: "finalize_response", label: "Finalize" },
@@ -52,7 +53,7 @@ function safetyReasons(workflow: WorkflowRunSnapshot): readonly SafetyReason[] {
 
 function statusMessage(workflow: WorkflowRunSnapshot): string {
   if (workflow.status === "completed") {
-    return "Completed with grounded citations and recorded safety checks.";
+    return "Completed with cited evidence and recorded safety checks.";
   }
   if (workflow.status === "pending_review") {
     return "Paused for reviewer action before the draft can be published.";

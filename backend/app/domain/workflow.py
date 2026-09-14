@@ -99,6 +99,26 @@ class GeneratedResponse(ContractModel):
     )
 
 
+def _final_response_matches_evidence(
+    *,
+    response: GeneratedResponse,
+    guideline_evidence: GuidelineEvidenceSummary | None,
+    retrieved_guidelines: list[Citation],
+) -> bool:
+    """Return whether final output is backed by guideline or patient evidence."""
+
+    if not response.citations:
+        return False
+    if guideline_evidence is None:
+        return not retrieved_guidelines
+    if (
+        guideline_evidence.assessment is not EvidenceAssessment.SUFFICIENT
+        or not retrieved_guidelines
+    ):
+        return False
+    return response.citations == retrieved_guidelines
+
+
 class WorkflowTransition(ContractModel):
     """One safe, inspectable workflow status change."""
 
@@ -170,18 +190,12 @@ class WorkflowState(ContractModel):
                 raise ValueError("guideline evidence document IDs must match citations")
             if evidence.assessment is EvidenceAssessment.INSUFFICIENT and citations:
                 raise ValueError("insufficient evidence must not include citations")
-        if self.final_response is not None:
-            if (
-                self.guideline_evidence is None
-                or self.guideline_evidence.assessment
-                is not EvidenceAssessment.SUFFICIENT
-                or not self.retrieved_guidelines
-            ):
-                raise ValueError("completed response requires sufficient evidence")
-            if self.final_response.citations != self.retrieved_guidelines:
-                raise ValueError(
-                    "final response citations must match workflow evidence"
-                )
+        if self.final_response is not None and not _final_response_matches_evidence(
+            response=self.final_response,
+            guideline_evidence=self.guideline_evidence,
+            retrieved_guidelines=self.retrieved_guidelines,
+        ):
+            raise ValueError("completed response requires cited evidence")
         if self.safety_result is None:
             if self.post_generation_safety_result is not None:
                 raise ValueError(
@@ -263,22 +277,12 @@ class WorkflowRunSnapshot(ContractModel):
             self.final_response is not None
         ):
             raise ValueError("final_response must be set only for a completed run")
-        if self.final_response is not None:
-            evidence = self.guideline_evidence
-            if (
-                evidence is None
-                or evidence.assessment is not EvidenceAssessment.SUFFICIENT
-                or not self.final_response.citations
-            ):
-                raise ValueError("completed run requires sufficient cited evidence")
-            if evidence.chunk_ids != [
-                citation.chunk_id for citation in self.final_response.citations
-            ]:
-                raise ValueError("run evidence chunk IDs must match final citations")
-            if set(evidence.document_ids) != {
-                citation.document_id for citation in self.final_response.citations
-            }:
-                raise ValueError("run evidence document IDs must match final citations")
+        if self.final_response is not None and not _final_response_matches_evidence(
+            response=self.final_response,
+            guideline_evidence=self.guideline_evidence,
+            retrieved_guidelines=self.review_citations,
+        ):
+            raise ValueError("completed run requires sufficient cited evidence")
         if self.response_draft is not None:
             evidence = self.guideline_evidence
             if (
