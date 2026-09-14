@@ -3,7 +3,6 @@
 import pytest
 
 from app.domain.clinical import Citation, ClinicalRecordSummary, PatientSummary
-from app.domain.generation import MAX_GROUNDED_FACTS
 from app.services.grounded_generation import build_grounded_generation_request
 from app.tools.response import ResponseGenerationInputError
 
@@ -52,13 +51,24 @@ def test_selector_bounds_and_prioritizes_patient_facts_without_identifiers() -> 
         guidelines=[citation(1)],
     )
 
-    assert len(request.patient_context.facts) == MAX_GROUNDED_FACTS
+    assert len(request.patient_context.facts) == 1
     assert request.patient_context.facts[0].display == "Asthma relevant condition"
     assert request.patient_context.facts[0].value == "v" * 200
     serialized = request.model_dump_json()
     assert "synthetic-private-id" not in serialized
     assert "Private Display Name" not in serialized
     assert "private-code" not in serialized
+
+
+def test_selector_omits_patient_facts_for_guideline_only_questions() -> None:
+    request = build_grounded_generation_request(
+        query="What blood pressure target is recommended for adults?",
+        patient=patient(),
+        guidelines=[citation(1)],
+    )
+
+    assert request.patient_context.facts == []
+    assert "Bounded evidence 1." in request.model_dump_json()
 
 
 def test_selector_preserves_exact_ranked_evidence() -> None:

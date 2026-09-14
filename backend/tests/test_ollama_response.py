@@ -121,7 +121,6 @@ async def test_ollama_adapter_uses_schema_and_returns_strict_draft() -> None:
     [
         ("not-json", "stop"),
         (json.dumps({"answer": "x" * 4001}), "stop"),
-        (json.dumps({"answer": "Draft", "citations": []}), "stop"),
     ],
 )
 async def test_ollama_adapter_rejects_invalid_structured_output(
@@ -142,6 +141,36 @@ async def test_ollama_adapter_rejects_invalid_structured_output(
     adapter, _ = generator(httpx.MockTransport(handle))
     with pytest.raises(ResponseGenerationMalformedOutputError):
         await adapter.generate(request=grounded_request())
+    await adapter.close()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "content",
+    [
+        json.dumps({"answer": "Draft", "citations": []}),
+        "```json\n" + json.dumps({"answer": "Draft"}) + "\n```",
+        "Here is the JSON:\n" + json.dumps({"answer": "Draft"}),
+    ],
+)
+async def test_ollama_adapter_recovers_answer_from_local_model_wrappers(
+    content: str,
+) -> None:
+    async def handle(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "message": {"role": "assistant", "content": content},
+                "done": True,
+                "done_reason": "stop",
+            },
+        )
+
+    adapter, _ = generator(httpx.MockTransport(handle))
+    result = await adapter.generate(request=grounded_request())
+
+    assert result.draft == ResponseDraft(answer="Draft")
     await adapter.close()
 
 

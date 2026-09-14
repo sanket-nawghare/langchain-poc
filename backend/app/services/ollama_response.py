@@ -1,5 +1,7 @@
 """Ollama chat adapter for bounded grounded answer drafts."""
 
+import json
+import re
 from time import perf_counter
 
 import httpx
@@ -33,6 +35,10 @@ SYSTEM_INSTRUCTIONS = (
     "professional care.\n"
     "Return exactly the requested structured answer object."
 )
+JSON_FENCE_PATTERN = re.compile(
+    r"^\s*```(?:json)?\s*(?P<body>.*?)\s*```\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def _safe_count(payload: object, field: str) -> int | None:
@@ -48,6 +54,33 @@ def _provider_status_error(status_code: int) -> ResponseGenerationError:
     if status_code >= 500:
         return ResponseGenerationUnavailableError("response provider is unavailable")
     return ResponseGenerationRequestError("response provider rejected the request")
+
+
+def _parse_response_draft(content: str) -> ResponseDraft:
+    """Parse strict draft JSON with bounded recovery for local model wrappers."""
+
+    try:
+        return ResponseDraft.model_validate_json(content)
+    except ValidationError:
+        pass
+
+    candidate = content.strip()
+    fenced = JSON_FENCE_PATTERN.match(candidate)
+    if fenced is not None:
+        candidate = fenced.group("body").strip()
+
+    try:
+        payload = json.loads(candidate)
+    except json.JSONDecodeError:
+        start = candidate.find("{")
+        end = candidate.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        payload = json.loads(candidate[start : end + 1])
+
+    if isinstance(payload, dict) and isinstance(payload.get("answer"), str):
+        return ResponseDraft(answer=payload["answer"])
+    raise ValueError("ollama response did not contain an answer")
 
 
 class OllamaResponseGenerator:
@@ -114,7 +147,7 @@ class OllamaResponseGenerator:
                 raise ResponseGenerationMalformedOutputError(
                     "response provider returned no structured output"
                 )
-            draft = ResponseDraft.model_validate_json(content)
+            draft = _parse_response_draft(content)
             return ResponseGenerationResult(
                 draft=draft,
                 metadata=ResponseGenerationMetadata(

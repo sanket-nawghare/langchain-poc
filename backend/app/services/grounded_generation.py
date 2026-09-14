@@ -29,6 +29,21 @@ CATEGORY_PRIORITY: dict[ClinicalSummaryCategory, int] = {
     "procedures": 2,
     "encounters": 1,
 }
+PATIENT_CONTEXT_CUES = {
+    "allergy",
+    "allergies",
+    "allergic",
+    "condition",
+    "conditions",
+    "current",
+    "currently",
+    "history",
+    "medication",
+    "medications",
+    "patient",
+    "risk",
+    "summary",
+}
 
 
 def _tokens(value: str) -> set[str]:
@@ -71,9 +86,13 @@ def _selected_records(
         tuple[int, int, int, ClinicalSummaryCategory, ClinicalRecordSummary]
     ] = []
     ordinal = 0
+    include_background = bool(query_tokens & PATIENT_CONTEXT_CUES)
     for category, records in records_by_category:
         for record in records:
             overlap = len(query_tokens & _tokens(_record_text(record)))
+            if overlap == 0 and not include_background:
+                ordinal += 1
+                continue
             ranked.append(
                 (
                     overlap,

@@ -9,7 +9,7 @@ from app.domain.clinical import Citation, ClinicalSummaryCategory
 from app.domain.guidelines import GuidelineQuery
 from app.domain.workflow import ResponseDraft
 
-MAX_GROUNDED_FACTS = 32
+MAX_GROUNDED_FACTS = 12
 MAX_GROUNDED_EVIDENCE = 8
 
 GroundedFactDisplay = Annotated[
@@ -44,7 +44,7 @@ class GroundedPatientContext(ContractModel):
     """Minimum patient context allowed to cross the model-provider boundary."""
 
     facts: list[GroundedClinicalFact] = Field(
-        min_length=1,
+        min_length=0,
         max_length=MAX_GROUNDED_FACTS,
     )
 
