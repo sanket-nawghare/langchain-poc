@@ -1121,6 +1121,39 @@ async def test_allergy_history_completes_from_patient_summary_without_rag() -> N
 
 
 @pytest.mark.anyio
+async def test_current_allergies_completes_from_patient_summary_without_rag() -> None:
+    retriever = StubGuidelineRetriever(
+        guideline_result(EvidenceAssessment.INSUFFICIENT)
+    )
+    patient = complete_patient_summary(
+        allergies=[
+            ClinicalRecordSummary(
+                code="264287008",
+                display="Animal dander (substance)",
+                status="active",
+                effective_at="1964-07-14T12:55:30+05:30",
+                value="Wheal (finding)",
+            )
+        ]
+    )
+
+    result = await execute_workflow(
+        queued_workflow("what are current allergies for this patient"),
+        runtime=workflow_runtime(
+            patient_reader=StaticPatientSummaryReader(patient),
+            guideline_retriever=retriever,
+        ),
+    )
+
+    assert retriever.requests == []
+    assert result.workflow.status == WorkflowStatus.COMPLETED
+    assert result.workflow.final_response is not None
+    assert "Animal dander (substance)" in result.workflow.final_response.answer
+    assert "Wheal (finding)" in result.workflow.final_response.answer
+    assert result.transitions[-1].step == FINALIZE_PATIENT_SUMMARY_NODE
+
+
+@pytest.mark.anyio
 async def test_unknown_intent_is_rejected_without_reaching_clinical_path() -> None:
     result = await execute_workflow_skeleton(
         queued_workflow("Please schedule an appointment"),
