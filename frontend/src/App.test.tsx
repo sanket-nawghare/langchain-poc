@@ -170,6 +170,44 @@ function reviewPayload(status = 200): Response {
   );
 }
 
+function preGenerationReviewPayload(status = 200): Response {
+  return new Response(
+    JSON.stringify({
+      request_id: "request-2",
+      data: [
+        {
+          workflow_id: "workflow-review-1",
+          correlation_id: "correlation-review-1",
+          trace_id: "trace-review-1",
+          status: "pending_review",
+          created_at: "2026-09-14T00:00:00Z",
+          updated_at: "2026-09-14T00:00:01Z",
+          review_version: 0,
+          requires_human_review: true,
+          guideline_evidence: null,
+          response_draft: null,
+          citations: [],
+          safety_result: {
+            decision: "review",
+            requires_human_review: true,
+            policy_version: "safety-precheck-v1",
+            reasons: [
+              {
+                code: "medication_or_allergy_risk_review",
+                message: "The request needs review before response generation.",
+                severity: "high",
+                evidence_references: ["query:intent"],
+              },
+            ],
+          },
+          post_generation_safety_result: null,
+        },
+      ],
+    }),
+    { status },
+  );
+}
+
 function reviewActionResponse(): Response {
   return workflowPayload(200, {
     status: "completed",
@@ -429,6 +467,29 @@ describe("App", () => {
       );
     });
     expect(document.body).not.toHaveTextContent("private-code");
+  });
+
+  it("does not submit approval for pre-generation reviews without a draft", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(preGenerationReviewPayload());
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await screen.findByText(
+      "This review paused before response generation. Approval is unavailable because there is no draft answer to finalize.",
+    );
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(
+      screen.getByText("The request needs review before response generation."),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("reports an unavailable backend without hiding the application", async () => {

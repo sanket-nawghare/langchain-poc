@@ -18,7 +18,8 @@ from app.api.workflows import (
 from app.core.config import Settings
 from app.domain.clinical import ClinicalRecordSummary, PatientSummary
 from app.domain.generation import GroundedGenerationRequest, ResponseGenerationResult
-from app.domain.workflow import WorkflowRunSnapshot
+from app.domain.safety import SafetyDecision, SafetyResult
+from app.domain.workflow import WorkflowRunSnapshot, WorkflowStatus, WorkflowTransition
 from app.main import app
 from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
@@ -299,6 +300,66 @@ async def test_review_queue_and_approval_api(
         assert sensitive not in reviews.text
         assert sensitive not in detail.text
         assert sensitive not in approved.text
+
+
+@pytest.mark.anyio
+async def test_pre_generation_review_approval_returns_conflict(
+    client: AsyncClient,
+    tmp_path: Path,
+) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    context = execution_context(store)
+    snapshot = WorkflowRunSnapshot(
+        workflow_id=UUID(int=901),
+        correlation_id=UUID(int=902),
+        trace_id=UUID(int=903),
+        status=WorkflowStatus.PENDING_REVIEW,
+        created_at=NOW,
+        updated_at=NOW,
+        requires_human_review=True,
+        safety_result=SafetyResult(
+            decision=SafetyDecision.REVIEW,
+            requires_human_review=True,
+            policy_version="safety-precheck-v1",
+        ),
+        transitions=[
+            WorkflowTransition(
+                from_status=WorkflowStatus.QUEUED,
+                to_status=WorkflowStatus.RUNNING,
+                occurred_at=NOW,
+                step="begin_execution",
+            ),
+            WorkflowTransition(
+                from_status=WorkflowStatus.RUNNING,
+                to_status=WorkflowStatus.PENDING_REVIEW,
+                occurred_at=NOW,
+                step="safety_precheck",
+            ),
+        ],
+    )
+    await store.save(snapshot)
+
+    async def service_override() -> WorkflowRunService:
+        return context.service
+
+    app.dependency_overrides[workflow_run_service] = service_override
+    try:
+        approved = await client.post(
+            f"/api/v1/workflows/{snapshot.workflow_id}/review-actions",
+            json={
+                "action": "approve",
+                "reviewer_id": "reviewer-1",
+                "rationale": "Synthetic reviewer approval.",
+                "review_version": 0,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert approved.status_code == 409
+    assert approved.json()["error"]["code"] == "review_checkpoint_not_resumable"
+    assert "reviewer-1" not in approved.text
 
 
 @pytest.mark.anyio

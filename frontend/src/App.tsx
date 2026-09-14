@@ -348,6 +348,10 @@ function reviewReasons(review: ReviewQueueItem): readonly SafetyReason[] {
   ];
 }
 
+function canApproveReview(review: ReviewQueueItem): boolean {
+  return review.response_draft != null && review.citations.length > 0;
+}
+
 function ReviewPanel({
   reviews,
   selectedReview,
@@ -376,6 +380,9 @@ function ReviewPanel({
   ) => Promise<void>;
 }) {
   const reasons = selectedReview ? reviewReasons(selectedReview) : [];
+  const selectedReviewCanApprove = selectedReview
+    ? canApproveReview(selectedReview)
+    : false;
 
   return (
     <section className="panel review-panel" aria-labelledby="review-title">
@@ -451,7 +458,12 @@ function ReviewPanel({
                   <h3>Draft awaiting review</h3>
                   <p>{selectedReview.response_draft.answer}</p>
                 </article>
-              ) : null}
+              ) : (
+                <p className="notice">
+                  This review paused before response generation. Approval is
+                  unavailable because there is no draft answer to finalize.
+                </p>
+              )}
 
               {reasons.length > 0 ? (
                 <section className="reason-list">
@@ -514,8 +526,15 @@ function ReviewPanel({
                 <div className="action-row">
                   <button
                     type="button"
-                    disabled={reviewStatus === "acting"}
+                    disabled={
+                      reviewStatus === "acting" || !selectedReviewCanApprove
+                    }
                     onClick={() => void onAction("approve")}
+                    title={
+                      selectedReviewCanApprove
+                        ? undefined
+                        : "Approval requires a generated draft with citations."
+                    }
                   >
                     Approve
                   </button>
@@ -652,6 +671,12 @@ export function App() {
     }
     if (!reviewerId.trim() || !rationale.trim()) {
       setReviewError("Enter reviewer ID and rationale.");
+      return;
+    }
+    if (action === "approve" && !canApproveReview(selectedReview)) {
+      setReviewError(
+        "Approval requires a generated draft with citations. Reject or request changes for this review.",
+      );
       return;
     }
 

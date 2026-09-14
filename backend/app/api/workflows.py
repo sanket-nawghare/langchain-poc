@@ -304,7 +304,12 @@ async def record_review_action(
             status.HTTP_404_NOT_FOUND
             if error.code in {"workflow_not_found", "review_not_found"}
             else status.HTTP_409_CONFLICT
-            if error.code in {"stale_review_action", "workflow_not_pending_review"}
+            if error.code
+            in {
+                "review_checkpoint_not_resumable",
+                "stale_review_action",
+                "workflow_not_pending_review",
+            }
             else status.HTTP_400_BAD_REQUEST
         )
         return _error_response(
