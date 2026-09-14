@@ -1154,6 +1154,41 @@ async def test_current_allergies_completes_from_patient_summary_without_rag() ->
 
 
 @pytest.mark.anyio
+async def test_medication_change_based_on_allergies_pauses_for_review() -> None:
+    retriever = StubGuidelineRetriever(
+        guideline_result(EvidenceAssessment.INSUFFICIENT)
+    )
+    patient = complete_patient_summary(
+        allergies=[
+            ClinicalRecordSummary(
+                code="264287008",
+                display="Animal dander (substance)",
+                status="active",
+            )
+        ]
+    )
+
+    result = await execute_workflow(
+        queued_workflow(
+            "change medications should be changed based on current allergies"
+        ),
+        runtime=workflow_runtime(
+            patient_reader=StaticPatientSummaryReader(patient),
+            guideline_retriever=retriever,
+        ),
+    )
+
+    assert retriever.requests == []
+    assert result.workflow.status == WorkflowStatus.PENDING_REVIEW
+    assert result.workflow.final_response is None
+    assert result.workflow.safety_result is not None
+    assert [reason.code for reason in result.workflow.safety_result.reasons] == [
+        "request_autonomous_medication_change"
+    ]
+    assert result.transitions[-1].step == SAFETY_PRECHECK_NODE
+
+
+@pytest.mark.anyio
 async def test_unknown_intent_is_rejected_without_reaching_clinical_path() -> None:
     result = await execute_workflow_skeleton(
         queued_workflow("Please schedule an appointment"),

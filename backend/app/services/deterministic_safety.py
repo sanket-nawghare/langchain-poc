@@ -26,8 +26,10 @@ URGENT_LANGUAGE = (
 )
 SAFETY_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 AUTONOMOUS_MEDICATION_PATTERN = re.compile(
-    r"\b(start|stop|increase|decrease|double|halve|change|adjust)\b"
-    r".{0,80}\b(medication|medicine|dose|dosage|tablet|capsule|mg|insulin)\b",
+    r"(\b(start|stop|increase|decrease|double|halve|change|changed|adjust)\b"
+    r".{0,80}\b(medication|medications|medicine|medicines|dose|dosage|tablet|capsule|mg|insulin)\b)"
+    r"|(\b(medication|medications|medicine|medicines|dose|dosage|tablet|capsule|mg|insulin)\b"
+    r".{0,80}\b(start|stop|increase|decrease|double|halve|change|changed|adjust)\b)",
     re.IGNORECASE | re.DOTALL,
 )
 DIAGNOSIS_OR_PRESCRIBING_PATTERN = re.compile(
@@ -86,6 +88,12 @@ SAFETY_RULES: dict[str, SafetyRule] = {
         message="Medication and allergy context may conflict and requires review.",
         severity=SafetySeverity.HIGH,
         evidence_references=("patient:allergies", "patient:medications"),
+    ),
+    "request_autonomous_medication_change": SafetyRule(
+        code="request_autonomous_medication_change",
+        message="The request asks about changing medication and requires review.",
+        severity=SafetySeverity.HIGH,
+        evidence_references=("request:medication_change",),
     ),
     "missing_core_context": SafetyRule(
         code="missing_core_context",
@@ -187,6 +195,10 @@ class DeterministicSafetyPolicy:
         reasons: list[SafetyReason] = []
         if any(phrase in normalized_query for phrase in URGENT_LANGUAGE):
             reasons.append(SAFETY_RULES["urgent_language"].reason())
+        if AUTONOMOUS_MEDICATION_PATTERN.search(query):
+            reasons.append(
+                SAFETY_RULES["request_autonomous_medication_change"].reason()
+            )
         if _has_medication_allergy_conflict(patient):
             reasons.append(SAFETY_RULES["medication_allergy_conflict"].reason())
         if not _has_core_context(patient):

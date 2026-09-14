@@ -282,6 +282,7 @@ function WorkflowResult({
                   {citation.publisher}
                   {citation.page ? `, page ${citation.page}` : ""}
                 </span>
+                {citation.excerpt ? <p>{citation.excerpt}</p> : null}
               </li>
             ))}
           </ul>
@@ -501,6 +502,7 @@ function ReviewPanel({
                           {citation.publisher}
                           {citation.page ? `, page ${citation.page}` : ""}
                         </span>
+                        {citation.excerpt ? <p>{citation.excerpt}</p> : null}
                       </li>
                     ))}
                   </ul>

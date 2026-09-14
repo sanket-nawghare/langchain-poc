@@ -60,6 +60,7 @@ def test_safety_rule_catalog_has_stable_versioned_metadata() -> None:
     assert set(SAFETY_RULES) == {
         "urgent_language",
         "medication_allergy_conflict",
+        "request_autonomous_medication_change",
         "missing_core_context",
         "patient_context_truncated",
         "draft_autonomous_medication_change",
@@ -131,6 +132,23 @@ async def test_medication_allergy_conflict_requires_review_without_names() -> No
         "patient:allergies",
         "patient:medications",
     ]
+    assert "private-marker" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.anyio
+async def test_request_medication_change_requires_review_without_echoing_query() -> (
+    None
+):
+    result = await DeterministicSafetyPolicy().evaluate(
+        query="change private-marker medications based on current allergies",
+        patient=patient_with_core_context(),
+    )
+
+    assert result.decision == SafetyDecision.REVIEW
+    assert [(reason.code, reason.severity) for reason in result.reasons] == [
+        ("request_autonomous_medication_change", SafetySeverity.HIGH)
+    ]
+    assert result.reasons[0].evidence_references == ["request:medication_change"]
     assert "private-marker" not in str(result.model_dump(mode="json"))
 
 

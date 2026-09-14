@@ -45,6 +45,7 @@ function workflowPayload(
             publisher: "who",
             source_url: "https://example.test/reviewed-guideline",
             page: 1,
+            excerpt: "Bounded patient-summary or guideline excerpt.",
           },
         ],
         safety_result: {
@@ -70,6 +71,7 @@ function workflowPayload(
               publisher: "who",
               source_url: "https://example.test/reviewed-guideline",
               page: 1,
+              excerpt: "Bounded patient-summary or guideline excerpt.",
             },
           ],
           disclaimer: "Educational demonstration; not medical advice.",
@@ -280,6 +282,9 @@ describe("App", () => {
     expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
     expect(
       screen.getByText("Reviewed synthetic guideline"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bounded patient-summary or guideline excerpt."),
     ).toBeInTheDocument();
     expect(screen.getByText("finalize response")).toBeInTheDocument();
     expect(screen.getByText("response generated")).toBeInTheDocument();
