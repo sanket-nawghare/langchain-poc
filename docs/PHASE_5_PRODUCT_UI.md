@@ -25,7 +25,7 @@ be independently reviewable and end with focused frontend tests plus
 | 5.2 Workflow run experience | Loading, success, pending-review, rejected, failed, and empty states for workflow submission | `[x]` |
 | 5.3 Review queue and actions | Reviewer queue/detail/actions with safety reasons and stale-action handling | `[x]` |
 | 5.4 Workflow visualization and history | Graph/status visualization, run history, transitions, and audit details | `[x]` |
-| 5.5 Phase 5 integration gate | Accessibility, redaction, critical journeys, and documentation pass | `[ ]` |
+| 5.5 Phase 5 integration gate | Accessibility, redaction, critical journeys, and documentation pass | `[x]` |
 
 ## Sub-phase 5.1 - UI Shell and API Contracts
 
@@ -94,15 +94,23 @@ keyboard reachable and keep the primary workflow result visible for inspection.
 
 ## Sub-phase 5.5 - Phase Gate and Documentation
 
-- `[ ]` Run frontend and full-project checks.
-- `[ ]` Verify critical user and reviewer journeys with automated tests.
-- `[ ]` Verify browser-visible payloads do not include raw patient context,
+- `[x]` Run frontend and full-project checks.
+- `[x]` Verify critical user and reviewer journeys with automated tests.
+- `[x]` Verify browser-visible payloads do not include raw patient context,
   full prompts, provider payloads, or secrets.
-- `[ ]` Update roadmap and stop for final Phase 5 review.
+- `[x]` Update roadmap and stop for final Phase 5 review.
+
+The final Phase 5 gate keeps the UI focused on application-owned workflow
+snapshots, review projections, citations, safety summaries, transitions, and
+redacted audit details. Backend CORS allows the local Vite origins so the
+browser can call the API during development without widening the public API
+contract. The automated UI coverage exercises request submission, backend
+availability, completed and pending-review runs, review approval/conflict
+handling, run-history inspection, and workflow graph rendering.
 
 ## Phase Exit Criteria
 
-- `[ ]` A user can complete the MVP workflow entirely through the UI.
-- `[ ]` A reviewer can act on a pending run and see it resume.
-- `[ ]` Workflow status is understandable without reading server logs.
-- `[ ]` Critical UI journeys pass automated tests.
+- `[x]` A user can complete the MVP workflow entirely through the UI.
+- `[x]` A reviewer can act on a pending run and see it resume.
+- `[x]` Workflow status is understandable without reading server logs.
+- `[x]` Critical UI journeys pass automated tests.

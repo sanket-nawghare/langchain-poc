@@ -58,7 +58,7 @@ This baseline can change through a recorded decision before implementation.
 | 2. Workflow MVP | One end-to-end LangGraph clinical-QA path works | `[x]` |
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[x]` |
 | 4. Grounded Generation, Safety, and Human Review | A real grounded model plus risk rules can safely draft, pause, review, and resume work | `[x]` |
-| 5. Product UI | Users can submit requests and inspect workflow progress | `[~]` |
+| 5. Product UI | Users can submit requests and inspect workflow progress | `[x]` |
 | 6. Quality and Observability | The system is measurable, auditable, and resilient | `[ ]` |
 | 7. Packaging and Release | A new contributor can run and understand the project | `[ ]` |
 | 8. Future Extensions | Optional capabilities are prioritized after the MVP | `[ ]` |
@@ -259,23 +259,23 @@ Implementation will proceed through the review checkpoints in the
 
 ### Scope
 
-- `[ ]` Build patient selection and request submission views.
-- `[ ]` Show loading, success, empty, blocked, and failure states.
-- `[ ]` Render the generated response with patient-data and guideline citations.
-- `[ ]` Visualize graph nodes and current execution state with React Flow.
-- `[ ]` Add a review queue and approval/rejection interface.
-- `[ ]` Show safety reasons before a reviewer acts.
-- `[ ]` Add a run-history and audit-detail view.
-- `[ ]` Add accessible keyboard navigation, labels, focus handling, and contrast.
-- `[ ]` Avoid exposing unnecessary patient fields in the browser.
-- `[ ]` Add component, integration, and critical end-to-end tests.
+- `[x]` Build patient selection and request submission views.
+- `[x]` Show loading, success, empty, blocked, and failure states.
+- `[x]` Render the generated response with patient-data and guideline citations.
+- `[x]` Visualize graph nodes and current execution state with React Flow.
+- `[x]` Add a review queue and approval/rejection interface.
+- `[x]` Show safety reasons before a reviewer acts.
+- `[x]` Add a run-history and audit-detail view.
+- `[x]` Add accessible keyboard navigation, labels, focus handling, and contrast.
+- `[x]` Avoid exposing unnecessary patient fields in the browser.
+- `[x]` Add component, integration, and critical end-to-end tests.
 
 ### Exit Criteria
 
-- `[ ]` A user can complete the MVP workflow entirely through the UI.
-- `[ ]` A reviewer can act on a pending run and see it resume.
-- `[ ]` Workflow status is understandable without reading server logs.
-- `[ ]` Critical UI journeys pass automated tests.
+- `[x]` A user can complete the MVP workflow entirely through the UI.
+- `[x]` A reviewer can act on a pending run and see it resume.
+- `[x]` Workflow status is understandable without reading server logs.
+- `[x]` Critical UI journeys pass automated tests.
 
 ---
 
@@ -420,6 +420,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-09-14 | Phase 5.5 | Completed the final Product UI integration gate: confirmed local backend CORS for Vite, documented browser-visible redaction boundaries, marked Phase 5 scope and exit criteria complete, and reran the full quality gate | Stop for final Phase 5 review before creating the Phase 6 branch |
 | 2026-09-14 | Phase 5.4 | Added read-only React Flow workflow visualization, completed/current-node styling, transition and redacted audit summaries, local run-history selection, keyboard-reachable Request/Review/History tabs, and build/test coverage for the graph surface | Continue to checkpoint 5.5 final UI gate |
 | 2026-09-14 | Phase 5.3 | Added the Review tab with pending queue refresh, review detail selection, draft/citation/safety reason inspection, reviewer identity and rationale inputs, approve/reject/request-changes actions, stale-action errors, and tests for approval and conflict handling | Continue to checkpoint 5.4 workflow visualization and history |
 | 2026-09-14 | Phase 5.2 | Expanded the workflow run UI with status-specific summaries, loading/error handling, sample question entry, final and pending-review answer panels, safety reasons, citations, transitions, audit summaries, local run history, and component coverage for major workflow states | Continue to checkpoint 5.3 review queue and actions |
