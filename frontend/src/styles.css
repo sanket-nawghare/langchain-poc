@@ -425,6 +425,35 @@ textarea {
   padding: 1.25rem;
 }
 
+.review-panel {
+  padding: 1.25rem;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.45fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.review-detail {
+  min-width: 0;
+}
+
+.review-form {
+  margin-top: 1rem;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.action-row button {
+  flex: 1 1 10rem;
+  padding-inline: 0.8rem;
+}
+
 .run-list__button {
   display: grid;
   width: 100%;
@@ -457,6 +486,10 @@ textarea {
   }
 
   .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-layout {
     grid-template-columns: 1fr;
   }
 }

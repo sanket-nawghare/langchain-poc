@@ -3,15 +3,19 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ApiClientError,
   AuditEvent,
+  ReviewQueueItem,
   SafetyReason,
   WorkflowTransition,
   WorkflowRunSnapshot,
   checkHealth,
   createWorkflowRun,
+  listReviews,
+  recordReviewAction,
 } from "./api";
 
 type ApiStatus = "checking" | "available" | "unavailable";
 type SubmitStatus = "idle" | "submitting" | "succeeded" | "failed";
+type ReviewStatus = "idle" | "loading" | "acting" | "failed";
 type ViewMode = "run" | "review" | "history";
 
 const defaultPatientId = "synthetic-patient-1";
@@ -254,6 +258,212 @@ function RunHistory({
   );
 }
 
+function reviewReasons(review: ReviewQueueItem): readonly SafetyReason[] {
+  return [
+    ...(review.safety_result?.reasons ?? []),
+    ...(review.post_generation_safety_result?.reasons ?? []),
+  ];
+}
+
+function ReviewPanel({
+  reviews,
+  selectedReview,
+  reviewStatus,
+  reviewError,
+  reviewerId,
+  rationale,
+  onLoad,
+  onSelect,
+  onReviewerId,
+  onRationale,
+  onAction,
+}: {
+  readonly reviews: readonly ReviewQueueItem[];
+  readonly selectedReview: ReviewQueueItem | null;
+  readonly reviewStatus: ReviewStatus;
+  readonly reviewError: string | null;
+  readonly reviewerId: string;
+  readonly rationale: string;
+  readonly onLoad: () => void;
+  readonly onSelect: (review: ReviewQueueItem) => void;
+  readonly onReviewerId: (value: string) => void;
+  readonly onRationale: (value: string) => void;
+  readonly onAction: (
+    action: "approve" | "reject" | "request_changes",
+  ) => Promise<void>;
+}) {
+  const reasons = selectedReview ? reviewReasons(selectedReview) : [];
+
+  return (
+    <section className="panel review-panel" aria-labelledby="review-title">
+      <div className="panel__header">
+        <div>
+          <p className="eyebrow">Human review</p>
+          <h2 id="review-title">Pending queue</h2>
+        </div>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={onLoad}
+          disabled={reviewStatus === "loading"}
+        >
+          {reviewStatus === "loading" ? "Refreshing" : "Refresh"}
+        </button>
+      </div>
+
+      {reviewError ? (
+        <p className="notice notice--danger" role="alert">
+          {reviewError}
+        </p>
+      ) : null}
+
+      <div className="review-layout">
+        <div>
+          {reviews.length === 0 ? (
+            <p className="notice">No pending reviews are queued.</p>
+          ) : (
+            <ul className="run-list" aria-label="Pending reviews">
+              {reviews.map((review) => (
+                <li key={review.workflow_id}>
+                  <button
+                    className="run-list__button"
+                    type="button"
+                    aria-current={
+                      review.workflow_id === selectedReview?.workflow_id
+                    }
+                    onClick={() => onSelect(review)}
+                  >
+                    <span>Version {review.review_version}</span>
+                    <small>{formatDate(review.updated_at)}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="review-detail">
+          {selectedReview ? (
+            <>
+              <dl className="meta-grid meta-grid--compact">
+                <div>
+                  <dt>Workflow</dt>
+                  <dd>{selectedReview.workflow_id}</dd>
+                </div>
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>
+                    {selectedReview.guideline_evidence?.assessment ??
+                      "not available"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Review version</dt>
+                  <dd>{selectedReview.review_version}</dd>
+                </div>
+              </dl>
+
+              {selectedReview.response_draft ? (
+                <article className="answer answer--review">
+                  <h3>Draft awaiting review</h3>
+                  <p>{selectedReview.response_draft.answer}</p>
+                </article>
+              ) : null}
+
+              {reasons.length > 0 ? (
+                <section className="reason-list">
+                  <h3>Safety reasons</h3>
+                  <ul>
+                    {reasons.map((reason) => (
+                      <li key={`${reason.code}:${reason.severity}`}>
+                        <span
+                          className={`severity severity--${reason.severity}`}
+                        >
+                          {reason.severity}
+                        </span>
+                        <span>{reason.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+
+              {selectedReview.citations.length > 0 ? (
+                <section className="citation-list">
+                  <h3>Citations</h3>
+                  <ul>
+                    {selectedReview.citations.map((citation) => (
+                      <li key={citation.chunk_id}>
+                        <a
+                          href={citation.source_url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {citation.title}
+                        </a>
+                        <span>
+                          {citation.publisher}
+                          {citation.page ? `, page ${citation.page}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+
+              <form className="request-form review-form">
+                <label>
+                  <span>Reviewer ID</span>
+                  <input
+                    value={reviewerId}
+                    onChange={(event) => onReviewerId(event.target.value)}
+                    autoComplete="off"
+                  />
+                </label>
+                <label>
+                  <span>Rationale</span>
+                  <textarea
+                    value={rationale}
+                    onChange={(event) => onRationale(event.target.value)}
+                    rows={4}
+                  />
+                </label>
+                <div className="action-row">
+                  <button
+                    type="button"
+                    disabled={reviewStatus === "acting"}
+                    onClick={() => void onAction("approve")}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={reviewStatus === "acting"}
+                    onClick={() => void onAction("reject")}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={reviewStatus === "acting"}
+                    onClick={() => void onAction("request_changes")}
+                  >
+                    Request changes
+                  </button>
+                </div>
+              </form>
+            </>
+          ) : (
+            <p className="notice">Select a pending review to inspect it.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
   const [patientId, setPatientId] = useState(defaultPatientId);
@@ -263,6 +473,14 @@ export function App() {
   const [runHistory, setRunHistory] = useState<WorkflowRunSnapshot[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("run");
   const [error, setError] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<ReviewQueueItem[]>([]);
+  const [selectedReview, setSelectedReview] = useState<ReviewQueueItem | null>(
+    null,
+  );
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus>("idle");
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewerId, setReviewerId] = useState("reviewer-1");
+  const [rationale, setRationale] = useState("");
 
   const canSubmit = useMemo(
     () => patientId.trim().length > 0 && query.trim().length > 0,
@@ -312,6 +530,77 @@ export function App() {
           : "Workflow request failed.";
       setError(message);
       setSubmitStatus("failed");
+    }
+  }
+
+  async function refreshReviews() {
+    setReviewStatus("loading");
+    setReviewError(null);
+    try {
+      const result = await listReviews();
+      setReviews([...result]);
+      setSelectedReview((current) => {
+        if (!current) {
+          return result[0] ?? null;
+        }
+        return (
+          result.find((review) => review.workflow_id === current.workflow_id) ??
+          result[0] ??
+          null
+        );
+      });
+      setReviewStatus("idle");
+    } catch (caught) {
+      const message =
+        caught instanceof ApiClientError
+          ? `${caught.message} (${caught.code})`
+          : "Review queue could not be loaded.";
+      setReviewError(message);
+      setReviewStatus("failed");
+    }
+  }
+
+  async function handleReviewAction(
+    action: "approve" | "reject" | "request_changes",
+  ) {
+    if (!selectedReview) {
+      setReviewError("Select a pending review first.");
+      return;
+    }
+    if (!reviewerId.trim() || !rationale.trim()) {
+      setReviewError("Enter reviewer ID and rationale.");
+      return;
+    }
+
+    setReviewStatus("acting");
+    setReviewError(null);
+    try {
+      const result = await recordReviewAction(selectedReview.workflow_id, {
+        action,
+        reviewer_id: reviewerId.trim(),
+        rationale: rationale.trim(),
+        review_version: selectedReview.review_version,
+      });
+      setWorkflow(result);
+      setRunHistory((current) => [
+        result,
+        ...current.filter((run) => run.workflow_id !== result.workflow_id),
+      ]);
+      const remaining = reviews.filter(
+        (review) => review.workflow_id !== selectedReview.workflow_id,
+      );
+      setReviews(remaining);
+      setSelectedReview(remaining[0] ?? null);
+      setRationale("");
+      setViewMode("run");
+      setReviewStatus("idle");
+    } catch (caught) {
+      const message =
+        caught instanceof ApiClientError
+          ? `${caught.message} (${caught.code})`
+          : "Review action could not be applied.";
+      setReviewError(message);
+      setReviewStatus("failed");
     }
   }
 
@@ -425,6 +714,24 @@ export function App() {
           </section>
         )}
       </div>
+
+      {viewMode === "review" ? (
+        <div className="workspace workspace--single">
+          <ReviewPanel
+            reviews={reviews}
+            selectedReview={selectedReview}
+            reviewStatus={reviewStatus}
+            reviewError={reviewError}
+            reviewerId={reviewerId}
+            rationale={rationale}
+            onLoad={() => void refreshReviews()}
+            onSelect={setSelectedReview}
+            onReviewerId={setReviewerId}
+            onRationale={setRationale}
+            onAction={handleReviewAction}
+          />
+        </div>
+      ) : null}
 
       {viewMode === "history" ? (
         <div className="workspace workspace--single">

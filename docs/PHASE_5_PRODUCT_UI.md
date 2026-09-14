@@ -23,7 +23,7 @@ be independently reviewable and end with focused frontend tests plus
 |---|---|---|
 | 5.1 UI shell and API contracts | Typed frontend API client, request form, and safe result rendering skeleton | `[x]` |
 | 5.2 Workflow run experience | Loading, success, pending-review, rejected, failed, and empty states for workflow submission | `[x]` |
-| 5.3 Review queue and actions | Reviewer queue/detail/actions with safety reasons and stale-action handling | `[ ]` |
+| 5.3 Review queue and actions | Reviewer queue/detail/actions with safety reasons and stale-action handling | `[x]` |
 | 5.4 Workflow visualization and history | Graph/status visualization, run history, transitions, and audit details | `[ ]` |
 | 5.5 Phase 5 integration gate | Accessibility, redaction, critical journeys, and documentation pass | `[ ]` |
 
@@ -63,13 +63,20 @@ history.
 
 ## Sub-phase 5.3 - Review Queue and Actions
 
-- `[ ]` Add pending-review list and detail views.
-- `[ ]` Show draft answer, citations, safety reasons, review version, and safe
+- `[x]` Add pending-review list and detail views.
+- `[x]` Show draft answer, citations, safety reasons, review version, and safe
   workflow metadata.
-- `[ ]` Add approve, reject, and request-changes actions with reviewer identity
+- `[x]` Add approve, reject, and request-changes actions with reviewer identity
   and rationale.
-- `[ ]` Handle stale, duplicate, invalid, non-pending, and storage-failure
+- `[x]` Handle stale, duplicate, invalid, non-pending, and storage-failure
   responses safely.
+
+The Review tab can refresh pending items, select a review, inspect draft answer,
+citations, evidence status, safety reasons, and review version, then submit
+approve, reject, or request-changes actions with reviewer identity and
+rationale. Successful actions update the selected workflow result and local
+history; stale or failed review actions surface safe API error codes without
+exposing hidden state.
 
 ## Sub-phase 5.4 - Workflow Visualization and History
 

@@ -108,6 +108,88 @@ function workflowPayload(
   );
 }
 
+function reviewPayload(status = 200): Response {
+  return new Response(
+    JSON.stringify({
+      request_id: "request-2",
+      data: [
+        {
+          workflow_id: "workflow-review-1",
+          correlation_id: "correlation-review-1",
+          trace_id: "trace-review-1",
+          status: "pending_review",
+          created_at: "2026-09-14T00:00:00Z",
+          updated_at: "2026-09-14T00:00:01Z",
+          review_version: 0,
+          requires_human_review: true,
+          guideline_evidence: {
+            assessment: "sufficient",
+            policy_version: "retrieval-v1",
+            query_fingerprint: "0".repeat(64),
+            match_count: 1,
+            document_ids: ["who-synthetic-guideline"],
+            chunk_ids: ["who-synthetic-guideline.0"],
+          },
+          response_draft: {
+            answer: "Start this medication dose based on guideline evidence.",
+          },
+          citations: [
+            {
+              document_id: "who-synthetic-guideline",
+              chunk_id: "who-synthetic-guideline.0",
+              title: "Reviewed synthetic guideline",
+              publisher: "who",
+              source_url: "https://example.test/reviewed-guideline",
+              page: 1,
+            },
+          ],
+          safety_result: {
+            decision: "pass",
+            requires_human_review: false,
+            policy_version: "safety-precheck-v1",
+            reasons: [],
+          },
+          post_generation_safety_result: {
+            decision: "review",
+            requires_human_review: true,
+            policy_version: "safety-post-generation-v1",
+            reasons: [
+              {
+                code: "draft_autonomous_medication_change",
+                message:
+                  "Generated draft includes medication-change language requiring review.",
+                severity: "high",
+                evidence_references: ["draft:answer"],
+              },
+            ],
+          },
+        },
+      ],
+    }),
+    { status },
+  );
+}
+
+function reviewActionResponse(): Response {
+  return workflowPayload(200, {
+    status: "completed",
+    final_response: {
+      answer: "Start this medication dose based on guideline evidence.",
+      citations: [
+        {
+          document_id: "who-synthetic-guideline",
+          chunk_id: "who-synthetic-guideline.0",
+          title: "Reviewed synthetic guideline",
+          publisher: "who",
+          source_url: "https://example.test/reviewed-guideline",
+          page: 1,
+        },
+      ],
+      disclaimer: "Educational demonstration; not medical advice.",
+    },
+  });
+}
+
 describe("App", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -269,6 +351,78 @@ describe("App", () => {
       screen.getByRole("heading", { name: "Recent runs" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
+  });
+
+  it("loads review queue details and approves a selected review", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(reviewPayload())
+      .mockResolvedValueOnce(reviewActionResponse());
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await screen.findByText("Version 0");
+    expect(
+      screen.getByText(
+        "Generated draft includes medication-change language requiring review.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Rationale"), {
+      target: { value: "Synthetic reviewer approval." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("completed")).toBeInTheDocument();
+    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://localhost:8000/api/v1/workflows/workflow-review-1/review-actions",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("shows stale review action errors safely", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(reviewPayload())
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            request_id: "request-3",
+            error: {
+              code: "stale_review_action",
+              message: "The review action could not be applied.",
+            },
+          }),
+          { status: 409 },
+        ),
+      );
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await screen.findByText("Version 0");
+    fireEvent.change(screen.getByLabelText("Rationale"), {
+      target: { value: "Synthetic reviewer approval." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "stale_review_action",
+      );
+    });
+    expect(document.body).not.toHaveTextContent("private-code");
   });
 
   it("reports an unavailable backend without hiding the application", async () => {
