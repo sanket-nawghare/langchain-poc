@@ -35,6 +35,8 @@ Project documents:
 
 - [Original concept and architecture](plan.md)
 - [Phased roadmap and progress tracker](docs/PROJECT_ROADMAP.md)
+- [Current system capabilities and limitations](docs/CURRENT_SYSTEM_CAPABILITIES.md)
+- [Current demo guide and supported questions](docs/CURRENT_SYSTEM_DEMO_GUIDE.md)
 - [Phase 0 foundations execution plan](docs/PHASE_0_FOUNDATIONS.md)
 - [Foundation architecture and data flow](docs/ARCHITECTURE.md)
 - [Local development and troubleshooting](docs/DEVELOPMENT.md)

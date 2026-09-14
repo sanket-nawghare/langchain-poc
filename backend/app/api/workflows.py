@@ -27,6 +27,10 @@ from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
 from app.services.hapi_fhir import create_hapi_fhir_client
 from app.services.local_guideline_retrieval import LocalGuidelineRetriever
+from app.services.ollama_response import (
+    OllamaResponseGenerator,
+    create_ollama_response_generator,
+)
 from app.services.openai_response import (
     OpenAIResponseGenerator,
     create_openai_response_generator,
@@ -103,6 +107,8 @@ def create_configured_response_generator(settings: Settings) -> ResponseGenerato
         return create_openai_response_generator(settings)
     if settings.llm_provider == "anthropic":
         return create_anthropic_response_generator(settings)
+    if settings.llm_provider == "ollama":
+        return create_ollama_response_generator(settings)
     return DeterministicResponseGenerator()
 
 
@@ -154,14 +160,22 @@ async def workflow_execution_context(
                     ),
                     response_execution_policy=WorkflowExecutionPolicy(
                         timeout_seconds=settings.llm_request_timeout_seconds,
-                        max_retries=settings.llm_max_retries,
+                        max_retries=(
+                            0
+                            if settings.llm_provider == "ollama"
+                            else settings.llm_max_retries
+                        ),
                     ),
                 ),
             )
     finally:
         if isinstance(
             response_generator,
-            (OpenAIResponseGenerator, AnthropicResponseGenerator),
+            (
+                OpenAIResponseGenerator,
+                AnthropicResponseGenerator,
+                OllamaResponseGenerator,
+            ),
         ):
             await response_generator.close()
         await guideline_retriever.close()

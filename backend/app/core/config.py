@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     workflow_node_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
     workflow_node_max_retries: int = Field(default=1, ge=0, le=3)
 
-    llm_provider: Literal["fake", "openai", "anthropic"] = "fake"
+    llm_provider: Literal["fake", "openai", "anthropic", "ollama"] = "fake"
     llm_api_key: SecretStr | None = None
     llm_model: str = Field(
         default="gpt-5.6-sol",
@@ -61,7 +61,15 @@ class Settings(BaseSettings):
         pattern=r"^[A-Za-z0-9._-]+$",
     )
     llm_anthropic_base_url: AnyHttpUrl = AnyHttpUrl("https://api.anthropic.com")
-    llm_request_timeout_seconds: float = Field(default=30.0, gt=0, le=60)
+    llm_ollama_model: str = Field(
+        default="qwen3:4b",
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._:/-]+$",
+    )
+    llm_ollama_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:11434")
+    llm_ollama_context_window: int = Field(default=8192, ge=4096, le=32768)
+    llm_request_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     llm_max_retries: int = Field(default=2, ge=0, le=3)
     llm_max_output_tokens: int = Field(default=4096, ge=256, le=8192)
     llm_reasoning_effort: Literal[
@@ -89,6 +97,12 @@ class Settings(BaseSettings):
             )
             if provider_url.scheme != "https":
                 raise ValueError("the selected LLM provider URL must use HTTPS")
+        if self.llm_provider == "ollama" and self.llm_ollama_base_url.host not in {
+            "localhost",
+            "127.0.0.1",
+            "::1",
+        }:
+            raise ValueError("the Ollama provider URL must use a loopback host")
         return self
 
 

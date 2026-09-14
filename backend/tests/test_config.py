@@ -30,6 +30,9 @@ def test_safe_local_defaults_require_no_secret() -> None:
     assert str(settings.llm_base_url) == "https://api.openai.com/v1"
     assert settings.llm_anthropic_model == "claude-sonnet-4-6"
     assert str(settings.llm_anthropic_base_url) == "https://api.anthropic.com/"
+    assert settings.llm_ollama_model == "qwen3:4b"
+    assert str(settings.llm_ollama_base_url) == "http://localhost:11434/"
+    assert settings.llm_ollama_context_window == 8192
     assert settings.llm_request_timeout_seconds == 30
     assert settings.llm_max_retries == 2
     assert settings.llm_max_output_tokens == 4096
@@ -94,6 +97,22 @@ def test_real_provider_requires_an_https_endpoint() -> None:
             llm_base_url="http://api.openai.test/v1",
         )
 
+
+def test_ollama_provider_requires_no_secret_on_loopback() -> None:
+    settings = Settings(_env_file=None, llm_provider="ollama")
+
+    assert settings.llm_api_key is None
+    assert settings.llm_ollama_model == "qwen3:4b"
+
+
+def test_ollama_provider_rejects_non_loopback_endpoint() -> None:
+    with pytest.raises(ValidationError, match="must use a loopback host"):
+        Settings(
+            _env_file=None,
+            llm_provider="ollama",
+            llm_ollama_base_url="http://ollama.example.test:11434",
+        )
+
     with pytest.raises(ValidationError, match="must use HTTPS"):
         Settings(
             _env_file=None,
@@ -107,11 +126,13 @@ def test_real_provider_requires_an_https_endpoint() -> None:
     ("field", "value"),
     [
         ("llm_provider", "unknown"),
-        ("llm_request_timeout_seconds", 61),
+        ("llm_request_timeout_seconds", 301),
         ("llm_max_retries", 4),
         ("llm_max_output_tokens", 8193),
         ("llm_reasoning_effort", "unbounded"),
         ("llm_anthropic_model", "model with spaces"),
+        ("llm_ollama_model", "model with spaces"),
+        ("llm_ollama_context_window", 32769),
     ],
 )
 def test_invalid_llm_configuration_is_rejected(field: str, value: object) -> None:

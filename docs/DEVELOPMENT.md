@@ -246,6 +246,8 @@ The read-only FHIR adapter supports these validated backend settings:
 | `CLINICAL_GUIDELINE_CORPUS_LOCK_PATH` | `data/guidelines/corpus-lock.json` | Local reviewed metadata-only corpus lock |
 | `CLINICAL_WORKFLOW_NODE_TIMEOUT_SECONDS` | `10` | Greater than 0, at most 30 |
 | `CLINICAL_WORKFLOW_NODE_MAX_RETRIES` | `1` | 0–3 |
+| `CLINICAL_LLM_REQUEST_TIMEOUT_SECONDS` | `30` | Greater than 0, at most 300 |
+| `CLINICAL_LLM_MAX_RETRIES` | `2` | 0–3 |
 
 Compose supports these shell or root `.env` overrides:
 

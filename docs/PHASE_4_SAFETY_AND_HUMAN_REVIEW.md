@@ -152,7 +152,10 @@ field deterministically at its contract boundary, and pre-provider input
 failures use `response_generation_invalid_input` rather than being mislabeled
 as model output failures. Provider retries now have one owner: the OpenAI and
 Anthropic SDK adapters do not retry internally, while LangGraph applies the
-configured LLM timeout and retry budget once.
+configured LLM timeout and retry budget once. The same provider-neutral
+boundary now also supports a loopback-only Ollama adapter with JSON-schema
+output, enabling credential-free local generation without weakening the draft,
+citation, safety, or audit contracts.
 
 ## Sub-phase 4.2 — Deterministic and LLM-Assisted Safety
 

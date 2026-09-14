@@ -52,9 +52,9 @@ class WorkflowExecutionPolicy:
     max_retries: int = 1
 
     def __post_init__(self) -> None:
-        if not 0 < self.timeout_seconds <= 30:
+        if not 0 < self.timeout_seconds <= 300:
             raise ValueError(
-                "workflow timeout must be greater than zero and at most 30"
+                "workflow timeout must be greater than zero and at most 300"
             )
         if not 0 <= self.max_retries <= 3:
             raise ValueError("workflow retries must be between zero and three")

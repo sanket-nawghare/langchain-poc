@@ -18,17 +18,24 @@ Rules:
 - Secret fields use redacted secret types and must never be interpolated into
   logs or errors.
 - Basic health tests and application startup require no LLM credentials.
-- Workflow capability timeouts are bounded to 1–30 seconds and retries to
-  zero through three. Local defaults are 10 seconds and one retry.
+- General workflow capability timeouts are bounded to 1–30 seconds. Response
+  generation permits up to 300 seconds for slower providers such as local
+  Ollama. Retries are bounded to zero through three.
 - Grounded generation defaults to the deterministic `fake` provider. Selecting
   `openai` or `anthropic` requires a redacted API-key setting and an HTTPS
-  provider URL.
+  provider URL. Selecting `ollama` requires no key and only permits a loopback
+  server URL, keeping the bounded synthetic context on the local machine.
 - The OpenAI adapter defaults to `gpt-5.6-sol`, a 30-second provider timeout,
   4,096 maximum output tokens, and `medium` reasoning effort.
 - The native Anthropic adapter defaults to `claude-sonnet-4-6`, the Anthropic
   Messages API, the same timeout/output bounds, and Pydantic structured-output
   parsing. The reasoning-effort setting remains OpenAI-specific.
-- Both SDK adapters disable internal retries. LangGraph owns the configured
+- The native Ollama adapter defaults to `qwen3:4b`, sends the application-owned
+  JSON schema to local `/api/chat`, disables streaming, and validates the model
+  response against the same strict `ResponseDraft` contract. It uses an 8,192
+  token context window and disables workflow-level retries because cancelled
+  CPU inference may otherwise continue occupying the local Ollama server.
+- Both cloud SDK adapters disable internal retries. LangGraph owns the configured
   provider retry budget so attempts are not multiplied across layers.
 
 ## Identifier Conventions
@@ -79,6 +86,7 @@ Rules:
 | Grounded-generation request | `domain/generation.py` | Bounded deidentified clinical facts plus ranked application-owned citation excerpts |
 | OpenAI response adapter | `services/openai_response.py` | Stateless strict Responses parsing, provider-error normalization, and SDK payload isolation |
 | Anthropic response adapter | `services/anthropic_response.py` | Native Messages structured parsing, provider-error normalization, and SDK payload isolation |
+| Ollama response adapter | `services/ollama_response.py` | Loopback-only local chat generation, JSON-schema output, and provider-error normalization |
 | Workflow run snapshot | `domain/workflow.py` | Redacted durable lifecycle, response, transition, and audit checkpoint |
 | Workflow-run store | `tools/workflow_runs.py` | Provider-neutral checkpoint save, lookup, and recovery reads |
 

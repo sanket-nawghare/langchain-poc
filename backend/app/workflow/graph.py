@@ -131,7 +131,8 @@ PATIENT_SUMMARY_SOURCE_URL = (
 ALLERGY_QUERY_PATTERN = re.compile(r"\ballerg(?:y|ies|ic)\b", re.IGNORECASE)
 HISTORY_QUERY_PATTERN = re.compile(
     r"\b("
-    r"current|currently|present|active|history|histories|list|lists|show|shows|"
+    r"current|currently|present|active|history|histories|summary|summaries|"
+    r"summarize|summarise|list|lists|show|shows|"
     r"have|has|had|known|recorded|for\s+this\s+patient|of\s+the\s+patient"
     r")\b",
     re.IGNORECASE,

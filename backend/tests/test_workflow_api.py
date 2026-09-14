@@ -25,12 +25,13 @@ from app.services.anthropic_response import AnthropicResponseGenerator
 from app.services.deterministic_intent import DeterministicIntentClassifier
 from app.services.deterministic_response import DeterministicResponseGenerator
 from app.services.deterministic_safety import DeterministicSafetyPolicy
+from app.services.ollama_response import OllamaResponseGenerator
 from app.services.openai_response import OpenAIResponseGenerator
 from app.services.sqlite_workflow_runs import SqliteWorkflowRunStore
 from app.services.workflow_runs import WorkflowRunService
 from app.tools.response import ResponseGenerator
 from app.tools.workflow_runs import WorkflowRunStore, WorkflowRunStoreError
-from app.workflow.runtime import WorkflowRuntime
+from app.workflow.runtime import WorkflowExecutionPolicy, WorkflowRuntime
 from tests.guideline_fixtures import SufficientGuidelineRetriever
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
@@ -68,6 +69,27 @@ async def test_configured_response_generator_selects_anthropic() -> None:
 
     assert isinstance(configured, AnthropicResponseGenerator)
     await configured.close()
+
+
+@pytest.mark.anyio
+async def test_configured_response_generator_selects_ollama() -> None:
+    configured = create_configured_response_generator(
+        Settings(_env_file=None, llm_provider="ollama")
+    )
+
+    assert isinstance(configured, OllamaResponseGenerator)
+    await configured.close()
+
+
+def test_llm_timeout_setting_fits_response_execution_policy() -> None:
+    settings = Settings(_env_file=None, llm_request_timeout_seconds=300)
+
+    policy = WorkflowExecutionPolicy(
+        timeout_seconds=settings.llm_request_timeout_seconds,
+        max_retries=settings.llm_max_retries,
+    )
+
+    assert policy.timeout_seconds == 300
 
 
 @dataclass(frozen=True)

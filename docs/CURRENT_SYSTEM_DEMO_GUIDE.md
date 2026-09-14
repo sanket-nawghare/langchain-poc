@@ -180,9 +180,11 @@ for them currently fall through to guideline retrieval. They normally produce
 - The frontend points to the local backend.
 - For a live-answer demo, the provider key, model, quota, and rate limit are
   valid.
-- Live generation supports either the native OpenAI Responses adapter or the
-  native Anthropic Messages adapter. Set `CLINICAL_LLM_PROVIDER` to `openai`
-  or `anthropic`, supply the matching API key, and restart the backend.
+- Live generation supports the native OpenAI Responses, Anthropic Messages, or
+  local Ollama adapter. Set `CLINICAL_LLM_PROVIDER` to `openai`, `anthropic`, or
+  `ollama`; cloud providers require an API key, while Ollama requires a running
+  loopback server with the configured model already downloaded. Restart the
+  backend after changing providers.
 - For a deterministic workflow demo, use `CLINICAL_LLM_PROVIDER=fake` and
   restart the backend after changing the environment.
 - Run the retrieval live gate if the guideline index may have changed.

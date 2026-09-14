@@ -32,10 +32,25 @@ CLINICAL_LLM_MODEL=gpt-5.6-sol
 CLINICAL_LLM_PROVIDER=anthropic
 CLINICAL_LLM_API_KEY=replace-with-an-anthropic-api-key
 CLINICAL_LLM_ANTHROPIC_MODEL=claude-sonnet-4-6
+
+# Or local Ollama (no API key)
+CLINICAL_LLM_PROVIDER=ollama
+CLINICAL_LLM_OLLAMA_MODEL=qwen3:4b
+CLINICAL_LLM_OLLAMA_BASE_URL=http://localhost:11434
+CLINICAL_LLM_OLLAMA_CONTEXT_WINDOW=8192
+CLINICAL_LLM_REQUEST_TIMEOUT_SECONDS=180
+CLINICAL_LLM_MAX_RETRIES=0
+CLINICAL_LLM_MAX_OUTPUT_TOKENS=512
 ```
 
 Only one provider block should be active. Restart the backend after changing
-the provider configuration.
+the provider configuration. Before selecting Ollama, start its local server and
+download the configured model:
+
+```bash
+ollama pull qwen3:4b
+ollama serve
+```
 
 Run all backend formatting, linting, typing, and test checks from the repository
 root:
