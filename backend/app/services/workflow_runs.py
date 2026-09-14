@@ -1,7 +1,8 @@
 """Workflow-run creation, redacted checkpointing, and safe recovery."""
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID, uuid4
 
 from app.domain.audit import ActorType, AuditEvent, AuditEventType
@@ -18,7 +19,7 @@ from app.domain.workflow import (
     WorkflowTransition,
 )
 from app.tools.workflow_runs import WorkflowRunStore
-from app.workflow.graph import EDUCATIONAL_DISCLAIMER, execute_workflow
+from app.workflow.graph import EDUCATIONAL_DISCLAIMER, stream_workflow
 from app.workflow.runtime import AuditEventIdFactory, WorkflowClock, WorkflowRuntime
 
 INTERRUPTED_FAILURE_CODE = "workflow_interrupted"
@@ -71,7 +72,26 @@ class WorkflowRunService:
         *,
         runtime: WorkflowRuntime,
     ) -> WorkflowRunSnapshot:
-        """Persist queued state, execute once, and persist the final checkpoint."""
+        """Execute one workflow and return its final persisted checkpoint."""
+
+        final_snapshot: WorkflowRunSnapshot | None = None
+        async for _, _, snapshot in self.stream(request, runtime=runtime):
+            final_snapshot = snapshot
+        if final_snapshot is None:
+            raise RuntimeError("workflow execution produced no snapshots")
+        return final_snapshot
+
+    async def stream(
+        self,
+        request: WorkflowRunRequest,
+        *,
+        runtime: WorkflowRuntime,
+    ) -> AsyncIterator[
+        tuple[
+            str | None, Literal["queued", "started", "completed"], WorkflowRunSnapshot
+        ]
+    ]:
+        """Persist and yield a redacted checkpoint for every graph node."""
 
         created_at = self.clock.now()
         workflow_id = self.workflow_ids.new()
@@ -84,24 +104,28 @@ class WorkflowRunService:
             created_at=created_at,
         )
         await self.store.save(queued)
+        yield None, "queued", queued
 
-        execution = await execute_workflow(
-            WorkflowState(
-                workflow_id=workflow_id,
-                correlation_id=correlation_id,
-                created_at=created_at,
-                updated_at=created_at,
-                user_query=request.query,
-                patient_id=request.patient_id,
-            ),
+        workflow = WorkflowState(
+            workflow_id=workflow_id,
+            correlation_id=correlation_id,
+            created_at=created_at,
+            updated_at=created_at,
+            user_query=request.query,
+            patient_id=request.patient_id,
+        )
+        current_snapshot = queued
+        async for event in stream_workflow(
+            workflow,
             runtime=runtime,
-        )
-        completed = WorkflowRunSnapshot.from_execution(
-            execution,
-            trace_id=trace_id,
-        )
-        await self.store.save(completed)
-        return completed
+        ):
+            if event.result is not None:
+                current_snapshot = WorkflowRunSnapshot.from_execution(
+                    event.result,
+                    trace_id=trace_id,
+                )
+                await self.store.save(current_snapshot)
+            yield event.node, event.phase, current_snapshot
 
     async def get(self, workflow_id: UUID) -> WorkflowRunSnapshot | None:
         """Return one safely redacted workflow checkpoint."""

@@ -124,13 +124,19 @@ function AuditSummary({
 
 function WorkflowGraph({
   workflow,
+  streamedSteps,
+  activeStreamStep,
 }: {
   readonly workflow: WorkflowRunSnapshot | null;
+  readonly streamedSteps: readonly string[];
+  readonly activeStreamStep: string | null;
 }) {
-  const transitionSteps = new Set(
-    workflow?.transitions.map((transition) => transition.step) ?? [],
-  );
-  const activeStep = workflow?.transitions.at(-1)?.step;
+  const transitionSteps = new Set([
+    ...(workflow?.transitions.map((transition) => transition.step) ?? []),
+    ...streamedSteps,
+  ]);
+  const activeStep =
+    activeStreamStep ?? workflow?.transitions.at(-1)?.step ?? undefined;
   const nodes: Node[] = workflowSteps.map((step, index) => {
     const completed = transitionSteps.has(step.id);
     const active = activeStep === step.id;
@@ -576,6 +582,8 @@ export function App() {
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
   const [workflow, setWorkflow] = useState<WorkflowRunSnapshot | null>(null);
   const [runHistory, setRunHistory] = useState<WorkflowRunSnapshot[]>([]);
+  const [streamedSteps, setStreamedSteps] = useState<string[]>([]);
+  const [activeStreamStep, setActiveStreamStep] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("run");
   const [error, setError] = useState<string | null>(null);
   const [reviews, setReviews] = useState<ReviewQueueItem[]>([]);
@@ -617,11 +625,35 @@ export function App() {
 
     setSubmitStatus("submitting");
     setError(null);
+    setWorkflow(null);
+    setStreamedSteps([]);
+    setActiveStreamStep(null);
     try {
-      const result = await createWorkflowRun({
-        patientId: patientId.trim(),
-        query: query.trim(),
-      });
+      const result = await createWorkflowRun(
+        {
+          patientId: patientId.trim(),
+          query: query.trim(),
+        },
+        (update) => {
+          setWorkflow(update.data);
+          if (update.node !== null) {
+            setActiveStreamStep(update.node);
+            if (update.phase === "completed") {
+              setStreamedSteps((current) =>
+                current.includes(update.node as string)
+                  ? current
+                  : [...current, update.node as string],
+              );
+            }
+          }
+          setRunHistory((current) => [
+            update.data,
+            ...current.filter(
+              (run) => run.workflow_id !== update.data.workflow_id,
+            ),
+          ]);
+        },
+      );
       setWorkflow(result);
       setRunHistory((current) => [
         result,
@@ -827,7 +859,11 @@ export function App() {
       </div>
 
       <div className="workspace workspace--single">
-        <WorkflowGraph workflow={workflow} />
+        <WorkflowGraph
+          workflow={workflow}
+          streamedSteps={streamedSteps}
+          activeStreamStep={activeStreamStep}
+        />
       </div>
 
       {viewMode === "review" ? (

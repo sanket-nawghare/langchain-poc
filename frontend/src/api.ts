@@ -13,6 +13,13 @@ export interface ApiSuccess<T> {
   readonly data: T;
 }
 
+export interface WorkflowStreamUpdate {
+  readonly request_id: string;
+  readonly node: string | null;
+  readonly phase: "queued" | "started" | "completed";
+  readonly data: WorkflowRunSnapshot;
+}
+
 export interface ApiErrorEnvelope {
   readonly request_id: string;
   readonly error: {
@@ -154,6 +161,37 @@ function isApiError(value: unknown): value is ApiErrorEnvelope {
   );
 }
 
+function isWorkflowStreamUpdate(value: unknown): value is WorkflowStreamUpdate {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<WorkflowStreamUpdate>;
+  return (
+    typeof candidate.request_id === "string" &&
+    (candidate.node === null || typeof candidate.node === "string") &&
+    (candidate.phase === "queued" ||
+      candidate.phase === "started" ||
+      candidate.phase === "completed") &&
+    typeof candidate.data === "object" &&
+    candidate.data !== null &&
+    typeof candidate.data.workflow_id === "string"
+  );
+}
+
+function responseError(response: Response, payload: unknown): ApiClientError {
+  if (isApiError(payload)) {
+    return new ApiClientError(payload.error.message, {
+      code: payload.error.code,
+      status: response.status,
+      field: payload.error.field,
+    });
+  }
+  return new ApiClientError("Request failed.", {
+    code: "request_failed",
+    status: response.status,
+  });
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -173,17 +211,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    if (isApiError(payload)) {
-      throw new ApiClientError(payload.error.message, {
-        code: payload.error.code,
-        status: response.status,
-        field: payload.error.field,
-      });
-    }
-    throw new ApiClientError("Request failed.", {
-      code: "request_failed",
-      status: response.status,
-    });
+    throw responseError(response, payload);
   }
 
   return payload as T;
@@ -198,21 +226,103 @@ export async function checkHealth(): Promise<boolean> {
   }
 }
 
-export async function createWorkflowRun(input: {
-  readonly patientId: string;
-  readonly query: string;
-}): Promise<WorkflowRunSnapshot> {
-  const payload = await requestJson<ApiSuccess<WorkflowRunSnapshot>>(
-    "/api/v1/workflows",
-    {
+export async function createWorkflowRun(
+  input: {
+    readonly patientId: string;
+    readonly query: string;
+  },
+  onUpdate?: (update: WorkflowStreamUpdate) => void,
+): Promise<WorkflowRunSnapshot> {
+  let response: Response;
+  try {
+    response = await fetch(`${config.apiBaseUrl}/api/v1/workflows`, {
       method: "POST",
+      headers: {
+        Accept: "text/event-stream",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         patient_id: input.patientId,
         query: input.query,
       }),
-    },
-  );
-  return payload.data;
+    });
+  } catch {
+    throw new ApiClientError("Backend is unavailable.", {
+      code: "backend_unavailable",
+      status: 0,
+    });
+  }
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as unknown;
+    throw responseError(response, payload);
+  }
+  if (!response.headers.get("content-type")?.includes("text/event-stream")) {
+    const payload = (await response.json()) as ApiSuccess<WorkflowRunSnapshot>;
+    onUpdate?.({
+      request_id: payload.request_id,
+      node: payload.data.transitions.at(-1)?.step ?? null,
+      phase: "completed",
+      data: payload.data,
+    });
+    return payload.data;
+  }
+  if (!response.body) {
+    throw new ApiClientError("Workflow stream was unavailable.", {
+      code: "workflow_stream_unavailable",
+      status: response.status,
+    });
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalSnapshot: WorkflowRunSnapshot | null = null;
+
+  function consumeBlock(block: string): void {
+    const lines = block.split("\n");
+    const event = lines.find((line) => line.startsWith("event: "))?.slice(7);
+    const data = lines
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => line.slice(6))
+      .join("\n");
+    if (!event || !data) {
+      return;
+    }
+    const payload = JSON.parse(data) as unknown;
+    if (event === "error") {
+      throw responseError(response, payload);
+    }
+    if (event === "workflow" && isWorkflowStreamUpdate(payload)) {
+      finalSnapshot = payload.data;
+      onUpdate?.(payload);
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    buffer = buffer.replaceAll("\r\n", "\n");
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary >= 0) {
+      consumeBlock(buffer.slice(0, boundary));
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf("\n\n");
+    }
+    if (done) {
+      break;
+    }
+  }
+  if (buffer.trim()) {
+    consumeBlock(buffer.trim());
+  }
+  if (finalSnapshot === null) {
+    throw new ApiClientError("Workflow stream ended without a result.", {
+      code: "workflow_stream_incomplete",
+      status: response.status,
+    });
+  }
+  return finalSnapshot;
 }
 
 export async function getWorkflowRun(

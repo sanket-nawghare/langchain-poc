@@ -94,7 +94,8 @@ class ResponseGenerationMetadata(ContractModel):
         ]
         | None
     ) = None
-    latency_ms: int | None = Field(default=None, ge=0, le=120_000)
+    # Must cover the largest configurable llm_request_timeout_seconds (300s).
+    latency_ms: int | None = Field(default=None, ge=0, le=300_000)
     input_tokens: int | None = Field(default=None, ge=0, le=10_000_000)
     output_tokens: int | None = Field(default=None, ge=0, le=10_000_000)
 

@@ -60,6 +60,7 @@ Rules:
 | Contract | Owner | Purpose |
 |---|---|---|
 | API envelopes | `domain/api.py` | Stable success and safe error shapes |
+| Workflow stream update | `domain/api.py` | Provider-neutral node, lifecycle phase, and redacted snapshot carried over SSE |
 | Read-only FHIR capability | `tools/fhir.py` | Supported reads/searches, parsed pages, and safe transport failures |
 | Patient-summary capability | `tools/patient.py` | Workflow-facing normalized patient retrieval without raw FHIR |
 | Patient summary and citations | `domain/clinical.py` | Normalized data outside FHIR and retrieval adapters |

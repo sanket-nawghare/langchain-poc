@@ -2,7 +2,8 @@
 
 import asyncio
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from typing import Literal
 
 import langsmith as ls
@@ -112,6 +113,17 @@ type RetrievalRoute = Literal["patient_summary", "guidelines", "failed"]
 type GuidelineRetrievalRoute = Literal["continue", "review", "failed"]
 type SafetyRoute = Literal["patient_summary", "pass", "review", "block", "failed"]
 type GenerationRoute = Literal["generated", "failed"]
+type WorkflowEventPhase = Literal["started", "completed"]
+
+
+@dataclass(frozen=True)
+class WorkflowGraphEvent:
+    """One safe node lifecycle event with state only after completion."""
+
+    node: str
+    phase: WorkflowEventPhase
+    result: WorkflowExecutionResult | None = None
+
 
 type WorkflowCompiledGraph = CompiledStateGraph[
     WorkflowGraphState,
@@ -1125,12 +1137,66 @@ async def execute_workflow(
 ) -> WorkflowExecutionResult:
     """Execute the workflow and validate its provider-neutral result."""
 
+    final_result: WorkflowExecutionResult | None = None
+    async for event in stream_workflow(workflow, runtime=runtime):
+        if event.result is not None:
+            final_result = event.result
+    if final_result is None:
+        raise RuntimeError("workflow execution produced no node updates")
+    return final_result
+
+
+async def stream_workflow(
+    workflow: WorkflowState,
+    *,
+    runtime: WorkflowRuntime,
+) -> AsyncIterator[WorkflowGraphEvent]:
+    """Yield safe start and completion events for every LangGraph node."""
+
+    transitions: list[WorkflowTransition] = []
     with ls.tracing_context(enabled=False):
-        result = await WORKFLOW_GRAPH.ainvoke(
+        async for stream_part in WORKFLOW_GRAPH.astream(
             {"workflow": workflow, "transitions": []},
             context=runtime,
-        )
-    return WorkflowExecutionResult.model_validate(result)
+            stream_mode=("tasks", "updates"),
+            version="v2",
+        ):
+            if not isinstance(stream_part, dict):
+                raise RuntimeError("workflow emitted an invalid stream event")
+            stream_type = stream_part.get("type")
+            stream_data = stream_part.get("data")
+            if stream_type == "tasks":
+                if isinstance(stream_data, dict) and "input" in stream_data:
+                    node = stream_data.get("name")
+                    if not isinstance(node, str):
+                        raise RuntimeError("workflow emitted an invalid task event")
+                    yield WorkflowGraphEvent(node=node, phase="started")
+                continue
+            if stream_type != "updates":
+                continue
+            raw_update = stream_data
+            if not isinstance(raw_update, dict) or len(raw_update) != 1:
+                raise RuntimeError("workflow emitted an invalid node update")
+            node, update = next(iter(raw_update.items()))
+            if not isinstance(node, str) or not isinstance(update, dict):
+                raise RuntimeError("workflow emitted an invalid node update")
+            node_transitions = update.get("transitions", [])
+            if not isinstance(node_transitions, list):
+                raise RuntimeError("workflow emitted invalid transitions")
+            transitions.extend(
+                WorkflowTransition.model_validate(transition)
+                for transition in node_transitions
+            )
+            yield WorkflowGraphEvent(
+                node=node,
+                phase="completed",
+                result=WorkflowExecutionResult.model_validate(
+                    {
+                        "workflow": update.get("workflow"),
+                        "transitions": transitions,
+                    }
+                ),
+            )
 
 
 async def execute_workflow_skeleton(

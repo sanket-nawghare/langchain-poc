@@ -158,7 +158,7 @@ Boundary rules:
 
 ## Local Data Flow
 
-Health reporting, normalized synthetic patient lookup, and synchronous workflow
+Health reporting, normalized synthetic patient lookup, and streaming workflow
 runs are implemented:
 
 ```mermaid
@@ -198,12 +198,14 @@ sequenceDiagram
     end
 
     opt Workflow run
-        Browser->>API: POST /api/v1/workflows
+        Browser->>API: POST /api/v1/workflows (Accept: text/event-stream)
         API->>DB: Store redacted queued checkpoint
+        API-->>Browser: SSE queued event
         API->>FHIR: Read bounded normalized patient context
-        API->>API: Classify, safety-check, generate qualified response
-        API->>DB: Store redacted final checkpoint
-        API-->>Browser: 201 redacted WorkflowRunSnapshot
+        API-->>Browser: SSE node started/completed events
+        API->>API: Classify, retrieve, safety-check, generate qualified response
+        API->>DB: Store each redacted completed-node checkpoint
+        API-->>Browser: SSE final node event
         Browser->>API: GET /api/v1/workflows/{workflow_id}
         API->>DB: Read and revalidate checkpoint
         API-->>Browser: 200 redacted WorkflowRunSnapshot
@@ -249,7 +251,7 @@ types cross into workflow state.
 
 | Store | Owner | Current use | Reset behavior |
 |---|---|---|---|
-| SQLite | Application backend | Readiness plus redacted workflow queued/final checkpoints | `make app-data-reset CONFIRM=1` |
+| SQLite | Application backend | Readiness plus redacted queued and completed-node workflow checkpoints | `make app-data-reset CONFIRM=1` |
 | PostgreSQL | HAPI FHIR | HAPI schema and synthetic FHIR cohort | Removed with `make infra-reset CONFIRM=1` |
 | Weaviate | Guideline vector-store adapter | `ClinicalGuidelineChunkV1` holds 135 verified chunks from two reviewed sources with self-provided vectors | `make guidelines-index-reset CONFIRM=1` deletes only the app collection; infrastructure reset deletes the volume |
 | Local guideline directory | Developer acquisition tooling | Two ignored PDF artifacts verified against committed provenance/checksums | Manually remove ignored files; `make guidelines-fetch` restores them |

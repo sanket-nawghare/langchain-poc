@@ -109,28 +109,32 @@ payloads or exception details. This unauthenticated endpoint is for the
 loopback-only synthetic development environment, not real patient data or
 production deployment.
 
-Create a synchronous workflow run for the same seeded patient:
+Stream LangGraph node progress for the same seeded patient:
 
 ```bash
-curl --fail-with-body \
+curl --no-buffer --fail-with-body \
   --request POST \
+  --header 'Accept: text/event-stream' \
   --header 'Content-Type: application/json' \
   --data "{\"patient_id\":\"${PATIENT_ID}\",\"query\":\"What precautions relate to this patient's conditions?\"}" \
   http://localhost:8000/api/v1/workflows
 ```
 
-The response includes distinct request, workflow, correlation, and trace IDs
-plus the final redacted status snapshot. It does not return or persist the
-query, patient ID/context, prompts, or provider payloads. Copy
-`data.workflow_id` from that response to inspect the persisted checkpoint:
+Each `workflow` SSE event contains a phase (`queued`, `started`, or
+`completed`), the active LangGraph node when applicable, and the latest
+redacted persisted snapshot. The same endpoint returns the final JSON snapshot
+with HTTP 201 when the `Accept` header is omitted, preserving non-streaming API
+compatibility. Neither form returns or persists the query, patient ID/context,
+prompts, or provider payloads. Copy `data.workflow_id` from an event or JSON
+response to inspect the persisted checkpoint:
 
 ```bash
 curl --fail \
   "http://localhost:8000/api/v1/workflows/${WORKFLOW_ID}"
 ```
 
-Run creation is synchronous in Phase 2.5. If the process stops after storing an
-incomplete checkpoint, the next application startup marks it failed with
+Streaming remains attached to the request while the workflow runs. If the
+process stops after storing an incomplete checkpoint, the next application startup marks it failed with
 `workflow_interrupted`; it does not automatically replay clinical work.
 
 With infrastructure seeded and the backend running, execute the complete

@@ -84,9 +84,10 @@ The system:
 10. attaches application-owned citations and an educational disclaimer before
     finalization.
 
-This path is synchronous. The browser displays **Running workflow** until the
-entire backend request finishes. Local CPU inference through Ollama can take
-considerably longer than a cloud model.
+The browser requests a server-sent event stream and updates the execution graph
+when each LangGraph node starts and completes. Local CPU inference through
+Ollama can still take considerably longer than a cloud model, but the Draft
+node remains visibly active while generation is running.
 
 ### 3. Safety and Human Review Demonstration
 
@@ -252,7 +253,7 @@ The primary HTTP endpoints are:
 | `GET /health/live` | Backend process health |
 | `GET /health/ready` | SQLite, HAPI FHIR, and Weaviate readiness |
 | `GET /api/v1/patients/{patient_id}/summary` | Normalized synthetic patient summary |
-| `POST /api/v1/workflows` | Validate and synchronously execute one workflow |
+| `POST /api/v1/workflows` | Execute one workflow; stream node events when `Accept: text/event-stream` is sent, otherwise return the final JSON snapshot |
 | `GET /api/v1/workflows/{workflow_id}` | Read one persisted workflow snapshot |
 | `GET /api/v1/workflows/reviews` | List pending reviews |
 | `GET /api/v1/workflows/{workflow_id}/review` | Read one pending review projection |
@@ -293,7 +294,8 @@ The system currently cannot reliably:
   encounter-summary questions;
 - authorize and resume a workflow stopped by a pre-generation review;
 - regenerate a draft after **Request changes**;
-- stream intermediate workflow progress or model tokens to the browser;
+- stream model tokens inside the active Draft node (node-level progress is
+  streamed, but provider token output remains buffered and strictly parsed);
 - browse all persisted workflow history after a browser refresh;
 - write to FHIR or external clinical systems;
 - enforce production authentication, authorization, tenancy, or operational

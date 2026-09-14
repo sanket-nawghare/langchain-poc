@@ -222,6 +222,35 @@ async def test_service_persists_queued_then_completed_checkpoint(
 
 
 @pytest.mark.anyio
+async def test_service_streams_started_and_persisted_completed_node_updates(
+    tmp_path: Path,
+) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    run_service = service(store)
+
+    updates = [
+        update
+        async for update in run_service.stream(
+            WorkflowRunRequest(
+                patient_id="synthetic-patient-1",
+                query="What precautions relate to these conditions?",
+            ),
+            runtime=runtime(FixedClock(), SequentialIds(500)),
+        )
+    ]
+
+    assert updates[0][0:2] == (None, "queued")
+    assert ("generate_response", "started") in [
+        (node, phase) for node, phase, _ in updates
+    ]
+    assert updates[-1][0:2] == ("finalize_response", "completed")
+    final_snapshot = updates[-1][2]
+    assert final_snapshot.status is WorkflowStatus.COMPLETED
+    assert await store.get(final_snapshot.workflow_id) == final_snapshot
+
+
+@pytest.mark.anyio
 async def test_review_queue_lists_pending_redacted_projection(tmp_path: Path) -> None:
     store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
     await store.initialize()

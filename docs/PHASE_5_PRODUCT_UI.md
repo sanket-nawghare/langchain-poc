@@ -26,6 +26,7 @@ be independently reviewable and end with focused frontend tests plus
 | 5.3 Review queue and actions | Reviewer queue/detail/actions with safety reasons and stale-action handling | `[x]` |
 | 5.4 Workflow visualization and history | Graph/status visualization, run history, transitions, and audit details | `[x]` |
 | 5.5 Phase 5 integration gate | Accessibility, redaction, critical journeys, and documentation pass | `[x]` |
+| 5.6 Live graph event streaming | Provider-neutral SSE node lifecycle events and live React Flow updates | `[x]` |
 
 ## Sub-phase 5.1 - UI Shell and API Contracts
 
@@ -107,6 +108,24 @@ browser can call the API during development without widening the public API
 contract. The automated UI coverage exercises request submission, backend
 availability, completed and pending-review runs, review approval/conflict
 handling, run-history inspection, and workflow graph rendering.
+
+## Sub-phase 5.6 - Live Graph Event Streaming
+
+- `[x]` Stream LangGraph task-start and node-completion events through the
+  existing workflow POST endpoint when requested with `Accept:
+  text/event-stream`.
+- `[x]` Persist each completed-node redacted checkpoint while retaining the
+  original final-JSON response for compatible API clients.
+- `[x]` Update the React Flow graph and workflow result during execution rather
+  than only after the request completes.
+- `[x]` Keep streaming outside provider adapters so fake, OpenAI, Anthropic,
+  and Ollama use the same event contract.
+- `[x]` Cover event order, redaction, persistence, incremental frontend
+  rendering, and final completion.
+
+Provider token output remains buffered inside its strict structured-output
+adapter. This checkpoint streams workflow lifecycle events, not unvalidated
+model tokens.
 
 ## Phase Exit Criteria
 

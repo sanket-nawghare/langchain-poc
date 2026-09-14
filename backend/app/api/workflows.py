@@ -6,12 +6,12 @@ from functools import lru_cache
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Body, Depends, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Body, Depends, Header, status
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
-from app.domain.api import ApiError, ApiSuccess, ErrorDetail
+from app.domain.api import ApiError, ApiStreamUpdate, ApiSuccess, ErrorDetail
 from app.domain.workflow import (
     ReviewActionRequest,
     ReviewQueueItem,
@@ -77,6 +77,52 @@ def _error_response(
         status_code=status_code,
         content=payload.model_dump(mode="json"),
     )
+
+
+def _sse_message(event: str, payload: str) -> str:
+    """Encode one single-line JSON payload as a server-sent event."""
+
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+async def _stream_workflow_run(
+    *,
+    request_id: UUID,
+    request: WorkflowRunRequest,
+    context: "WorkflowExecutionContext",
+) -> AsyncIterator[str]:
+    """Stream redacted persisted graph checkpoints and safe terminal errors."""
+
+    try:
+        async for node, phase, snapshot in context.service.stream(
+            request,
+            runtime=context.runtime,
+        ):
+            update: ApiStreamUpdate[WorkflowRunSnapshot] = ApiStreamUpdate(
+                request_id=request_id,
+                node=node,
+                phase=phase,
+                data=snapshot,
+            )
+            yield _sse_message("workflow", update.model_dump_json())
+    except WorkflowRunStoreError:
+        error = ApiError(
+            request_id=request_id,
+            error=ErrorDetail(
+                code="workflow_storage_unavailable",
+                message="Workflow storage is unavailable.",
+            ),
+        )
+        yield _sse_message("error", error.model_dump_json())
+    except Exception:
+        error = ApiError(
+            request_id=request_id,
+            error=ErrorDetail(
+                code="workflow_stream_failed",
+                message="Workflow streaming failed safely.",
+            ),
+        )
+        yield _sse_message("error", error.model_dump_json())
 
 
 @lru_cache
@@ -198,8 +244,9 @@ async def initialize_workflow_runs() -> int:
 async def create_workflow_run(
     raw_request: Annotated[object, Body()],
     context: Annotated[WorkflowExecutionContext, Depends(workflow_execution_context)],
-) -> ApiSuccess[WorkflowRunSnapshot] | JSONResponse:
-    """Execute one validated synthetic clinical-QA workflow synchronously."""
+    accept: Annotated[str | None, Header()] = None,
+) -> ApiSuccess[WorkflowRunSnapshot] | JSONResponse | StreamingResponse:
+    """Execute one workflow as JSON or stream graph updates through SSE."""
 
     request_id = uuid4()
     try:
@@ -210,6 +257,20 @@ async def create_workflow_run(
             status_code=status.HTTP_400_BAD_REQUEST,
             code="invalid_workflow_request",
             message="The workflow request is invalid.",
+        )
+    if accept is not None and "text/event-stream" in accept.casefold():
+        return StreamingResponse(
+            _stream_workflow_run(
+                request_id=request_id,
+                request=request,
+                context=context,
+            ),
+            status_code=status.HTTP_200_OK,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
         )
     try:
         snapshot = await context.service.create(request, runtime=context.runtime)

@@ -346,7 +346,8 @@ Begin only after the first release. Prioritize each item independently.
 - `[ ]` Authentication and role-based access control.
 - `[ ]` SMART on FHIR authorization.
 - `[ ]` Multi-provider model routing and local Ollama profile.
-- `[ ]` Streaming graph events and responses.
+- `[x]` Streaming LangGraph node lifecycle events over provider-neutral SSE.
+- `[ ]` Optional streaming of model response tokens inside generation nodes.
 - `[ ]` Multilingual interface and evaluation.
 - `[ ]` Deployment manifests for a hosted demo.
 
@@ -420,6 +421,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-09-14 | Phase 5.6 | Added provider-neutral LangGraph task-start/node-completion SSE events on the existing workflow POST endpoint, persisted each completed-node snapshot, updated React Flow live, retained final-JSON compatibility, and added backend/frontend streaming and redaction coverage | Model tokens remain intentionally buffered behind strict structured-output validation |
 | 2026-09-14 | Phase 5.5 | Completed the final Product UI integration gate: confirmed local backend CORS for Vite, documented browser-visible redaction boundaries, marked Phase 5 scope and exit criteria complete, and reran the full quality gate | Stop for final Phase 5 review before creating the Phase 6 branch |
 | 2026-09-14 | Phase 5.4 | Added read-only React Flow workflow visualization, completed/current-node styling, transition and redacted audit summaries, local run-history selection, keyboard-reachable Request/Review/History tabs, and build/test coverage for the graph surface | Continue to checkpoint 5.5 final UI gate |
 | 2026-09-14 | Phase 5.3 | Added the Review tab with pending queue refresh, review detail selection, draft/citation/safety reason inspection, reviewer identity and rationale inputs, approve/reject/request-changes actions, stale-action errors, and tests for approval and conflict handling | Continue to checkpoint 5.4 workflow visualization and history |

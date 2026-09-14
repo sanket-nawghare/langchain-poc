@@ -297,6 +297,105 @@ describe("App", () => {
     );
   });
 
+  it("renders workflow progress before the SSE stream completes", async () => {
+    const completedEnvelope = (await workflowPayload().json()) as {
+      request_id: string;
+      data: Record<string, unknown>;
+    };
+    const queuedData = {
+      ...completedEnvelope.data,
+      status: "queued",
+      updated_at: "2026-09-14T00:00:00Z",
+      guideline_evidence: null,
+      response_draft: null,
+      review_citations: [],
+      safety_result: null,
+      post_generation_safety_result: null,
+      final_response: null,
+      transitions: [],
+      audit_log: [],
+    };
+    const runningData = {
+      ...queuedData,
+      status: "running",
+      transitions: [
+        {
+          from_status: "queued",
+          to_status: "running",
+          occurred_at: "2026-09-14T00:00:00Z",
+          step: "begin_execution",
+        },
+      ],
+    };
+    const encoder = new TextEncoder();
+    let finishStream: (() => void) | undefined;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const event = (node: string | null, phase: string, data: object) =>
+          `event: workflow\ndata: ${JSON.stringify({
+            request_id: completedEnvelope.request_id,
+            node,
+            phase,
+            data,
+          })}\n\n`;
+        controller.enqueue(encoder.encode(event(null, "queued", queuedData)));
+        controller.enqueue(
+          encoder.encode(event("begin_execution", "started", queuedData)),
+        );
+        controller.enqueue(
+          encoder.encode(event("begin_execution", "completed", runningData)),
+        );
+        controller.enqueue(
+          encoder.encode(event("classify_intent", "started", runningData)),
+        );
+        finishStream = () => {
+          controller.enqueue(
+            encoder.encode(
+              event("finalize_response", "completed", completedEnvelope.data),
+            ),
+          );
+          controller.close();
+        };
+      },
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(stream, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      );
+
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use sample question" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("running").length).toBeGreaterThan(0);
+    });
+    expect(
+      screen.getByRole("button", { name: "Running workflow" }),
+    ).toBeDisabled();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://localhost:8000/api/v1/workflows",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Accept: "text/event-stream" }),
+      }),
+    );
+
+    finishStream?.();
+    await waitFor(() => {
+      expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
+    });
+  });
+
   it("renders pending-review draft and safety reasons", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(

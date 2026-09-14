@@ -146,6 +146,37 @@ async def test_ollama_adapter_rejects_invalid_structured_output(
 
 
 @pytest.mark.anyio
+async def test_ollama_adapter_accepts_slow_valid_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ticks = iter([1000.0, 1176.0])
+    monkeypatch.setattr(
+        "app.services.ollama_response.perf_counter", lambda: next(ticks)
+    )
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "message": {
+                    "role": "assistant",
+                    "content": json.dumps({"answer": "A slow grounded answer."}),
+                },
+                "done": True,
+                "done_reason": "stop",
+            },
+        )
+
+    adapter, _ = generator(httpx.MockTransport(handle))
+    result = await adapter.generate(request=grounded_request())
+
+    assert result.draft == ResponseDraft(answer="A slow grounded answer.")
+    assert result.metadata.latency_ms == 176_000
+    await adapter.close()
+
+
+@pytest.mark.anyio
 async def test_ollama_adapter_maps_output_limit() -> None:
     async def handle(request: httpx.Request) -> httpx.Response:
         del request

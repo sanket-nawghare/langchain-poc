@@ -1,5 +1,6 @@
 """Workflow-run API and redaction tests."""
 
+import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -258,6 +259,82 @@ async def test_create_and_inspect_redacted_workflow_run(
     ):
         assert sensitive not in created.text
         assert sensitive not in inspected.text
+
+
+@pytest.mark.anyio
+async def test_create_workflow_streams_redacted_langgraph_node_events(
+    client: AsyncClient,
+    tmp_path: Path,
+) -> None:
+    store = SqliteWorkflowRunStore(f"sqlite:///{tmp_path / 'workflow.db'}")
+    await store.initialize()
+    context = execution_context(store)
+
+    async def context_override() -> WorkflowExecutionContext:
+        return context
+
+    app.dependency_overrides[workflow_execution_context] = context_override
+    try:
+        response = await client.post(
+            "/api/v1/workflows",
+            headers={"Accept": "text/event-stream"},
+            json={
+                "patient_id": "synthetic-patient-1",
+                "query": "private streaming query about conditions",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    events: list[tuple[str, dict[str, object]]] = []
+    for block in response.text.strip().split("\n\n"):
+        lines = block.splitlines()
+        event = next(line[7:] for line in lines if line.startswith("event: "))
+        data = next(line[6:] for line in lines if line.startswith("data: "))
+        events.append((event, json.loads(data)))
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert response.headers["cache-control"] == "no-cache"
+    assert events[0][0] == "workflow"
+    assert events[0][1]["phase"] == "queued"
+    lifecycle = [
+        (event[1]["node"], event[1]["phase"])
+        for event in events
+        if event[0] == "workflow" and event[1]["node"] is not None
+    ]
+    assert lifecycle == [
+        ("begin_execution", "started"),
+        ("begin_execution", "completed"),
+        ("classify_intent", "started"),
+        ("classify_intent", "completed"),
+        ("retrieve_patient", "started"),
+        ("retrieve_patient", "completed"),
+        ("retrieve_guidelines", "started"),
+        ("retrieve_guidelines", "completed"),
+        ("safety_precheck", "started"),
+        ("safety_precheck", "completed"),
+        ("generate_response", "started"),
+        ("generate_response", "completed"),
+        ("post_generation_safety", "started"),
+        ("post_generation_safety", "completed"),
+        ("finalize_response", "started"),
+        ("finalize_response", "completed"),
+    ]
+    final_payload = events[-1][1]
+    final_data = final_payload["data"]
+    assert isinstance(final_data, dict)
+    assert final_data["status"] == "completed"
+    assert await context.service.get(UUID(str(final_data["workflow_id"])))
+    for sensitive in (
+        "private streaming query",
+        "synthetic-patient-1",
+        "private-code",
+        "Private synthetic condition",
+        "patient_data",
+        "user_query",
+    ):
+        assert sensitive not in response.text
 
 
 @pytest.mark.anyio
