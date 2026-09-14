@@ -24,7 +24,7 @@ be independently reviewable and end with focused frontend tests plus
 | 5.1 UI shell and API contracts | Typed frontend API client, request form, and safe result rendering skeleton | `[x]` |
 | 5.2 Workflow run experience | Loading, success, pending-review, rejected, failed, and empty states for workflow submission | `[x]` |
 | 5.3 Review queue and actions | Reviewer queue/detail/actions with safety reasons and stale-action handling | `[x]` |
-| 5.4 Workflow visualization and history | Graph/status visualization, run history, transitions, and audit details | `[ ]` |
+| 5.4 Workflow visualization and history | Graph/status visualization, run history, transitions, and audit details | `[x]` |
 | 5.5 Phase 5 integration gate | Accessibility, redaction, critical journeys, and documentation pass | `[ ]` |
 
 ## Sub-phase 5.1 - UI Shell and API Contracts
@@ -80,12 +80,17 @@ exposing hidden state.
 
 ## Sub-phase 5.4 - Workflow Visualization and History
 
-- `[ ]` Visualize graph nodes and current workflow status.
-- `[ ]` Add run history and selected-run inspection.
-- `[ ]` Show transitions and redacted audit details without prompt, patient, or
+- `[x]` Visualize graph nodes and current workflow status.
+- `[x]` Add run history and selected-run inspection.
+- `[x]` Show transitions and redacted audit details without prompt, patient, or
   provider body leakage.
-- `[ ]` Add keyboard-friendly navigation between request, review, history, and
+- `[x]` Add keyboard-friendly navigation between request, review, history, and
   detail surfaces.
+
+The workflow surface now includes a read-only React Flow execution graph with
+completed/current-node styling, local run history selection, transition details,
+and redacted audit event summaries. Request, Review, and History tabs are
+keyboard reachable and keep the primary workflow result visible for inspection.
 
 ## Sub-phase 5.5 - Phase Gate and Documentation
 

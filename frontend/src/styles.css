@@ -425,6 +425,43 @@ textarea {
   padding: 1.25rem;
 }
 
+.graph-panel {
+  padding: 1.25rem;
+}
+
+.flow-frame {
+  width: 100%;
+  height: 18rem;
+  overflow: hidden;
+  border: 1px solid #d4dde1;
+  border-radius: 8px;
+  background: #f7f9fa;
+}
+
+.workflow-node {
+  width: 9.5rem;
+  border: 1px solid #bac6cc;
+  border-radius: 8px;
+  padding: 0.7rem;
+  color: #334149;
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.workflow-node--complete {
+  border-color: #246b68;
+  color: #064e3b;
+  background: #d1fae5;
+}
+
+.workflow-node--active {
+  border-color: #c05621;
+  color: #7c2d12;
+  background: #ffedd5;
+}
+
 .review-panel {
   padding: 1.25rem;
 }

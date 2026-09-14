@@ -208,6 +208,9 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: "Clinical QA" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Workflow graph nodes" }),
+    ).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(
@@ -236,12 +239,13 @@ describe("App", () => {
         screen.getByText("Guideline evidence supports routine follow-up."),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText("completed")).toBeInTheDocument();
+    expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
     expect(
       screen.getByText("Reviewed synthetic guideline"),
     ).toBeInTheDocument();
     expect(screen.getByText("finalize response")).toBeInTheDocument();
     expect(screen.getByText("response generated")).toBeInTheDocument();
+    expect(screen.getByText("Execution path")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("patient_data");
     expect(document.body).not.toHaveTextContent("private-code");
     expect(fetchMock).toHaveBeenLastCalledWith(
@@ -287,7 +291,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
 
     await waitFor(() => {
-      expect(screen.getByText("pending review")).toBeInTheDocument();
+      expect(screen.getAllByText("pending review").length).toBeGreaterThan(0);
     });
     expect(screen.getByText("Draft awaiting review")).toBeInTheDocument();
     expect(
@@ -344,7 +348,9 @@ describe("App", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
 
-    await screen.findByText("completed");
+    await waitFor(() => {
+      expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
+    });
     fireEvent.click(screen.getByRole("button", { name: "History" }));
 
     expect(
@@ -380,7 +386,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
     await waitFor(() => {
-      expect(screen.getByText("completed")).toBeInTheDocument();
+      expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
     });
     expect(fetchMock).toHaveBeenLastCalledWith(
       "http://localhost:8000/api/v1/workflows/workflow-review-1/review-actions",

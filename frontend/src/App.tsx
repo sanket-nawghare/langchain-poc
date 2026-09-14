@@ -1,4 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  Background,
+  Controls,
+  ReactFlow,
+  type Edge,
+  type Node,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 
 import {
   ApiClientError,
@@ -20,6 +28,16 @@ type ViewMode = "run" | "review" | "history";
 
 const defaultPatientId = "synthetic-patient-1";
 const sampleQuestion = "What precautions relate to this patient's conditions?";
+const workflowSteps = [
+  { id: "begin_execution", label: "Begin" },
+  { id: "classify_intent", label: "Intent" },
+  { id: "retrieve_patient", label: "Patient" },
+  { id: "retrieve_guidelines", label: "Guidelines" },
+  { id: "safety_precheck", label: "Pre-check" },
+  { id: "generate_response", label: "Draft" },
+  { id: "post_generation_safety", label: "Draft safety" },
+  { id: "finalize_response", label: "Finalize" },
+] as const;
 
 function statusLabel(status: WorkflowRunSnapshot["status"]): string {
   return status.replace("_", " ");
@@ -100,6 +118,71 @@ function AuditSummary({
         </li>
       ))}
     </ul>
+  );
+}
+
+function WorkflowGraph({
+  workflow,
+}: {
+  readonly workflow: WorkflowRunSnapshot | null;
+}) {
+  const transitionSteps = new Set(
+    workflow?.transitions.map((transition) => transition.step) ?? [],
+  );
+  const activeStep = workflow?.transitions.at(-1)?.step;
+  const nodes: Node[] = workflowSteps.map((step, index) => {
+    const completed = transitionSteps.has(step.id);
+    const active = activeStep === step.id;
+    return {
+      id: step.id,
+      position: { x: (index % 4) * 190, y: Math.floor(index / 4) * 120 },
+      data: { label: step.label },
+      className: active
+        ? "workflow-node workflow-node--active"
+        : completed
+          ? "workflow-node workflow-node--complete"
+          : "workflow-node",
+      draggable: false,
+    };
+  });
+  const edges: Edge[] = workflowSteps.slice(1).map((step, index) => ({
+    id: `${workflowSteps[index].id}-${step.id}`,
+    source: workflowSteps[index].id,
+    target: step.id,
+    animated: activeStep === step.id,
+  }));
+
+  return (
+    <section className="panel graph-panel" aria-labelledby="graph-title">
+      <div className="panel__header">
+        <div>
+          <p className="eyebrow">Workflow graph</p>
+          <h2 id="graph-title">Execution path</h2>
+        </div>
+        {workflow ? (
+          <span className={`badge badge--${workflow.status}`}>
+            {statusLabel(workflow.status)}
+          </span>
+        ) : null}
+      </div>
+      <div className="flow-frame" role="img" aria-label="Workflow graph nodes">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          fitView
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          panOnDrag={false}
+          zoomOnScroll={false}
+          zoomOnPinch={false}
+          zoomOnDoubleClick={false}
+        >
+          <Background />
+          <Controls showInteractive={false} />
+        </ReactFlow>
+      </div>
+    </section>
   );
 }
 
@@ -713,6 +796,10 @@ export function App() {
             </p>
           </section>
         )}
+      </div>
+
+      <div className="workspace workspace--single">
+        <WorkflowGraph workflow={workflow} />
       </div>
 
       {viewMode === "review" ? (

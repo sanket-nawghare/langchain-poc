@@ -420,6 +420,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-09-14 | Phase 5.4 | Added read-only React Flow workflow visualization, completed/current-node styling, transition and redacted audit summaries, local run-history selection, keyboard-reachable Request/Review/History tabs, and build/test coverage for the graph surface | Continue to checkpoint 5.5 final UI gate |
 | 2026-09-14 | Phase 5.3 | Added the Review tab with pending queue refresh, review detail selection, draft/citation/safety reason inspection, reviewer identity and rationale inputs, approve/reject/request-changes actions, stale-action errors, and tests for approval and conflict handling | Continue to checkpoint 5.4 workflow visualization and history |
 | 2026-09-14 | Phase 5.2 | Expanded the workflow run UI with status-specific summaries, loading/error handling, sample question entry, final and pending-review answer panels, safety reasons, citations, transitions, audit summaries, local run history, and component coverage for major workflow states | Continue to checkpoint 5.3 review queue and actions |
 | 2026-09-14 | Phase 5.1 | Added typed frontend API contracts/client for workflows and review actions, replaced the placeholder with a work-focused clinical-QA request shell, rendered safe workflow result metadata, answers, safety reasons, and citations, and added frontend tests for health/submission/redaction basics | Stop for review before checkpoint 5.2 workflow run experience |
