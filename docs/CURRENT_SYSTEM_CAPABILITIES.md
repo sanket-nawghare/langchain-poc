@@ -28,7 +28,9 @@ The current implementation is useful for:
 - inspecting workflow nodes, state transitions, safety outcomes, citations,
   failures, and audit events in a browser;
 - testing provider failures such as timeouts, rate limits, malformed output,
-  context limits, and unavailable services; and
+  context limits, and unavailable services;
+- inspecting local request metrics, request IDs, security headers, and safe
+  dependency-failure behavior; and
 - serving as a reference architecture for provider-neutral clinical workflow
   orchestration.
 
@@ -87,7 +89,9 @@ The system:
 The browser requests a server-sent event stream and updates the execution graph
 when each LangGraph node starts and completes. Local CPU inference through
 Ollama can still take considerably longer than a cloud model, but the Draft
-node remains visibly active while generation is running.
+node remains visibly active while generation is running. For guideline-only
+questions, irrelevant patient facts are omitted from the model prompt to keep
+local inference smaller and less brittle.
 
 ### 3. Safety and Human Review Demonstration
 
@@ -126,7 +130,7 @@ The read-only HAPI FHIR adapter currently retrieves and normalizes:
 - diagnostic reports and laboratory-related records.
 
 The normalized context supports safety checks and grounded generation. Before
-an LLM call, the application selects at most 32 relevant facts and removes the
+an LLM call, the application selects at most 12 relevant facts and removes the
 patient ID, display name, and raw FHIR payload.
 
 Only allergies currently have a dedicated direct-answer route. Although other
@@ -166,7 +170,9 @@ Ollama defaults to `qwen3:4b`, structured JSON output, an 8,192-token context
 window, and a loopback-only server address. Local generation is CPU-bound on a
 machine without a supported GPU. The configured timeout is bounded, and Ollama
 requests are not automatically retried because cancelled CPU inference may
-continue occupying the local server.
+continue occupying the local server. The adapter can recover a valid `answer`
+field from common local-model JSON wrappers, but still rejects non-answer,
+empty, or oversized output.
 
 Regardless of provider:
 

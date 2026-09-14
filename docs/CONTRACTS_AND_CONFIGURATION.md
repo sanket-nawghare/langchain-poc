@@ -192,9 +192,10 @@ narratives, and raw FHIR payloads are excluded.
   for review; timeout,
   unavailability, malformed output, and unexpected failures become stable safe
   workflow failure codes.
-- Graph execution explicitly disables inherited LangSmith tracing. This keeps
-  queries and workflow state local until a later phase defines reviewed,
-  redacted observability.
+- Graph execution disables inherited LangSmith tracing by default. Operators
+  can deliberately opt in with `CLINICAL_LANGSMITH_TRACING_ENABLED=true`; this
+  may export workflow inputs and state to LangSmith and should stay off for
+  synthetic-local demos unless that data handling is acceptable.
 - Workflow requests trim queries and limit them to 2,000 characters before
   graph execution. Classifier results are revalidated as the strict
   `IntentClassification` contract before their intent enters workflow state.

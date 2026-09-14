@@ -19,6 +19,12 @@ not a medical device.
 - Workflow snapshots already expose durable workflow IDs, correlation IDs,
   trace IDs, transitions, safe audit events, retrieved evidence metadata, safety
   decisions, and provider generation telemetry when a provider reports it.
+- Provider generation telemetry currently includes model alias, latency, input
+  tokens, and output tokens when available. Estimated cost is intentionally not
+  calculated until a reviewed pricing table or billing integration is added.
+- LangSmith tracing is default-off. Set
+  `CLINICAL_LANGSMITH_TRACING_ENABLED=true` only for explicit local/debug runs
+  where exporting workflow inputs and state to LangSmith is acceptable.
 
 ## Security Defaults
 

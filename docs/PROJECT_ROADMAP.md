@@ -59,7 +59,7 @@ This baseline can change through a recorded decision before implementation.
 | 3. Guidelines RAG | Responses retrieve and cite trusted guideline passages | `[x]` |
 | 4. Grounded Generation, Safety, and Human Review | A real grounded model plus risk rules can safely draft, pause, review, and resume work | `[x]` |
 | 5. Product UI | Users can submit requests and inspect workflow progress | `[x]` |
-| 6. Quality and Observability | The system is measurable, auditable, and resilient | `[ ]` |
+| 6. Quality and Observability | The system is measurable, auditable, and resilient | `[x]` |
 | 7. Packaging and Release | A new contributor can run and understand the project | `[ ]` |
 | 8. Future Extensions | Optional capabilities are prioritized after the MVP | `[ ]` |
 
@@ -286,25 +286,25 @@ defensible.
 
 ### Scope
 
-- `[ ]` Add structured logs, metrics, traces, and correlation IDs.
-- `[ ]` Add optional LangSmith tracing with documented opt-in data handling.
-- `[ ]` Track latency, token usage, estimated cost, tool errors, retrieval
+- `[x]` Add structured logs, metrics, traces, and correlation IDs.
+- `[x]` Add optional LangSmith tracing with documented opt-in data handling.
+- `[x]` Track latency, token usage, estimated cost, tool errors, retrieval
   quality, review rate, and completion rate.
-- `[ ]` Create a golden workflow evaluation suite.
-- `[ ]` Add prompt-injection and malicious-document tests.
-- `[ ]` Add load, timeout, retry, and dependency-failure tests.
-- `[ ]` Add dependency and secret scanning.
-- `[ ]` Add API input limits, rate limits, and secure default headers.
-- `[ ]` Document data retention, redaction, and deletion behavior.
-- `[ ]` Add database migrations, backup notes, and recovery checks.
-- `[ ]` Add a debugging/runbook document for common failures.
+- `[x]` Create a golden workflow evaluation suite.
+- `[x]` Add prompt-injection and malicious-document tests.
+- `[x]` Add load, timeout, retry, and dependency-failure tests.
+- `[x]` Add dependency and secret scanning.
+- `[x]` Add API input limits, rate limits, and secure default headers.
+- `[x]` Document data retention, redaction, and deletion behavior.
+- `[x]` Add database migrations, backup notes, and recovery checks.
+- `[x]` Add a debugging/runbook document for common failures.
 
 ### Exit Criteria
 
-- `[ ]` Golden evaluations meet recorded quality thresholds.
-- `[ ]` Operators can trace one request across API, graph, tools, and storage.
-- `[ ]` No known critical dependency or secret-scanning findings remain.
-- `[ ]` Expected dependency failures degrade safely and are visible.
+- `[x]` Golden evaluations meet recorded quality thresholds.
+- `[x]` Operators can trace one request across API, graph, tools, and storage.
+- `[x]` No known critical dependency or secret-scanning findings remain.
+- `[x]` Expected dependency failures degrade safely and are visible.
 
 ---
 
@@ -421,6 +421,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-09-14 | Phase 6 | Completed quality, security, and observability: hardened local Ollama structured-output recovery, trimmed generation context, added HTTP request IDs/logs/metrics/security headers/body limits/rate limits, added optional LangSmith tracing opt-in, created golden/adversarial/dependency-failure tests, added the offline Phase 6 quality gate, and documented runbook, retention, backup, and recovery behavior | Continue to Phase 7 packaging and release |
 | 2026-09-14 | Phase 5.6 | Added provider-neutral LangGraph task-start/node-completion SSE events on the existing workflow POST endpoint, persisted each completed-node snapshot, updated React Flow live, retained final-JSON compatibility, and added backend/frontend streaming and redaction coverage | Model tokens remain intentionally buffered behind strict structured-output validation |
 | 2026-09-14 | Phase 5.5 | Completed the final Product UI integration gate: confirmed local backend CORS for Vite, documented browser-visible redaction boundaries, marked Phase 5 scope and exit criteria complete, and reran the full quality gate | Stop for final Phase 5 review before creating the Phase 6 branch |
 | 2026-09-14 | Phase 5.4 | Added read-only React Flow workflow visualization, completed/current-node styling, transition and redacted audit summaries, local run-history selection, keyboard-reachable Request/Review/History tabs, and build/test coverage for the graph surface | Continue to checkpoint 5.5 final UI gate |

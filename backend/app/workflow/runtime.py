@@ -76,3 +76,4 @@ class WorkflowRuntime:
         default_factory=WorkflowExecutionPolicy
     )
     response_execution_policy: WorkflowExecutionPolicy | None = None
+    langsmith_tracing_enabled: bool = False

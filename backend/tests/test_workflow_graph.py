@@ -475,6 +475,7 @@ def workflow_runtime(
     without_guideline_retriever: bool = False,
     execution_policy: WorkflowExecutionPolicy | None = None,
     response_execution_policy: WorkflowExecutionPolicy | None = None,
+    langsmith_tracing_enabled: bool = False,
 ) -> WorkflowRuntime:
     return WorkflowRuntime(
         clock=FixedClock(EXECUTED_AT),
@@ -496,6 +497,7 @@ def workflow_runtime(
         ),
         execution_policy=execution_policy or WorkflowExecutionPolicy(),
         response_execution_policy=response_execution_policy,
+        langsmith_tracing_enabled=langsmith_tracing_enabled,
     )
 
 
@@ -1628,7 +1630,7 @@ async def test_workflow_replay_is_deterministic() -> None:
 
 
 @pytest.mark.anyio
-async def test_skeleton_explicitly_disables_external_tracing(
+async def test_workflow_tracing_is_disabled_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tracing_values: list[bool | None] = []
@@ -1650,3 +1652,28 @@ async def test_skeleton_explicitly_disables_external_tracing(
     )
 
     assert tracing_values == [False]
+
+
+@pytest.mark.anyio
+async def test_workflow_tracing_can_be_enabled_explicitly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracing_values: list[bool | None] = []
+
+    @contextmanager
+    def tracing_context(*, enabled: bool | None = None) -> Iterator[None]:
+        tracing_values.append(enabled)
+        yield
+
+    monkeypatch.setattr(
+        ls,
+        "tracing_context",
+        tracing_context,
+    )
+
+    await execute_workflow_skeleton(
+        queued_workflow(),
+        runtime=workflow_runtime(langsmith_tracing_enabled=True),
+    )
+
+    assert tracing_values == [True]

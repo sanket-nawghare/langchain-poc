@@ -212,6 +212,7 @@ async def workflow_execution_context(
                             else settings.llm_max_retries
                         ),
                     ),
+                    langsmith_tracing_enabled=settings.langsmith_tracing_enabled,
                 ),
             )
     finally:

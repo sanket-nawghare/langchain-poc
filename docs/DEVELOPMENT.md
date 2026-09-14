@@ -250,6 +250,9 @@ The read-only FHIR adapter supports these validated backend settings:
 | `CLINICAL_GUIDELINE_CORPUS_LOCK_PATH` | `data/guidelines/corpus-lock.json` | Local reviewed metadata-only corpus lock |
 | `CLINICAL_WORKFLOW_NODE_TIMEOUT_SECONDS` | `10` | Greater than 0, at most 30 |
 | `CLINICAL_WORKFLOW_NODE_MAX_RETRIES` | `1` | 0–3 |
+| `CLINICAL_MAX_REQUEST_BODY_BYTES` | `16384` | 1 KiB-1 MiB |
+| `CLINICAL_WORKFLOW_RATE_LIMIT_PER_MINUTE` | `120` | 1-10,000 |
+| `CLINICAL_LANGSMITH_TRACING_ENABLED` | `false` | Default-off; opt in only when LangSmith export is acceptable |
 | `CLINICAL_LLM_REQUEST_TIMEOUT_SECONDS` | `30` | Greater than 0, at most 300 |
 | `CLINICAL_LLM_MAX_RETRIES` | `2` | 0–3 |
 

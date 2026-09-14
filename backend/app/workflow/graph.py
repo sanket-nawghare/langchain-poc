@@ -1154,7 +1154,7 @@ async def stream_workflow(
     """Yield safe start and completion events for every LangGraph node."""
 
     transitions: list[WorkflowTransition] = []
-    with ls.tracing_context(enabled=False):
+    with ls.tracing_context(enabled=runtime.langsmith_tracing_enabled):
         async for stream_part in WORKFLOW_GRAPH.astream(
             {"workflow": workflow, "transitions": []},
             context=runtime,
