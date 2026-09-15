@@ -25,6 +25,15 @@ make dev
 managed Python 3.12 runtime and locked backend dependencies. Run `make help` to
 list the available development commands.
 
+To prepare the full local demo path and start both apps with one command:
+
+```bash
+make demo-up
+```
+
+This starts local infrastructure, seeds the synthetic FHIR cohort, fetches and
+indexes reviewed guideline documents, and then runs the backend and frontend.
+
 Run every required local quality gate with:
 
 ```bash
@@ -36,15 +45,19 @@ Project documents:
 - [Original concept and architecture](plan.md)
 - [Phased roadmap and progress tracker](docs/PROJECT_ROADMAP.md)
 - [Current system capabilities and limitations](docs/CURRENT_SYSTEM_CAPABILITIES.md)
+- [Guided MVP demo](docs/GUIDED_DEMO.md)
 - [Current demo guide and supported questions](docs/CURRENT_SYSTEM_DEMO_GUIDE.md)
 - [Phase 0 foundations execution plan](docs/PHASE_0_FOUNDATIONS.md)
 - [Foundation architecture and data flow](docs/ARCHITECTURE.md)
 - [Local development and troubleshooting](docs/DEVELOPMENT.md)
+- [How to extend tools, graph nodes, providers, and guidelines](docs/EXTENDING_THE_SYSTEM.md)
+- [MVP release checklist](docs/RELEASE_CHECKLIST.md)
 - [MVP scope](docs/MVP_SCOPE.md)
 - [Foundation decisions](docs/FOUNDATION_DECISIONS.md)
 - [Contracts and configuration](docs/CONTRACTS_AND_CONFIGURATION.md)
 - [Development safety and data policy](docs/SAFETY_AND_DATA_POLICY.md)
 - [Quality gates and CI](docs/QUALITY_GATES.md)
+- [Release notes](RELEASE_NOTES.md)
 - [Local infrastructure](docker/README.md)
 - [Phase 1 synthetic FHIR execution plan](docs/PHASE_1_SYNTHETIC_FHIR.md)
 - [Phase 2 LangGraph workflow execution record](docs/PHASE_2_WORKFLOW_MVP.md)

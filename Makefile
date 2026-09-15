@@ -17,7 +17,7 @@ FHIR_BASE_URL ?= http://127.0.0.1:$(HAPI_FHIR_PORT)/fhir
 FHIR_REQUEST_TIMEOUT_SECONDS ?= 120
 BACKEND_BASE_URL ?= http://127.0.0.1:$(BACKEND_PORT)
 
-.PHONY: help setup backend-sync frontend-install dev backend-dev frontend-dev \
+.PHONY: help setup demo-up backend-sync frontend-install dev backend-dev frontend-dev \
 	backend-format backend-format-check backend-lint backend-typecheck \
 	backend-test backend-check frontend-format frontend-format-check \
 	frontend-lint frontend-typecheck frontend-test frontend-check test \
@@ -34,6 +34,9 @@ help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 setup: backend-sync frontend-install ## Install backend and frontend dependencies
+
+demo-up: setup infra-up fhir-seed guidelines-fetch guidelines-index ## Prepare local demo data and start both apps
+	$(MAKE) dev
 
 $(UV_BIN):
 	$(PYTHON) -m venv .tooling

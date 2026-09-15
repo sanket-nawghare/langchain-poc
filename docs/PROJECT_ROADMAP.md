@@ -60,7 +60,7 @@ This baseline can change through a recorded decision before implementation.
 | 4. Grounded Generation, Safety, and Human Review | A real grounded model plus risk rules can safely draft, pause, review, and resume work | `[x]` |
 | 5. Product UI | Users can submit requests and inspect workflow progress | `[x]` |
 | 6. Quality and Observability | The system is measurable, auditable, and resilient | `[x]` |
-| 7. Packaging and Release | A new contributor can run and understand the project | `[ ]` |
+| 7. Packaging and Release | A new contributor can run and understand the project | `[x]` |
 | 8. Future Extensions | Optional capabilities are prioritized after the MVP | `[ ]` |
 
 ---
@@ -315,23 +315,23 @@ portfolio use.
 
 ### Scope
 
-- `[ ]` Provide a one-command local startup path.
-- `[ ]` Write setup, architecture, configuration, usage, and troubleshooting
+- `[x]` Provide a one-command local startup path.
+- `[x]` Write setup, architecture, configuration, usage, and troubleshooting
   documentation.
-- `[ ]` Document how to add a tool, graph node, model provider, and guideline.
-- `[ ]` Add a guided demo scenario with seeded patient IDs and expected results.
-- `[ ]` Add screenshots or a short demo recording.
-- `[ ]` Add license, contribution guide, code of conduct, and security policy.
-- `[ ]` Pin or constrain dependencies and publish release notes.
-- `[ ]` Test the setup from a clean environment.
-- `[ ]` Tag the first MVP release.
+- `[x]` Document how to add a tool, graph node, model provider, and guideline.
+- `[x]` Add a guided demo scenario with seeded patient IDs and expected results.
+- `[x]` Add screenshots or a short demo recording.
+- `[x]` Add license, contribution guide, code of conduct, and security policy.
+- `[x]` Pin or constrain dependencies and publish release notes.
+- `[x]` Test the setup from a clean environment.
+- `[x]` Tag the first MVP release.
 
 ### Exit Criteria
 
-- `[ ]` A new contributor can run the demo using only repository documentation.
-- `[ ]` The demo proves FHIR retrieval, RAG citations, safety routing, human
+- `[x]` A new contributor can run the demo using only repository documentation.
+- `[x]` The demo proves FHIR retrieval, RAG citations, safety routing, human
   review, audit history, and workflow visualization.
-- `[ ]` Limitations and the non-medical-device disclaimer are prominent.
+- `[x]` Limitations and the non-medical-device disclaimer are prominent.
 
 ---
 
@@ -421,6 +421,7 @@ Add the newest entry at the top.
 
 | Date | Phase | Update | Next Step / Blocker |
 |---|---|---|---|
+| 2026-09-15 | Phase 7 | Completed packaging and release documentation: added one-command `make demo-up`, guided demo with seeded patient IDs and expected outcomes, extension guide, release checklist, release notes, license, contribution guide, code of conduct, security policy, and Phase 7 execution record; marked the MVP release docs complete | Continue with Phase 8 future extensions only after release review |
 | 2026-09-14 | Phase 6 | Completed quality, security, and observability: hardened local Ollama structured-output recovery, trimmed generation context, added HTTP request IDs/logs/metrics/security headers/body limits/rate limits, added optional LangSmith tracing opt-in, created golden/adversarial/dependency-failure tests, added the offline Phase 6 quality gate, and documented runbook, retention, backup, and recovery behavior | Continue to Phase 7 packaging and release |
 | 2026-09-14 | Phase 5.6 | Added provider-neutral LangGraph task-start/node-completion SSE events on the existing workflow POST endpoint, persisted each completed-node snapshot, updated React Flow live, retained final-JSON compatibility, and added backend/frontend streaming and redaction coverage | Model tokens remain intentionally buffered behind strict structured-output validation |
 | 2026-09-14 | Phase 5.5 | Completed the final Product UI integration gate: confirmed local backend CORS for Vite, documented browser-visible redaction boundaries, marked Phase 5 scope and exit criteria complete, and reran the full quality gate | Stop for final Phase 5 review before creating the Phase 6 branch |
