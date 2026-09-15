@@ -1,0 +1,66 @@
+{
+  "content": "synthetic-cohort-checksums-only",
+  "fixtures": [
+    {
+      "alias": "metabolic-01",
+      "entry_count": 937,
+      "sha256": "f9c169b52dcf617a5c161a24c33ee859dcdec6bffac2b8a3aec41545715f90df",
+      "size_bytes": 2627823
+    },
+    {
+      "alias": "cardiovascular-01",
+      "entry_count": 708,
+      "sha256": "6f5f4c2117007c32b071c46be5f069748e9c1b040ac831498f62a90657f97b4b",
+      "size_bytes": 2143065
+    },
+    {
+      "alias": "allergy-respiratory-01",
+      "entry_count": 822,
+      "sha256": "37e34c2bbbbe8046e6e16d9ef920fe1784883551ebc189e8f56db21167e62994",
+      "size_bytes": 2506814
+    },
+    {
+      "alias": "sparse-control-01",
+      "entry_count": 639,
+      "sha256": "ed957548deee285d8adfe3f66704cc5bfd0ef6b5de44c659dd4c95be7d00b241",
+      "size_bytes": 1854281
+    }
+  ],
+  "generation": {
+    "age_range": "45-80",
+    "clinician_seed": 104729,
+    "config_sha256": "d955fe35eea5ead8009bce1eda06c78bfc63b7a4d78ce0cd97b6528c72d52e20",
+    "geography": "Massachusetts, United States",
+    "overflow_population": false,
+    "patient_seed": 20260727,
+    "population": 100,
+    "reference_date": "2026-07-27"
+  },
+  "generator": {
+    "artifact_sha256": "ed43c20ad40ba5c3bc724503a5af032715fe3c491620b766148e7c2361e6ecc1",
+    "commit": "0185c09ea9d10a822c6f5f3ef9bdcbcbe960c813",
+    "version": "v4.0.0"
+  },
+  "schema_version": 1,
+  "support_bundles": [
+    {
+      "alias": "organizations",
+      "entry_count": 314,
+      "resource_counts": {
+        "Location": 1,
+        "Organization": 313
+      },
+      "sha256": "91ad83b5639864efd05d20dd8d4cdf1385e84723086cdc3bebf7787ffb1ba771",
+      "size_bytes": 530392
+    },
+    {
+      "alias": "practitioners",
+      "entry_count": 313,
+      "resource_counts": {
+        "Practitioner": 313
+      },
+      "sha256": "07106b0e6b71ba3493d75aa20ac5a290ca612eca2b973f4b0ec22315016846bf",
+      "size_bytes": 342000
+    }
+  ]
+}

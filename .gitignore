@@ -1,0 +1,42 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.tooling/
+.python/
+.uv-cache/
+.pnpm-store/
+.pre-commit-cache/
+dist/
+build/
+*.egg-info/
+
+# JavaScript
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/.vite/
+*.tsbuildinfo
+
+# Application data
+*.db
+*.db-shm
+*.db-wal
+data/generated/
+data/guidelines/documents/
+data/guidelines/processed/
+data/synthetic/cohort-manifest.json
+data/synthetic/fhir/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,108 @@
+{
+  "cases": [
+    {
+      "as_of": "2026-08-03",
+      "case_id": "hypertension-target",
+      "clinical_query": "What blood pressure target is recommended for adults?",
+      "expected_assessment": "sufficient",
+      "expected_document_id": "who-hypertension-2021",
+      "expected_top_chunk_id": "who-hypertension-2021.p0009.c000.66cb62f0a49b",
+      "minimum_top_score": 0.9,
+      "publishers": [],
+      "top_k": 3
+    },
+    {
+      "as_of": "2026-08-03",
+      "case_id": "hypertension-initiation",
+      "clinical_query": "When should pharmacological treatment for hypertension be initiated?",
+      "expected_assessment": "sufficient",
+      "expected_document_id": "who-hypertension-2021",
+      "expected_top_chunk_id": "who-hypertension-2021.p0022.c000.c8773dd2408b",
+      "minimum_top_score": 0.85,
+      "publishers": [],
+      "top_k": 3
+    },
+    {
+      "as_of": "2026-08-03",
+      "case_id": "diabetes-diagnostic-criteria",
+      "clinical_query": "What diagnostic criteria are used for type 2 diabetes?",
+      "expected_assessment": "sufficient",
+      "expected_document_id": "who-hearts-d-2020",
+      "expected_top_chunk_id": "who-hearts-d-2020.p0005.c000.b90fd64c8b2a",
+      "minimum_top_score": 0.8,
+      "publishers": [],
+      "top_k": 3
+    },
+    {
+      "as_of": "2026-08-03",
+      "case_id": "diabetes-glycaemic-monitoring",
+      "clinical_query": "How should glycaemic control be monitored in type 2 diabetes?",
+      "expected_assessment": "sufficient",
+      "expected_document_id": "who-hearts-d-2020",
+      "expected_top_chunk_id": "who-hearts-d-2020.p0017.c000.09400f95e543",
+      "minimum_top_score": 0.85,
+      "publishers": [],
+      "top_k": 3
+    },
+    {
+      "as_of": "2026-08-03",
+      "case_id": "unrelated-vaccination",
+      "clinical_query": "What vaccination schedule is recommended for children?",
+      "expected_assessment": "insufficient",
+      "expected_document_id": null,
+      "expected_top_chunk_id": null,
+      "minimum_top_score": null,
+      "publishers": [],
+      "top_k": 3
+    },
+    {
+      "as_of": "2026-08-03",
+      "case_id": "unrelated-fracture",
+      "clinical_query": "How should an ankle fracture be treated?",
+      "expected_assessment": "insufficient",
+      "expected_document_id": null,
+      "expected_top_chunk_id": null,
+      "minimum_top_score": null,
+      "publishers": [],
+      "top_k": 3
+    },
+    {
+      "as_of": "2026-08-03",
+      "case_id": "unrelated-astronomy",
+      "clinical_query": "What telescope should observe distant galaxies?",
+      "expected_assessment": "insufficient",
+      "expected_document_id": null,
+      "expected_top_chunk_id": null,
+      "minimum_top_score": null,
+      "publishers": [],
+      "top_k": 3
+    },
+    {
+      "as_of": "2026-08-03",
+      "case_id": "publisher-filter-excludes-who",
+      "clinical_query": "What blood pressure target is recommended for adults?",
+      "expected_assessment": "insufficient",
+      "expected_document_id": null,
+      "expected_top_chunk_id": null,
+      "minimum_top_score": null,
+      "publishers": [
+        "cdc"
+      ],
+      "top_k": 3
+    },
+    {
+      "as_of": "2019-12-31",
+      "case_id": "historical-cutoff-excludes-corpus",
+      "clinical_query": "What diagnostic criteria are used for type 2 diabetes?",
+      "expected_assessment": "insufficient",
+      "expected_document_id": null,
+      "expected_top_chunk_id": null,
+      "minimum_top_score": null,
+      "publishers": [],
+      "top_k": 3
+    }
+  ],
+  "content": "deidentified-guideline-retrieval-evaluation",
+  "policy_version": "deterministic-guideline-retrieval-v1",
+  "schema_version": 1
+}

@@ -1,0 +1,23 @@
+{
+  "content": "guideline-chunk-checksums-only",
+  "documents": [
+    {
+      "chunk_count": 40,
+      "chunks_sha256": "4fca96347cf734e4a9507ab04a38c4fc0f21122fb038c26f4e2c7dbcbb4f6f5b",
+      "document_id": "who-hearts-d-2020",
+      "first_chunk_id": "who-hearts-d-2020.p0001.c000.c98bd2d972be",
+      "last_chunk_id": "who-hearts-d-2020.p0035.c000.0306e20860d4",
+      "source_sha256": "71b216b19a227e73e0e624274974571a3530e30a0db37a3d10b6d179eefac008"
+    },
+    {
+      "chunk_count": 95,
+      "chunks_sha256": "ff29620ce8d12a46236cf7908fa68f7c0e70867797fd71f07ad7ce59978c8358",
+      "document_id": "who-hypertension-2021",
+      "first_chunk_id": "who-hypertension-2021.p0001.c000.4578071b5710",
+      "last_chunk_id": "who-hypertension-2021.p0060.c000.182e7d4208d0",
+      "source_sha256": "57f6376d5c9bc4ea6c44873625547c8a5443d5a6ad8c8c422733681563db05fb"
+    }
+  ],
+  "parser_version": "deterministic-pypdf-v1",
+  "schema_version": 1
+}

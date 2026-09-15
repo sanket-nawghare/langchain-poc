@@ -1,0 +1,94 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --project backend --frozen
+
+      - name: Check formatting
+        run: uv run --project backend ruff format --check backend scripts
+
+      - name: Lint
+        run: uv run --project backend ruff check backend scripts
+
+      - name: Type-check
+        run: >-
+          uv run --project backend mypy
+          --config-file backend/pyproject.toml
+          backend/app backend/tests scripts
+
+      - name: Test
+        run: uv run --project backend pytest -c backend/pyproject.toml
+
+  frontend:
+    name: Frontend quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install locked dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm --dir frontend format:check
+
+      - name: Lint
+        run: pnpm --dir frontend lint
+
+      - name: Type-check
+        run: pnpm --dir frontend typecheck
+
+      - name: Test
+        run: pnpm --dir frontend test
+
+      - name: Build
+        run: pnpm --dir frontend build
+
+  compose:
+    name: Docker Compose configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet

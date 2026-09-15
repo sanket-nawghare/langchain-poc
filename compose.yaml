@@ -1,0 +1,93 @@
+name: clinical-workflow
+
+services:
+  hapi-db:
+    image: >-
+      postgres:16@sha256:b6ccf02e9b47eac0d67b5eaa0ef56fd59163bffa5506f64e96ceb5053130ec86
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${HAPI_DB_NAME:-hapi}
+      POSTGRES_USER: ${HAPI_DB_USER:-hapi}
+      POSTGRES_PASSWORD: ${HAPI_DB_PASSWORD:-hapi-local-only}
+    ports:
+      - "127.0.0.1:${HAPI_DB_PORT:-5434}:5432"
+    volumes:
+      - hapi_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - clinical-internal
+
+  hapi-fhir:
+    image: clinical-workflow-hapi:8.10.0-3
+    build:
+      context: .
+      dockerfile: docker/hapi/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      hapi-db:
+        condition: service_healthy
+    environment:
+      HAPI_DB_NAME: ${HAPI_DB_NAME:-hapi}
+      HAPI_DB_USER: ${HAPI_DB_USER:-hapi}
+      HAPI_DB_PASSWORD: ${HAPI_DB_PASSWORD:-hapi-local-only}
+      SPRING_CONFIG_ADDITIONAL_LOCATION: >-
+        file:/usr/local/tomcat/conf/hapi-application.yaml
+    ports:
+      - "127.0.0.1:${HAPI_FHIR_PORT:-8080}:8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget --quiet --spider
+          http://127.0.0.1:8080/fhir/metadata
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    networks:
+      - clinical-internal
+
+  weaviate:
+    image: >-
+      cr.weaviate.io/semitechnologies/weaviate:1.36.0@sha256:8542bbc210e2f13a769083e8aecc46cc11e2aee0e6e6d431b973fce7a756ab5c
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WEAVIATE_HTTP_PORT:-8081}:8080"
+      - "127.0.0.1:${WEAVIATE_GRPC_PORT:-50051}:50051"
+    environment:
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      QUERY_DEFAULTS_LIMIT: "25"
+      CLUSTER_HOSTNAME: clinical-node-1
+      DISABLE_TELEMETRY: "true"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget --quiet --spider
+          http://127.0.0.1:8080/v1/.well-known/ready
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    networks:
+      - clinical-internal
+
+networks:
+  clinical-internal:
+    driver: bridge
+
+volumes:
+  hapi_postgres_data:
+    name: clinical-workflow-hapi-postgres
+  weaviate_data:
+    name: clinical-workflow-weaviate

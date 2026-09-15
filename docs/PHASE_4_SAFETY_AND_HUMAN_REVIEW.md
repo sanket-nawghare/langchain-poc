@@ -1,0 +1,278 @@
+# Phase 4 — Grounded Generation, Safety, and Human Review Plan
+
+This plan makes provider-backed grounded generation explicit before adding
+human approval and resume behavior. Every checkpoint is independently
+reviewable and must finish with focused tests and `make check`.
+
+## Objectives
+
+- Generate answer drafts with a configured LLM using only bounded synthetic
+  patient context and validated guideline evidence.
+- Keep citations, disclaimers, routing, and safety decisions application-owned.
+- Pause risky, ambiguous, weak, or unsupported outputs for attributable human
+  review.
+- Resume only the exact persisted checkpoint after a valid review action.
+- Preserve the repository's synthetic-only, redacted, provider-neutral
+  boundaries.
+
+## Tracking
+
+| Sub-phase | Deliverable | Status |
+|---|---|---|
+| 4.1 Grounded LLM response generation | A configured provider drafts structured answers from bounded patient context and retrieved evidence | `[x]` |
+| 4.2 Deterministic and LLM-assisted safety | Versioned rules evaluate inputs, evidence, and generated drafts without delegating final safety authority to the model | `[x]` |
+| 4.3 Persisted review queue and actions | Reviewers can inspect safe metadata and approve, reject, or request changes | `[x]` |
+| 4.4 Concurrency-safe resume | Valid review actions resume the exact checkpoint once and reject stale or duplicate actions | `[x]` |
+| 4.5 Phase 4 integration gate | Grounded generation, review, restart, authorization, redaction, and isolated-source gates pass | `[x]` |
+
+## Sub-phase 4.1 — Grounded LLM Response Generation
+
+### 4.1.1 — Provider Decision and Grounded Contracts
+
+- `[x]` Select the first real model provider and record its model/API/version
+  assumptions without coupling domain contracts to its SDK.
+- `[x]` Define the bounded grounded-generation input: clinical question,
+  minimum necessary normalized synthetic patient context, and ranked trusted
+  citation excerpts.
+- `[x]` Keep provider output restricted to `ResponseDraft.answer`; reject
+  provider citations, disclaimers, tool calls, or unknown fields.
+- `[x]` Define safe timeout, unavailable, authentication, rate-limit,
+  malformed-output, and context-limit failures.
+- `[x]` Specify prompt-injection handling and ensure retrieved text cannot
+  change tools, routing, citations, safety policy, or system instructions.
+
+#### Reviewed provider assumptions
+
+- **Provider:** OpenAI is the first adapter; domain and workflow contracts remain
+  independent of the OpenAI SDK.
+- **API/model:** use the Responses API at `/v1/responses` with
+  `gpt-5.6-sol`, the current flagship model selected on 2026-08-03. Revisit the
+  model at the opt-in live gate rather than silently changing it during an SDK
+  upgrade.
+- **Invocation:** one stateless request with provider storage disabled, no
+  provider tools, bounded output, and a deliberately configured reasoning
+  effort. SDK/version and runtime settings belong to checkpoint 4.1.2.
+- **Output:** use Responses structured parsing against the strict
+  application-owned `ResponseDraft` schema. A refusal, missing parsed object,
+  extra field, oversized answer, or non-message output is not a valid draft.
+- **Data boundary:** the provider receives one question of at most 1,000
+  characters, 1–32 deidentified normalized clinical facts, and 1–8 ordered
+  application-owned citations whose excerpts are each at most 500 characters.
+  Patient ID, display name, raw FHIR resources, full guideline chunks, and
+  workflow/audit state are excluded.
+
+Official assumptions were checked against the OpenAI
+[model guidance](https://developers.openai.com/api/docs/guides/latest-model),
+[GPT-5.6 Sol model page](https://developers.openai.com/api/docs/models/gpt-5.6-sol),
+and [structured-output guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+Anthropic support was added after the initial Phase 4 gate without changing
+the provider-neutral workflow contract. It uses the native Messages API and
+`messages.parse()` against the same application-owned `ResponseDraft` model.
+The OpenAI-compatible Claude endpoint is intentionally not used because its
+strict function schema is not guaranteed. See Anthropic's
+[native structured-output documentation](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+and
+[OpenAI SDK compatibility limitations](https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk).
+
+#### Prompt-injection boundary
+
+- The clinical question, facts, and evidence excerpts are untrusted data, never
+  instructions. The adapter must serialize and delimit them separately from the
+  application-owned system policy.
+- Retrieved text cannot add or call tools, change routing, replace citation
+  identities or the disclaimer, weaken safety rules, or request hidden state.
+  No tools will be exposed to the generation request.
+- The model drafts answer text only. Strict parsing and post-generation safety
+  checks remain mandatory; model output is not trusted merely because it matches
+  the schema.
+- Provider errors are normalized to timeout, unavailable, authentication,
+  rate-limit, malformed-output, context-limit, or refusal failures. Raw provider
+  payloads and exception details do not cross the adapter boundary.
+
+### 4.1.2 — Provider Adapter and Configuration
+
+- `[x]` Implement one provider adapter behind the existing
+  `ResponseGenerator` protocol.
+- `[x]` Add validated provider, model, endpoint, timeout, retry, and secret
+  configuration with deterministic fake defaults for tests.
+- `[x]` Parse structured output strictly and discard provider identifiers,
+  token payloads, raw responses, and exception details at the adapter boundary.
+- `[x]` Test success, authentication, rate-limit, timeout, unavailable,
+  malformed, oversized, and unexpected provider behavior.
+
+The adapter is implemented and independently testable. Runtime selection,
+generation timing, citation preservation, and redacted audit metadata are
+completed in checkpoint 4.1.3.
+
+### 4.1.3 — Grounded Prompt and Workflow Wiring
+
+- `[x]` Build the prompt only after sufficient retrieval evidence and the
+  deterministic safety pre-check pass.
+- `[x]` Send bounded citation excerpts rather than full source documents or
+  vector-store/provider objects.
+- `[x]` Require the final response to reuse the exact application-owned
+  citations supplied to the model.
+- `[x]` Prevent model invocation for unsupported intent, missing/weak/
+  conflicting evidence, safety review/block, or invalid patient context.
+- `[x]` Audit only provider-neutral outcome, model alias, latency/token counts
+  when available, and citation count; never prompt or response bodies.
+
+The workflow now selects the configured generator at request scope and builds a
+strict data-only request only on the sufficient-evidence, safety-pass path. A
+deterministic relevance selector sends at most 32 normalized facts without
+patient identifiers or clinical codes, plus at most eight exact ranked citation
+excerpts. The application—not the provider—attaches the original citations and
+educational disclaimer. Only temporary unavailable/rate-limit failures retry;
+all provider failures terminate with stable redacted workflow codes.
+
+### 4.1.4 — Real-Provider Gate
+
+- `[x]` Add an opt-in live gate using only a seeded synthetic patient and the
+  reviewed local guideline index.
+- `[x]` Verify the response is structured, cited, qualified, reproducible at
+  the routing level, and contains no fabricated citation identity.
+- `[x]` Verify provider failure never falls back to an uncited deterministic
+  clinical answer.
+- `[x]` Keep deterministic tests and basic startup independent of credentials
+  and external model availability.
+
+`make phase4-generation-live-gate` verifies the locked synthetic cohort, all
+nine local retrieval cases, and two real-provider workflow runs without making
+the live gate part of normal CI. On 2026-08-03 the gate passed with the locally
+configured `gpt-5.4-mini`: both runs returned strict answers, the same five
+application-owned citation identities and routing history, the educational
+qualification, persisted redacted snapshots, and content-free audit metadata.
+Credential-free contract tests prove every provider failure terminates without
+a deterministic or uncited fallback.
+
+Live validation also found that two normalized observation values exceeded the
+grounded request's stricter field size. The selector now truncates each allowed
+field deterministically at its contract boundary, and pre-provider input
+failures use `response_generation_invalid_input` rather than being mislabeled
+as model output failures. Provider retries now have one owner: the OpenAI and
+Anthropic SDK adapters do not retry internally, while LangGraph applies the
+configured LLM timeout and retry budget once. The same provider-neutral
+boundary now also supports a loopback-only Ollama adapter with JSON-schema
+output, enabling credential-free local generation without weakening the draft,
+citation, safety, or audit contracts.
+
+## Sub-phase 4.2 — Deterministic and LLM-Assisted Safety
+
+### 4.2.1 — Versioned Safety Policy
+
+- `[x]` Define severity, rule identifiers, evidence references, and policy
+  versioning for pre-generation checks.
+- `[x]` Cover urgent language, medication/allergy conflicts, missing or
+  truncated context, and pre-generation unsupported evidence routing.
+- `[x]` Confirm weak, insufficient, and conflicting guideline evidence cannot
+  reach generation.
+- `[ ]` Extend versioned rule metadata to post-generation draft checks in
+  4.2.2.
+
+The pre-generation deterministic policy now exposes stable rule metadata under
+`safety-precheck-v1`, including severity and bounded evidence references for
+urgent language, medication/allergy context conflicts, missing core context,
+and truncated patient context. Unsupported, weak, insufficient, and conflicting
+guideline evidence remains blocked from generation by the Phase 3 retrieval
+assessment before the safety pre-check. Draft-specific unsupported
+recommendation checks are intentionally left to 4.2.2, where generated content
+can be evaluated without rewriting it.
+
+### 4.2.2 — Post-Generation Safety Evaluation
+
+- `[x]` Evaluate the grounded draft separately from deterministic input rules.
+- `[x]` Allow an LLM-assisted signal only as structured evidence for
+  application-owned deterministic routing.
+- `[x]` Route pass, review, and block outcomes explicitly without silently
+  rewriting generated content.
+
+Generated drafts now stay non-final until a separate post-generation safety node
+evaluates them under `safety-post-generation-v1`. The initial deterministic
+draft checks route autonomous medication-change language to review, block
+diagnosis/prescribing language, and require an evidence-grounding signal when
+citations are present. The graph persists the draft in workflow state, audits
+only outcome/version/reason counts, and finalizes the answer with
+application-owned citations and disclaimer only after the post-generation
+decision passes. No LLM-assisted evaluator is wired yet; the protocol boundary
+requires any future model signal to return structured evidence that the
+application-owned route evaluates deterministically.
+
+## Sub-phase 4.3 — Persisted Review Queue and Actions
+
+### 4.3.1 — Review Contracts and Redacted Queue
+
+- `[x]` Define review item, action, rationale, reviewer identity, policy
+  version, and optimistic-concurrency contracts.
+- `[x]` Persist only the safe review projection needed for an attributable
+  decision.
+
+### 4.3.2 — Review API
+
+- `[x]` Add list/detail endpoints for pending review and approve, reject, and
+  request-changes actions.
+- `[x]` Validate authorization boundaries and reject missing, invalid, stale,
+  or duplicate actions without revealing hidden workflow state.
+
+The workflow checkpoint now carries a reviewer-facing projection for pending
+items: draft answer when one exists, application-owned citations, content-free
+guideline evidence, safety results, and a monotonic `review_version`. The API
+adds `GET /api/v1/workflows/reviews`,
+`GET /api/v1/workflows/{workflow_id}/review`, and
+`POST /api/v1/workflows/{workflow_id}/review-actions`. Actions require
+reviewer identity, rationale, action type, and the current review version.
+Accepted actions persist an attributable `review_record` and redacted
+`review_recorded` audit event; invalid, stale, duplicate, non-pending, and
+non-resumable actions return safe error envelopes.
+
+## Sub-phase 4.4 — Concurrency-Safe Resume
+
+### 4.4.1 — Durable Checkpoint Resume
+
+- `[x]` Persist the exact resumable graph checkpoint and review version.
+- `[x]` Resume only after approval; rejection terminates and request-changes
+  follows an explicit bounded route.
+
+### 4.4.2 — Restart and Race Safety
+
+- `[x]` Prove pending work survives restart without automatic execution.
+- `[x]` Prove concurrent, duplicate, stale, or replayed actions cannot resume a
+  workflow more than once.
+
+Approval now resumes only a persisted draft checkpoint by appending a
+`pending_review -> running -> completed` transition pair and publishing the
+exact saved draft with its saved application-owned citations. Rejection and
+request-changes terminate as `rejected` without creating a final response.
+The SQLite store applies review actions with a conditional
+`workflow_id/status/review_version` update; duplicate, stale, replayed, or
+concurrent actions cannot advance the same pending item twice. Startup recovery
+continues to fail only `queued` and `running` checkpoints, so pending review
+work survives restart without automatic execution.
+
+## Sub-phase 4.5 — Phase Gate and Documentation
+
+- `[x]` Run deterministic and opt-in real-provider happy, review, block,
+  failure, restart, concurrency, redaction, and isolated-source gates.
+- `[x]` Update architecture, contracts, safety policy, development guide, and
+  roadmap status.
+- `[x]` Stop for final Phase 4 review before Phase 5 UI work.
+
+Phase 4 closes with deterministic `make check` coverage for grounded provider
+contracts, pre-generation and post-generation safety, review queue/action APIs,
+restart survival, stale/duplicate/concurrent review protection, redacted
+persistence, and isolated reviewed guideline sources. The opt-in
+`phase4_generation_live_gate.py` script records Phase 4 checkpoint progress and
+validates real-provider happy-path generation, application-owned citations,
+post-generation safety audit metadata, finalization routing, persisted
+inspection, redaction, and no uncited provider-failure fallback.
+
+## Phase Exit Criteria
+
+- `[x]` A real configured LLM receives bounded patient context and trusted retrieved
+  excerpts and returns a strictly parsed answer draft.
+- `[x]` Every completed answer uses application-owned citations and disclaimer.
+- `[x]` High-risk or ambiguous cases cannot bypass deterministic review routing.
+- `[x]` Review actions are attributable, versioned, persisted, and concurrency-safe.
+- `[x]` Pending review survives restart and resumes exactly once after valid approval.
+- `[x]` No prompts, patient context, retrieved bodies, provider payloads, or secrets
+  enter audit logs or unsafe persisted fields.

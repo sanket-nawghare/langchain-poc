@@ -1,0 +1,455 @@
+# Phase 3 — Clinical Guidelines RAG Plan
+
+This plan divides Phase 3 of the
+[project roadmap](PROJECT_ROADMAP.md) into reviewable checkpoints and records
+the accepted boundary after each sub-phase.
+
+## Objective
+
+Ground the existing qualified clinical-QA response in a small, reviewed
+guideline corpus with traceable citations, deterministic retrieval behavior,
+and explicit failure when evidence is missing or unsafe.
+
+## Prerequisites
+
+- Phase 2 is accepted and its seeded synthetic workflow gate passes.
+- Weaviate remains reachable only as a local development dependency.
+- The existing `Citation`, `GeneratedResponse`, workflow, safety, audit, and
+  redacted persistence contracts remain provider-neutral.
+- Corpus source approval and licensing must precede document download or
+  ingestion.
+
+## Tracking
+
+| Sub-phase | Deliverable | Status |
+|---|---|---|
+| 3.1 Source policy and retrieval contracts | Allowed sources, licenses, document metadata, retrieval requests/results, and safe failures are explicit | `[x]` |
+| 3.2 Reviewed starter corpus | A small checksum-locked corpus has provenance, license notes, and no patient data | `[x]` |
+| 3.3 Deterministic parsing and chunking | Approved documents become bounded, stable chunks with page/section lineage | `[x]` |
+| 3.4 Weaviate schema and idempotent ingestion | Replaceable vector-store interfaces support verified local indexing and reset | `[x]` |
+| 3.5 Retrieval and citation qualification | Clinical queries return bounded relevant chunks and application-owned citations or fail safely | `[x]` |
+| 3.6 Workflow integration and Phase 3 gate | The graph retrieves evidence before generation and completes a cited seeded scenario reproducibly | `[x]` |
+
+## Sub-phase 3.1 — Source Policy and Retrieval Contracts
+
+- `[x]` Define allowed publishers, document types, recency/version metadata, and
+  explicit license-review fields.
+- `[x]` Define application-owned document, chunk, retrieval-query, retrieval-result,
+  and typed failure contracts.
+- `[x]` Bound query length, result count, chunk size, metadata, and excerpts.
+- `[x]` Decide how missing, stale, conflicting, or insufficient evidence affects
+  workflow status and safety review.
+- `[x]` Test strict parsing, unknown fields, bounds, and provider-object isolation.
+
+Source and licensing decisions are defined in the
+[guideline source policy](GUIDELINE_SOURCE_POLICY.md). Publisher eligibility
+does not grant content reuse: every document needs an explicit use-permission
+decision before acquisition or indexing.
+
+**Review checkpoint:** approve sources, licensing fields, evidence sufficiency,
+and contract ownership before acquiring documents.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- Limited initial candidates to WHO, CDC, NICE, and ADA while separating
+  publisher authority from an exact per-document content-use decision.
+- Recorded format, publication/version/access metadata, license review,
+  lifecycle, checksum, and supported-topic requirements. NICE and ADA default
+  to link-only until applicable permission is verified.
+- Added strict application-owned source, chunk, retrieval request/match/result,
+  evidence assessment, and citation-lineage contracts.
+- Limited deidentified clinical queries to 1,000 characters, top-k results to
+  eight, chunk text to 3,000 characters, and citation excerpts to 500
+  characters.
+- Added a provider-neutral async retrieval protocol and distinct timeout,
+  unavailable, and malformed-response failures. An empty `insufficient`
+  result remains a valid outcome rather than an infrastructure error.
+- Added focused tests for allowlists, permissions, lifecycle, chronology,
+  bounds, strict unknown-field rejection, provider-object isolation,
+  deterministic ranks, evidence states, and source/chunk/citation lineage.
+- `make check` passed with 147 backend and 6 frontend tests, the frontend
+  production build, and Compose validation.
+- No document was downloaded, parsed, committed, embedded, or indexed; those
+  actions remain behind the sub-phase 3.2 review gate.
+
+**Status:** `[x]` Complete — stop for review before sub-phase 3.2.
+
+## Sub-phase 3.2 — Reviewed Starter Corpus
+
+- `[x]` Select a minimal scenario-driven corpus from approved authoritative sources.
+- `[x]` Record canonical URL, publisher, title, version/date, access date, license or
+  usage note, checksum, and supported scenario for every document.
+- `[x]` Keep downloads/generated extraction output out of Git unless redistribution
+  is explicitly permitted; commit non-content provenance/checksum locks.
+- `[x]` Add verification that rejects missing, changed, unapproved, or oversized
+  inputs.
+
+**Review checkpoint:** inspect every source and its redistribution decision
+before parsing or indexing.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- Selected WHO HEARTS-D (2020) for `metabolic-01` and the WHO adult
+  hypertension guideline (2021) for `cardiovascular-01`.
+- Reviewed each PDF copyright page and official publication record. Both state
+  CC BY-NC-SA 3.0 IGO; the repository adopts a conservative
+  `local_index_only` decision with required attribution, no implied WHO
+  endorsement/logo use, and exclusion of separately owned third-party
+  material.
+- Committed only strict provenance, license, scenario, size, page-count, and
+  SHA-256 metadata. Both downloaded PDFs are ignored.
+- Added `make guidelines-fetch` for guarded acquisition from exact approved
+  WHO endpoints and `make guidelines-verify` for offline integrity checks.
+- Verified two exact PDF artifacts totaling 2,091,637 bytes. Acquisition
+  refuses unapproved sources or permissions, unsafe names, unexpected files,
+  malformed PDF envelopes, files over 4 MiB, and size/checksum drift.
+- Added deterministic failure tests for missing, unexpected, changed,
+  malformed, oversized, unapproved, and provider-specific inputs.
+- `make check` passed with 154 backend and 6 frontend tests, the frontend
+  production build, and Compose validation.
+- No text was extracted, chunked, embedded, committed, or indexed, and
+  Weaviate remains unchanged.
+
+**Status:** `[x]` Complete — stop for review before sub-phase 3.3.
+
+## Sub-phase 3.3 — Deterministic Parsing and Chunking
+
+- `[x]` Parse only approved formats with bounded resource usage.
+- `[x]` Normalize text without losing page, heading, section, or document lineage.
+- `[x]` Produce stable chunk IDs and deterministic order from content checksums.
+- `[x]` Reject empty, malformed, unexpectedly encrypted, or structurally unsafe
+  documents.
+- `[x]` Test repeated parsing, chunk boundaries, metadata lineage, and absence of
+  patient data.
+
+**Review checkpoint:** review representative chunks and citation lineage before
+creating a vector schema.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- Locked pypdf 6.14.2 behind the application-owned `GuidelineDocumentParser`
+  capability and typed input, encrypted, malformed, and bounds failures.
+- Added `deterministic-pypdf-v1`: strict PDF parsing, Unicode/whitespace
+  normalization, conservative heading hints, page-confined 2,400-character
+  chunks, stable content hashes/IDs, and contiguous document sequences.
+- Bounded source files, page count, extracted page/document text, chunk size,
+  chunk count, catalog actions, attachments, and encrypted inputs. Source
+  checksum and reviewed page count are revalidated before extraction.
+- Produced 40 chunks for HEARTS-D and 95 for the hypertension guideline. The
+  ignored strict output is 280,499 bytes; the committed chunk lock contains no
+  extracted text.
+- Repeated parsing produces byte-equivalent provider-neutral output. Tests
+  cover normalization, chunk boundaries, page/section/document lineage,
+  checksum and page drift, empty/malformed/encrypted PDFs, JavaScript,
+  attachments, oversized extraction, strict output reload, lock drift, and
+  provider-field rejection.
+- The generated output contains no patient contract fields and matches none of
+  the local synthetic cohort IDs or aliases.
+- Reviewed extractable text for separately attributed reuse markers; none were
+  found. The parser extracts no images, and separately owned material remains
+  prohibited by the source policy.
+- `make check` passed with 164 backend and 6 frontend tests, the frontend
+  production build, and Compose validation.
+- No embeddings or Weaviate schema, objects, or calls were added.
+
+**Status:** `[x]` Complete — stop for review before sub-phase 3.4.
+
+## Sub-phase 3.4 — Weaviate Schema and Idempotent Ingestion
+
+- `[x]` Define a vector-store protocol before implementing the Weaviate adapter.
+- `[x]` Use an application-owned collection name, schema version, stable object IDs,
+  and metadata filters.
+- `[x]` Make ingestion idempotent and verify exact document/chunk/checksum counts.
+- `[x]` Add a guarded reset that affects only the application guideline collection.
+- `[x]` Keep anonymous access documented as loopback-only development behavior.
+
+**Review checkpoint:** inspect schema, embedding boundary, idempotency, and
+reset targeting before retrieval is connected.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- Pinned `weaviate-client` 4.22.x and defined provider-neutral embedding,
+  vector-record, index-snapshot, ingestion-result, and vector-store contracts
+  with typed unavailable, schema, write, and verification failures.
+- Added `ClinicalGuidelineChunkV1` with explicit self-provided cosine vectors,
+  schema version 1, searchable title/section/text, and filterable source,
+  lifecycle, topic, page, sequence, version, and checksum metadata.
+- Stable UUIDv5 identity includes schema, parser, embedding model, chunk ID,
+  and content checksum. The local `deterministic-token-hash-v1` implementation
+  produces bounded repeatable 128-dimensional unit vectors and can be replaced
+  without changing domain or store interfaces.
+- Added exact insert/replace/skip/stale-delete planning. Expected writes happen
+  before stale deletes; every sync finishes by comparing all application
+  object IDs and metadata and deriving exact document/chunk/source-checksum
+  counts.
+- Added `make guidelines-index`, `make guidelines-index-verify`, and a reset
+  requiring `CONFIRM=1` plus the exact compiled collection name. The command
+  accepts only loopback HTTP Weaviate configuration and never targets another
+  collection.
+- Live ingestion inserted 135 chunks from two checksum-locked documents. A
+  second run skipped all 135, one controlled drift was replaced, reset refused
+  without confirmation, and confirmed collection-only reset rebuilt and
+  verified the exact 2-document/135-chunk snapshot.
+- `make check` passed with 174 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+- Retrieval queries, ranking, evidence thresholds, citations, and workflow
+  integration remain unchanged and deferred to sub-phases 3.5 and 3.6.
+
+**Status:** `[x]` Complete — stop for review before sub-phase 3.5.
+
+## Sub-phase 3.5 — Retrieval and Citation Qualification
+
+### Tracking
+
+| Checkpoint | Deliverable | Status |
+|---|---|---|
+| 3.5.1 Retrieval trust policy and candidate contracts | Candidate bounds, source-of-truth rules, deterministic ordering inputs, and provider-neutral search contracts are explicit | `[x]` |
+| 3.5.2 Trusted catalog and Weaviate candidate adapter | Eligible sources come from the committed lock and filtered vector candidates normalize safely | `[x]` |
+| 3.5.3 Evidence qualification and citations | Calibrated deterministic scores produce trusted citations or explicit insufficient/conflicting results | `[x]` |
+| 3.5.4 Retrieval gate and documentation | Fixture relevance, live queries, failures, redaction, and complete quality gates pass | `[x]` |
+
+- `[x]` Retrieve a small bounded top-k set with deterministic tie-breaking and
+  approved metadata filters.
+- `[x]` Normalize results into application-owned chunks and `Citation` values.
+- `[x]` Prevent the model from inventing or altering citation identity.
+- `[x]` Define explicit no-evidence, weak-evidence, timeout, unavailable, and
+  malformed-result outcomes.
+- `[x]` Test relevance fixtures, stable ordering, citation URLs/pages, redaction,
+  timeout, and provider isolation.
+
+**Review checkpoint:** approve retrieval quality and no-evidence behavior before
+the graph can use guideline results.
+
+Detailed trust, filtering, scoring, and failure rules are recorded in the
+[guideline retrieval policy](GUIDELINE_RETRIEVAL_POLICY.md).
+
+### Checkpoint 3.5.1 Verification Record
+
+Verified on 2026-08-03:
+
+- Established the committed corpus lock—not Weaviate—as the authority for
+  provenance, permission, lifecycle, source identity, and citation fields.
+- Defined a two-stage boundary: application code derives eligible trusted
+  document IDs, then the vector store returns only bounded normalized chunk
+  candidates for later source hydration and qualification.
+- Added strict application-owned vector-search request and candidate contracts
+  with exact model/dimension identity, finite nonzero query vectors, at most
+  eight eligible documents, at most 32 candidates, bounded cosine distance,
+  stable object/chunk lineage, and no patient or provider fields.
+- Froze eligibility, metadata-drift rejection, deterministic tie-breaking
+  inputs, query-fingerprint handling, evidence outcomes, and safe failure rules.
+  Exact relevance scoring and thresholds remain intentionally deferred until
+  fixture calibration in checkpoint 3.5.3.
+- Added a provider-neutral asynchronous candidate-store protocol. No Weaviate
+  query implementation, ranking, citation construction, workflow state, or
+  LangGraph behavior changed in this checkpoint.
+- `make check` passed with 179 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+
+**Status:** `[x]` Complete — stop for review before checkpoint 3.5.2.
+
+### Checkpoint 3.5.2 Verification Record
+
+Verified on 2026-08-03:
+
+- Added a strict installed-backend catalog adapter for the committed corpus
+  lock. It validates the exact metadata-only envelope, rejects provider fields,
+  duplicate/non-indexable sources, invalid counts, and malformed source
+  contracts without importing acquisition CLI code or reading PDF content.
+- Added deterministic eligibility filtering over trusted permission/lifecycle,
+  request `as_of`, and optional publisher allowlists. No eligible source remains
+  a valid empty input for the later `insufficient` decision.
+- Added an asynchronous Weaviate candidate adapter that checks the fixed
+  collection schema, self-provided-vector configuration, and filter indexes;
+  filters by schema/parser/embedding/lifecycle plus eligible document IDs; and
+  requests only an explicit bounded property allowlist and cosine distance.
+- Strict normalization rejects missing/extra fields, provider payloads,
+  invalid distance or chunk lineage, duplicates, filtered-document escape,
+  wrong schema/parser/embedding identity, metadata drift, and malformed UUIDs.
+  Chunk text checksums and UUIDv5 content identity are recomputed before a
+  candidate crosses the adapter boundary.
+- Source hydration accepts a candidate only when checksum, version, publisher,
+  publication date, lifecycle, and document ID agree with an eligible source
+  from the committed lock. Citation construction remains deferred.
+- Timeouts, unavailable transport/schema, incompatible request identity, and
+  malformed responses remain distinct typed failures. The async client is
+  explicitly closed.
+- A read-only live query against `ClinicalGuidelineChunkV1` returned and
+  validated 12 bounded candidates. All candidates matched the trusted catalog;
+  no collection data was changed.
+- `make check` passed with 185 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+
+**Status:** `[x]` Complete — stop for review before checkpoint 3.5.3.
+
+### Checkpoint 3.5.3 Verification Record
+
+Verified on 2026-08-03:
+
+- Added `deterministic-guideline-retrieval-v1`, which orchestrates trusted
+  eligibility, versioned query embedding, a fixed 32-candidate search,
+  candidate/source identity validation, qualification, stable ranking, and
+  result construction without exposing provider objects.
+- Froze a conservative `0.45` threshold over 60% chunk-term coverage, 25%
+  trusted source-title/topic coverage, and 15% normalized cosine affinity.
+  Source coverage is mandatory, generic wording is excluded, scores are
+  rounded to six decimals, and stable ties use distance, chunk ID, then UUID.
+- Application code creates citation document/chunk identity, title, publisher,
+  canonical URL, page, and a query-anchored excerpt of at most 500 characters
+  from already validated candidates. No model input can supply or alter those
+  fields.
+- No eligible source, no candidates, generic questions, unrelated topics, and
+  all scores below threshold return a valid `insufficient` result with no
+  matches. Query audit identity is a SHA-256 fingerprint over NFKC-normalized,
+  case-folded, whitespace-normalized text.
+- Added an explicit deterministic conflict-detector boundary. The starter
+  corpus configures no known conflict and never infers conflict from similarity
+  or wording; a conflict signal requires at least two qualified matches.
+- Vector timeout/unavailability and malformed schema/candidate/embedding
+  failures map to distinct safe retrieval errors without provider details.
+  Retrieval owns explicit async candidate-store cleanup.
+- Live read-only calibration returned `sufficient` for four reviewed adult
+  hypertension/diabetes queries with qualified scores from 0.820 to 0.940.
+  Vaccination, ankle-fracture, and astronomy queries returned `insufficient`
+  with no qualified matches. No collection data was changed.
+- `make check` passed with 201 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+
+**Status:** `[x]` Complete — stop for review before checkpoint 3.5.4.
+
+### Checkpoint 3.5.4 Verification Record
+
+Verified on 2026-08-03:
+
+- Committed a strict policy-versioned suite of nine deidentified retrieval
+  cases: four reviewed hypertension/diabetes questions, three unrelated-topic
+  questions, one publisher exclusion, and one historical cutoff. Fixtures
+  contain no patient data, guideline text, excerpts, vectors, or provider
+  payloads.
+- Added a loopback-only async Weaviate connection boundary with validated
+  HTTP/gRPC ports, bounded timeouts, explicit cleanup after partial connection,
+  and typed configuration, timeout, and unavailable failures.
+- Added `make phase3-retrieval-live-gate`. It first checksum-verifies the local
+  chunk output and exact 2-document/135-chunk collection, then evaluates every
+  fixture without changing Weaviate.
+- The live gate passed all nine cases: four `sufficient`, five `insufficient`,
+  12 citations verified, exact top source/chunk and minimum-score expectations,
+  the frozen policy version, query fingerprints, and forbidden-field
+  redaction. Gate output contains only aggregate metadata.
+- Focused tests reject unknown/provider fixture fields, duplicate cases,
+  expectation/fingerprint drift, non-loopback targets, partial-connection
+  timeout details, citation mismatches, unsafe result keys, and unclosed
+  clients.
+- `make check` passed with 207 backend and 6 frontend tests, strict backend and
+  frontend static checks, the frontend production build, and Compose
+  validation.
+- No workflow state, graph node, response generator, API, audit, or persistence
+  behavior changed. Retrieval remains disconnected from LangGraph until
+  sub-phase 3.6.
+
+**Status:** `[x]` Complete — Phase 3.5 accepted locally; stop for review before
+sub-phase 3.6.
+
+## Sub-phase 3.6 — Workflow Integration and Phase 3 Gate
+
+### 3.6.1 — Workflow Evidence and Runtime Contracts
+
+- `[x]` Add a content-free evidence summary carrying only the assessment,
+  policy version, query fingerprint, match count, and ranked document/chunk
+  identifiers.
+- `[x]` Require in-memory citations to agree exactly with that summary; reject
+  missing, contradictory, duplicate, or provider-specific state.
+- `[x]` Add the provider-neutral guideline retriever to immutable workflow
+  runtime context without invoking it from LangGraph yet.
+- `[x]` Keep full retrieval matches, chunk bodies, patient context, and the raw
+  query outside the durable workflow snapshot.
+
+Routing policy fixed for the next checkpoint:
+
+| Retrieval outcome | Workflow route |
+|---|---|
+| Sufficient, valid evidence | Continue with application-owned citations |
+| Insufficient evidence | Pause for human review without a generated answer |
+| Conflicting evidence | Pause for human review with evidence identifiers only |
+| Timeout | Fail with a stable retrieval-timeout code |
+| Unavailable dependency | Fail with a stable retrieval-unavailable code |
+| Malformed/unsafe result | Fail with a stable invalid-evidence code |
+
+### 3.6.2 — Retrieval Graph Node and Safe Routing
+
+- `[x]` Insert guideline retrieval after patient context and before safety and
+  response generation.
+- `[x]` Build the bounded retrieval request inside the application without
+  adding patient identifiers or summaries,
+  and implement the routing policy above with bounded retry/timeout behavior.
+- `[x]` Emit minimal retrieval audit metadata without bodies, queries, prompts,
+  excerpts, or provider payloads.
+
+### 3.6.3 — Cited Generation, Audit, and Persistence
+
+- `[x]` Permit guideline-backed generation only for sufficient evidence with
+  validated application-owned citations.
+- `[x]` Project citations and content-free evidence metadata through the
+  redacted run snapshot without persisting retrieval chunk bodies.
+- `[x]` Prove missing or contradictory evidence cannot produce a completed
+  answer or fabricated citation.
+
+### 3.6.4 — End-to-End Phase 3 Gate and Documentation
+
+- `[x]` Run deterministic, live Weaviate, failure-path, restart, and
+  isolated-source gates.
+- `[x]` Complete the seeded cited scenario and verify every citation resolves
+  to the exact indexed source location.
+- `[x]` Update architecture, development, contracts, safety policy, and roadmap
+  status, then stop for final Phase 3 review.
+
+### Verification Record
+
+Verified on 2026-08-03:
+
+- The locked HAPI cohort resolved four stable synthetic patients.
+- The exact `ClinicalGuidelineChunkV1` index contained two reviewed documents
+  and 135 chunks. Re-ingestion reported `inserted=0`, `replaced=0`,
+  `skipped=135`, and `deleted=0`.
+- All nine committed retrieval cases passed: four sufficient, five
+  insufficient, and 12 citations with expected source/chunk identities.
+- `make phase3-live-gate` completed a seeded workflow with five citations whose
+  first source/chunk matched the locked evaluation expectation. Persisted
+  inspection returned the identical redacted snapshot.
+- The same gate proved insufficient evidence pauses for review, unsupported
+  intent rejects, interrupted checkpoints fail without replay, and outputs do
+  not expose the query or patient ID/context.
+- Known patient IDs and display names are rejected before a guideline query is
+  issued; patient summaries and FHIR payloads are never query fields.
+- `make check` passed with 232 backend and 6 frontend tests, strict static
+  checks, the frontend production build, and Compose validation.
+- A source-only copy without Git history, ignored documents/chunks/FHIR
+  fixtures, environment files, databases, tooling, dependencies, caches, or
+  build output bootstrapped with `make setup` and passed `make check`.
+
+**Status:** `[x]` Complete — Phase 3 accepted locally; stop for final review
+before creating the Phase 4 branch.
+
+## Phase Exit Criteria
+
+- `[x]` A seeded synthetic clinical-QA run completes with at least one verified
+  citation from an approved guideline.
+- `[x]` Citation metadata resolves to the exact indexed document location.
+- `[x]` Missing, weak, unavailable, malformed, or conflicting evidence fails
+  safely or requires review without fabricated claims.
+- `[x]` Re-ingestion and retrieval are deterministic and idempotent.
+- `[x]` No patient data enters the corpus, vector metadata, embeddings, or
+  committed fixtures.
+- `[x]` Repository, live retrieval, and isolated-source quality gates pass.

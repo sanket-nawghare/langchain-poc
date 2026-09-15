@@ -1,0 +1,236 @@
+"""Graph state, reducer, and workflow transition semantics."""
+
+from datetime import datetime
+from typing import Annotated, TypedDict
+
+from pydantic import ValidationError
+
+from app.domain.audit import AuditEvent
+from app.domain.clinical import PatientSummary
+from app.domain.guidelines import (
+    GuidelineEvidenceSummary,
+    GuidelineRetrievalResult,
+)
+from app.domain.safety import SafetyResult
+from app.domain.workflow import (
+    GeneratedResponse,
+    Intent,
+    ResponseDraft,
+    WorkflowState,
+    WorkflowStatus,
+    WorkflowTransition,
+)
+
+TERMINAL_WORKFLOW_STATUSES = frozenset(
+    {
+        WorkflowStatus.COMPLETED,
+        WorkflowStatus.REJECTED,
+        WorkflowStatus.FAILED,
+    }
+)
+ALLOWED_WORKFLOW_TRANSITIONS: dict[
+    WorkflowStatus,
+    frozenset[WorkflowStatus],
+] = {
+    WorkflowStatus.QUEUED: frozenset(
+        {
+            WorkflowStatus.RUNNING,
+            WorkflowStatus.FAILED,
+        }
+    ),
+    WorkflowStatus.RUNNING: frozenset(
+        {
+            WorkflowStatus.PENDING_REVIEW,
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.REJECTED,
+            WorkflowStatus.FAILED,
+        }
+    ),
+    WorkflowStatus.PENDING_REVIEW: frozenset(
+        {
+            WorkflowStatus.RUNNING,
+            WorkflowStatus.REJECTED,
+            WorkflowStatus.FAILED,
+        }
+    ),
+    WorkflowStatus.COMPLETED: frozenset(),
+    WorkflowStatus.REJECTED: frozenset(),
+    WorkflowStatus.FAILED: frozenset(),
+}
+
+
+class InvalidWorkflowTransition(ValueError):
+    """A requested status transition violates workflow lifecycle rules."""
+
+
+def append_transitions(
+    current: list[WorkflowTransition],
+    updates: list[WorkflowTransition],
+) -> list[WorkflowTransition]:
+    """Return a new append-only transition list without mutating inputs."""
+
+    return [*current, *updates]
+
+
+class WorkflowGraphState(TypedDict):
+    """Mutable LangGraph state around the durable workflow contract."""
+
+    workflow: WorkflowState
+    transitions: Annotated[list[WorkflowTransition], append_transitions]
+
+
+class WorkflowGraphUpdate(TypedDict, total=False):
+    """Partial state update emitted by a workflow node."""
+
+    workflow: WorkflowState
+    transitions: list[WorkflowTransition]
+
+
+def set_workflow_intent(
+    workflow: WorkflowState,
+    intent: Intent,
+) -> WorkflowState:
+    """Return a validated workflow copy with a structured intent."""
+
+    values = workflow.model_dump()
+    values["intent"] = intent
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_patient_data(
+    workflow: WorkflowState,
+    patient: PatientSummary,
+) -> WorkflowState:
+    """Return a validated workflow copy with normalized patient context."""
+
+    values = workflow.model_dump()
+    values["patient_data"] = patient
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_guideline_evidence(
+    workflow: WorkflowState,
+    result: GuidelineRetrievalResult,
+) -> WorkflowState:
+    """Project validated retrieval evidence into content-bounded workflow state."""
+
+    values = workflow.model_dump()
+    values.update(
+        {
+            "guideline_evidence": GuidelineEvidenceSummary.from_retrieval_result(
+                result
+            ),
+            "retrieved_guidelines": [match.citation for match in result.matches],
+        }
+    )
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_safety_result(
+    workflow: WorkflowState,
+    safety_result: SafetyResult,
+) -> WorkflowState:
+    """Return a validated workflow copy with a structured safety result."""
+
+    values = workflow.model_dump()
+    values.update(
+        {
+            "safety_result": safety_result,
+            "requires_human_review": safety_result.requires_human_review,
+        }
+    )
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_response_draft(
+    workflow: WorkflowState,
+    response_draft: ResponseDraft,
+) -> WorkflowState:
+    """Return a validated workflow copy with a non-final response draft."""
+
+    values = workflow.model_dump()
+    values["response_draft"] = response_draft
+    return WorkflowState.model_validate(values)
+
+
+def set_workflow_post_generation_safety_result(
+    workflow: WorkflowState,
+    safety_result: SafetyResult,
+) -> WorkflowState:
+    """Return a validated workflow copy with draft-specific safety routing."""
+
+    expected_review = (
+        bool(workflow.safety_result and workflow.safety_result.requires_human_review)
+        or safety_result.requires_human_review
+    )
+    values = workflow.model_dump()
+    values.update(
+        {
+            "post_generation_safety_result": safety_result,
+            "requires_human_review": expected_review,
+        }
+    )
+    return WorkflowState.model_validate(values)
+
+
+def append_workflow_audit_events(
+    workflow: WorkflowState,
+    events: list[AuditEvent],
+) -> WorkflowState:
+    """Append validated audit events without mutating either input."""
+
+    values = workflow.model_dump()
+    values["audit_log"] = [*workflow.audit_log, *events]
+    return WorkflowState.model_validate(values)
+
+
+def transition_workflow(
+    workflow: WorkflowState,
+    to_status: WorkflowStatus,
+    *,
+    occurred_at: datetime,
+    step: str,
+    failure_code: str | None = None,
+    final_response: GeneratedResponse | None = None,
+) -> tuple[WorkflowState, WorkflowTransition]:
+    """Apply one validated, monotonic workflow status transition."""
+
+    if to_status not in ALLOWED_WORKFLOW_TRANSITIONS[workflow.status]:
+        raise InvalidWorkflowTransition(
+            f"transition from {workflow.status} to {to_status} is not allowed"
+        )
+    if (to_status == WorkflowStatus.FAILED) != (failure_code is not None):
+        raise InvalidWorkflowTransition(
+            "failure_code must be set only when transitioning to failed"
+        )
+    if (to_status == WorkflowStatus.COMPLETED) != (final_response is not None):
+        raise InvalidWorkflowTransition(
+            "final_response must be set only when transitioning to completed"
+        )
+
+    try:
+        transition = WorkflowTransition(
+            from_status=workflow.status,
+            to_status=to_status,
+            occurred_at=occurred_at,
+            step=step,
+        )
+    except ValidationError as error:
+        raise InvalidWorkflowTransition(
+            "workflow transition fields are invalid"
+        ) from error
+    if transition.occurred_at < workflow.updated_at:
+        raise InvalidWorkflowTransition(
+            "workflow transition timestamp must be monotonic"
+        )
+
+    updated_values = workflow.model_dump()
+    updated_values.update(
+        {
+            "status": to_status,
+            "updated_at": transition.occurred_at,
+            "failure_code": failure_code,
+            "final_response": final_response,
+        }
+    )
+    return WorkflowState.model_validate(updated_values), transition

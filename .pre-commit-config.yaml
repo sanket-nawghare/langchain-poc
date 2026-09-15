@@ -1,0 +1,33 @@
+repos:
+  - repo: local
+    hooks:
+      - id: backend-format
+        name: backend format
+        entry: make backend-format-check
+        language: system
+        pass_filenames: false
+        files: ^(backend|scripts)/.*\.py$
+      - id: backend-lint
+        name: backend lint
+        entry: make backend-lint
+        language: system
+        pass_filenames: false
+        files: ^(backend|scripts)/.*\.py$
+      - id: frontend-format
+        name: frontend format
+        entry: make frontend-format-check
+        language: system
+        pass_filenames: false
+        files: ^frontend/
+      - id: frontend-lint
+        name: frontend lint
+        entry: make frontend-lint
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(js|ts|tsx)$
+      - id: compose-config
+        name: Docker Compose configuration
+        entry: make infra-config
+        language: system
+        pass_filenames: false
+        files: ^(compose\.yaml|docker/)

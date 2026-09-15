@@ -1,0 +1,74 @@
+{
+  "content": "reviewed-guideline-provenance-and-checksums-only",
+  "documents": [
+    {
+      "artifact": {
+        "download_url": "https://iris.who.int/server/api/core/bitstreams/2a0b4f68-7155-4ad1-b543-945791e31830/content",
+        "filename": "who-hearts-d-2020.pdf",
+        "page_count": 35,
+        "size_bytes": 1248098
+      },
+      "source": {
+        "accessed_at": "2026-08-03",
+        "canonical_url": "https://www.who.int/southeastasia/publications/i/item/who-ucn-ncd-20.1",
+        "content_sha256": "71b216b19a227e73e0e624274974571a3530e30a0db37a3d10b6d179eefac008",
+        "document_format": "pdf",
+        "document_id": "who-hearts-d-2020",
+        "language": "en",
+        "license_name": "CC BY-NC-SA 3.0 IGO",
+        "license_review_note": "Reviewed the document copyright page and WHO publication record. Approved for attributed, non-commercial local indexing only; exclude third-party material and the WHO logo.",
+        "license_reviewed_at": "2026-08-03",
+        "license_url": "https://creativecommons.org/licenses/by-nc-sa/3.0/igo/",
+        "lifecycle_status": "current",
+        "publication_date": "2020-04-22",
+        "publisher": "who",
+        "supported_topics": [
+          "type 2 diabetes diagnosis",
+          "type 2 diabetes management",
+          "glycaemic monitoring"
+        ],
+        "title": "Diagnosis and management of type 2 diabetes (HEARTS-D)",
+        "use_permission": "local_index_only",
+        "version": "WHO/UCN/NCD/20.1"
+      },
+      "supported_scenarios": [
+        "metabolic-01"
+      ]
+    },
+    {
+      "artifact": {
+        "download_url": "https://iris.who.int/server/api/core/bitstreams/f062769d-f075-4a00-87af-0a2106e0bd04/content",
+        "filename": "who-hypertension-2021.pdf",
+        "page_count": 61,
+        "size_bytes": 843539
+      },
+      "source": {
+        "accessed_at": "2026-08-03",
+        "canonical_url": "https://www.who.int/publications/i/item/9789240033986",
+        "content_sha256": "57f6376d5c9bc4ea6c44873625547c8a5443d5a6ad8c8c422733681563db05fb",
+        "document_format": "pdf",
+        "document_id": "who-hypertension-2021",
+        "language": "en",
+        "license_name": "CC BY-NC-SA 3.0 IGO",
+        "license_review_note": "Reviewed the document copyright page and WHO publication record. Approved for attributed, non-commercial local indexing only; exclude third-party material and the WHO logo.",
+        "license_reviewed_at": "2026-08-03",
+        "license_url": "https://creativecommons.org/licenses/by-nc-sa/3.0/igo/",
+        "lifecycle_status": "current",
+        "publication_date": "2021-08-24",
+        "publisher": "who",
+        "supported_topics": [
+          "adult hypertension",
+          "blood pressure targets",
+          "pharmacological treatment"
+        ],
+        "title": "Guideline for the pharmacological treatment of hypertension in adults",
+        "use_permission": "local_index_only",
+        "version": "ISBN 978-92-4-003398-6"
+      },
+      "supported_scenarios": [
+        "cardiovascular-01"
+      ]
+    }
+  ],
+  "schema_version": 1
+}
